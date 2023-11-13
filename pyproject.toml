@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bubblewrap"
+version = "0.0.1"
+description = "Methods for real-time prediction of latent neural dynamics"
+authors = [{name = "Anne Draelos"},
+           {name = "Jonathan Gould"},
+           {name = "Pranjal Gupta"},
+           {name = "Na Young Jun"},
+           {name = "Chaichontat Sriworarat"},
+           {name = "John Pearson", email = "john.pearson@duke.edu"}]
+
+readme = "README.md"
+requires-python = ">=3.7"
+keywords = ["neuroscience", "prediction", "dynamics"]
+dependencies = [] # todo: might be able to migrate pyproject.toml to requirements.txt and then use dynamic metadata?
+
+
+[tool.setuptools]
+packages = ["bubblewrap"]
+
+[tool.distutils.egg_info]
+egg_base = "dist"
