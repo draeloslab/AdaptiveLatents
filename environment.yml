@@ -1,0 +1,18 @@
+name: bubblewrap
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - numpy
+  - matplotlib
+  - scikit-learn
+  - jaxlib
+  - jax
+  - tqdm
+  - pyyaml
+  - pytest
+  - pandas
+  - ffmpeg
+  - jupyter
+  - pip:
+      - proSVD
