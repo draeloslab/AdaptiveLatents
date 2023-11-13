@@ -1,4 +1,4 @@
-# Bubblewrap
+# Adaptive Latents project codebase
 
 ## Quickstart
 ```bash
