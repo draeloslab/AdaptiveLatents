@@ -1,9 +1,9 @@
 import matplotlib.pyplot as plt
-import bubblewrap.plotting_functions as bpf
+import adaptive_latents.plotting_functions as bpf
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from bubblewrap.bw_run import BWRun
+    from adaptive_latents.bw_run import BWRun
 
 
 
@@ -30,11 +30,8 @@ def test_axis_plots(make_br):
     bpf.show_bubbles_2d(axs[0], obs, bw)
     bpf.show_nstep_pred_pdf(axs[1], br, axs[0], fig=fig, offset=offset)
 
-
     ### to fix ###
-    # bpf.br_plot_3d(br)
-    # bpf.show_Ct_y(ax, regressor=bw.regressor)
-    # bpf.show_w_sideways(ax, bw, current_behavior)
+    # bpf.show_alphas_given_regression_value is False
 
 def test_comparison_plots(make_br):
     brs = [make_br() for _ in range(3)]

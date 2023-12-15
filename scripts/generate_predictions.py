@@ -1,9 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import bubblewrap as bw
-import bubblewrap.input_sources.functional as fin
+import adaptive_latents as bw
+import adaptive_latents.input_sources.functional as fin
 import tqdm as tqdm
-from bubblewrap.input_sources.data_sources import NumpyTimedDataSource
+from adaptive_latents.input_sources.data_sources import NumpyTimedDataSource
 
 def main():
     ca, vid, t_ca, t_vid = fin.generate_musal_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_init_size=100)

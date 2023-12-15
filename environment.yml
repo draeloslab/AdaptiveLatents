@@ -1,18 +1,24 @@
-name: bubblewrap
+name: adaptive_latents
 channels:
   - conda-forge
   - defaults
 dependencies:
+  - jax
+  - jaxlib
   - numpy
   - matplotlib
   - scikit-learn
-  - jaxlib
-  - jax
   - tqdm
   - pyyaml
   - pytest
   - pandas
   - ffmpeg
   - jupyter
+  - h5py
+  - pynwb
+  - scikit-image
+  - pip
   - pip:
       - proSVD
+      # this is the GPU version
+      # - jax[cuda12_pip] -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html

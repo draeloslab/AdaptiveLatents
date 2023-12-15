@@ -2,9 +2,12 @@
 
 ## Quickstart
 ```bash
-git clone https://github.com/draeloslab/bubblewrap
+git clone https://github.com/draeloslab/AdaptiveLatents
+cd AdaptiveLatents
 conda env create --file=environment.yml
-conda activate bubblewrap
+# run the following line if you want to use the GPU version of jax
+# python -m "pip" install "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+conda activate adaptive_latents
 mkdir dist
 pip install -e .
 pytest .  # (optional)

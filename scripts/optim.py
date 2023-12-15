@@ -1,7 +1,7 @@
-from bubblewrap import Bubblewrap, BWRun, AnimationManager, SymmetricNoisyRegressor
-from bubblewrap.regressions import NearestNeighborRegressor
-from bubblewrap.default_parameters import default_jpca_dataset_parameters
-from bubblewrap.input_sources.data_sources import NumpyDataSource, PairWrapperSource
+from adaptive_latents import Bubblewrap, BWRun, AnimationManager, SymmetricNoisyRegressor
+from adaptive_latents.regressions import NearestNeighborRegressor
+from adaptive_latents.default_parameters import default_jpca_dataset_parameters
+from adaptive_latents.input_sources.data_sources import NumpyDataSource, PairWrapperSource
 import numpy as np
 
 
@@ -156,5 +156,5 @@ def main():
 
 
 if __name__ == '__main__':
-    # IMPORTANT: bubblewrap has to run once before Ax gets imported or things break
+    # IMPORTANT: adaptive_latents has to run once before Ax gets imported or things break
     main()
