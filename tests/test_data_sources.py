@@ -1,6 +1,6 @@
 import numpy as np
-from bubblewrap.input_sources.data_sources import NumpyPairedDataSource, ConsumableDataSource
-import bubblewrap.input_sources.functional as fin
+from adaptive_latents.input_sources.data_sources import NumpyPairedDataSource, ConsumableDataSource
+import adaptive_latents.input_sources.functional as fin
 import pytest
 
 

@@ -3,14 +3,14 @@ import os
 import pickle
 import json
 from proSVD import proSVD
-import bubblewrap
+import adaptive_latents
 from tqdm import tqdm
 import hashlib
 import h5py
 from pynwb import NWBHDF5IO
 from skimage.transform import resize
 from scipy.io import loadmat
-from bubblewrap.config import CONFIG
+from adaptive_latents.config import CONFIG
 import time
 
 
@@ -32,7 +32,7 @@ def make_hashable_and_hash(x):
     return int(hashlib.sha1(make_hashable(x)).hexdigest(), 16)
 
 
-def save_to_cache(file, location=bubblewrap.config.CONFIG["data_path"] / "cache"):
+def save_to_cache(file, location=adaptive_latents.config.CONFIG["data_path"] / "cache"):
     if not os.path.exists(location):
         os.mkdir(location)
     cache_index_file = os.path.join(location, f"{file}_index.pickle")
@@ -43,7 +43,7 @@ def save_to_cache(file, location=bubblewrap.config.CONFIG["data_path"] / "cache"
         cache_index = {}
 
     def decorator(original_function):
-        if not bubblewrap.config.CONFIG["attempt_to_cache"]:
+        if not adaptive_latents.config.CONFIG["attempt_to_cache"]:
             return original_function
 
         def new_function(**kwargs):
@@ -77,7 +77,7 @@ def save_to_cache(file, location=bubblewrap.config.CONFIG["data_path"] / "cache"
 
 
 def get_from_saved_npz(filename):
-    dataset = np.load(os.path.join(bubblewrap.config.CONFIG["data_path"], filename))
+    dataset = np.load(os.path.join(adaptive_latents.config.CONFIG["data_path"], filename))
     beh = dataset['x']
 
     if len(dataset['y'].shape) == 3:
@@ -148,7 +148,7 @@ def shuffle_time(*input_arr_list, rng=None):
 @save_to_cache("bwrap_alphas")
 def bwrap_alphas(input_arr, bw_params):
     alphas = []
-    bw = bubblewrap.Bubblewrap(dim=input_arr.shape[1], **bw_params)
+    bw = adaptive_latents.Bubblewrap(dim=input_arr.shape[1], **bw_params)
     for step in range(len(input_arr)):
         bw.observe(input_arr[step])
 
@@ -168,7 +168,7 @@ def bwrap_alphas(input_arr, bw_params):
 @save_to_cache("bwrap_alphas_ahead")
 def bwrap_alphas_ahead(input_arr, bw_params, nsteps=(1,)):
     returns = {x:[] for x in nsteps}
-    bw = bubblewrap.Bubblewrap(dim=input_arr.shape[1], **bw_params)
+    bw = adaptive_latents.Bubblewrap(dim=input_arr.shape[1], **bw_params)
     for step in tqdm(range(len(input_arr))):
         bw.observe(input_arr[step])
 
@@ -461,7 +461,7 @@ datasets = {
 def main():
     obs, beh = get_from_saved_npz("jpca_reduced_sc.npz")
     obs = zscore(prosvd_data(obs, output_d=2, init_size=30), init_size=3)
-    alphas = bwrap_alphas(input_arr=obs, bw_params=bubblewrap.default_parameters.default_jpca_dataset_parameters)
+    alphas = bwrap_alphas(input_arr=obs, bw_params=adaptive_latents.default_parameters.default_jpca_dataset_parameters)
     print(alphas)
 
 

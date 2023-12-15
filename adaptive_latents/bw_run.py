@@ -1,4 +1,4 @@
-from bubblewrap import Bubblewrap
+from adaptive_latents import Bubblewrap
 import datetime
 import pickle
 import os
@@ -276,7 +276,7 @@ class AnimationManager:
 
     def __init__(self):
         self.movie_writer = FFMpegFileWriter(fps=self.fps)
-        self.fig, self.ax = plt.subplots(self.n_rows, self.n_cols, figsize=self.figsize, layout='tight')
+        self.fig, self.ax = plt.subplots(self.n_rows, self.n_cols, figsize=self.figsize, layout='tight', squeeze=False)
         self.movie_writer.setup(self.fig, self.outfile, dpi=self.dpi)
         self.finished = False
         self.final_output_location = None

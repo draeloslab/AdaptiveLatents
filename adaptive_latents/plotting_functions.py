@@ -5,8 +5,8 @@ from math import atan2
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import bubblewrap
-    from bubblewrap import BWRun
+    import adaptive_latents
+    from adaptive_latents import BWRun
 
 
 def show_bubbles_2d(ax, data, bw, alpha_coefficient=1):
@@ -188,7 +188,7 @@ def show_alpha(ax, br, offset=0):
 def show_behavior_variables(ax, br, beh):
     # todo: this function is fragile, maybe delete it?
     ax.cla()
-    br: bubblewrap.bw_run.BWRun
+    br: adaptive_latents.bw_run.BWRun
     ax.plot(br.behavior_pred_history[0][-20:])
     ax.plot(beh[-20:])
     ax.set_title("Behavior prediction")
@@ -270,13 +270,14 @@ def show_nstep_pred_pdf(ax, br, other_axis, fig, offset=1):
     ax.set_title(f"{offset}-step pred.")
 
 
-def show_alphas_given_regression_value(ax, br, behavior_value, step, history_length=50, hist_axis=None):
+def show_alphas_given_regression_value(ax, br, behavior_value, step, history_length=50, alpha_offset=1, hist_axis=None):
+    # this is probably best used with a discrete output and the nearest neighbor regression
     br: BWRun
     ax: plt.Axes
-    obs_hist, beh_hist = br.data_source.get_history()
+    beh_hist = br.beh_ds.get_history()
     shorter = min(len(beh_hist), len(br.alpha_history))
     beh_hist = beh_hist[-shorter:]
-    a_hist = np.array(br.alpha_history[-shorter:])
+    a_hist = np.array(br.alpha_history[alpha_offset][-shorter:])
     mask = np.squeeze(beh_hist == behavior_value)
     to_show = a_hist[mask]
     to_show = to_show[-history_length:]
@@ -314,7 +315,7 @@ def _one_sided_ewma(data, com=100):
 
 
 def _deduce_bw_parameters(bw):
-    bw: bubblewrap.Bubblewrap
+    bw: adaptive_latents.Bubblewrap
     return dict(dim=bw.d,
                 num=bw.N,
                 seed=bw.seed,
@@ -350,7 +351,7 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
 
     n = 0
     for idx, br in enumerate(brs):
-        br: bubblewrap.bw_run.BWRun
+        br: adaptive_latents.bw_run.BWRun
         n = max(n, br.entropy_history[offset].shape[0])
 
         xlim = n * np.array([-0.01, 1.07])

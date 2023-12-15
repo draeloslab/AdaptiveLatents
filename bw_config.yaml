@@ -1,4 +1,4 @@
-# these only apply to the bubblewrap.input_sources.functional file
+# these only apply to the adaptive_latents.input_sources.functional file
 attempt_to_cache: True
 validate_cache: False # this doesn't work yet
 show_cache_files: True

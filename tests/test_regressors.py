@@ -1,4 +1,4 @@
-from bubblewrap.regressions import NearestNeighborRegressor, SymmetricNoisyRegressor, WindowRegressor
+from adaptive_latents.regressions import NearestNeighborRegressor, SymmetricNoisyRegressor, WindowRegressor
 import pytest
 import numpy as np
 

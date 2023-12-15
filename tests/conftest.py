@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
-from bubblewrap import Bubblewrap, NumpyPairedDataSource, BWRun, SymmetricNoisyRegressor, default_clock_parameters
-from bubblewrap.input_sources.data_sources import NumpyTimedDataSource
+from adaptive_latents import Bubblewrap, NumpyPairedDataSource, BWRun, SymmetricNoisyRegressor, default_clock_parameters
+from adaptive_latents.input_sources.data_sources import NumpyTimedDataSource
 
 @pytest.fixture
 def outdir(tmpdir):

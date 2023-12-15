@@ -1,10 +1,14 @@
-from bubblewrap import Bubblewrap
-from bubblewrap.default_parameters import default_clock_parameters
-from bubblewrap.input_sources.data_sources import NumpyPairedDataSource, NumpyTimedDataSource
-from bubblewrap.bw_run import BWRun, AnimationManager
-import bubblewrap.plotting_functions as bpf
-from bubblewrap.regressions import SymmetricNoisyRegressor
+from adaptive_latents import Bubblewrap
+from adaptive_latents.default_parameters import default_clock_parameters
+from adaptive_latents.input_sources.data_sources import NumpyPairedDataSource, NumpyTimedDataSource
+from adaptive_latents.bw_run import BWRun, AnimationManager
+import adaptive_latents.plotting_functions as bpf
+from adaptive_latents.regressions import SymmetricNoisyRegressor
+from scripts.main import main
 
+def test_can_use_cuda():
+    from jax.lib import xla_bridge
+    assert xla_bridge.get_backend().platform == 'gpu'
 
 def test_can_run_with_beh(rng, outdir):
     m, n_obs, n_beh = 150, 3, 4
@@ -39,7 +43,7 @@ def test_can_make_video(rng, outdir):
         n_cols = 1
         outfile = outdir / "movie.mp4"
         def custom_draw_frame(self, step, bw, br):
-            bpf.show_A(self.ax, bw) # note: you would usually index into ax, but this call uses 1 row and 1 column
+            bpf.show_A(self.ax[0,0], bw) # note: you would usually index into ax, but this call uses 1 row and 1 column
 
     ca = CustomAnimation()
 
@@ -48,8 +52,7 @@ def test_can_make_video(rng, outdir):
     br = BWRun(bw, obs_ds, beh_ds, behavior_regressor=reg, animation_manager=ca, show_tqdm=False, output_directory=outdir)
     br.run()
 
-def test_can_use_cuda():
-    from jax.lib import xla_bridge
-    assert xla_bridge.get_backend().platform == 'gpu'
+def test_run_main(outdir):
+    main(output_directory=outdir, steps_to_run=500)
 
 # TODO: test different regressors work together
