@@ -1,6 +1,6 @@
 from adaptive_latents import Bubblewrap
 from adaptive_latents.default_parameters import default_clock_parameters
-from adaptive_latents.input_sources.data_sources import NumpyPairedDataSource, NumpyTimedDataSource
+from adaptive_latents.input_sources.data_sources import NumpyTimedDataSource
 from adaptive_latents.bw_run import BWRun, AnimationManager
 import adaptive_latents.plotting_functions as bpf
 from adaptive_latents.regressions import SymmetricNoisyRegressor

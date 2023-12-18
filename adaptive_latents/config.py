@@ -2,7 +2,7 @@ import yaml
 import os
 import pathlib
 
-config_file_name = "bw_config.yaml"
+config_file_name = "adaptive_latents_config.yaml"
 
 def get_raw_config():
     pwd = pathlib.Path(os.curdir).resolve()

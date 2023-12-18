@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from adaptive_latents import Bubblewrap, NumpyPairedDataSource, BWRun, SymmetricNoisyRegressor, default_clock_parameters
+from adaptive_latents import Bubblewrap, BWRun, SymmetricNoisyRegressor, default_clock_parameters
 from adaptive_latents.input_sources.data_sources import NumpyTimedDataSource
 
 @pytest.fixture
