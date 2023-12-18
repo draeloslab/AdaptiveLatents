@@ -7,15 +7,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegFileWriter
 from .input_sources.functional import save_to_cache
-from .input_sources.data_sources import NumpyPairedDataSource, NumpyTimedDataSource
+from .input_sources.data_sources import NumpyTimedDataSource
 import warnings
 import time
 from .config import CONFIG
 
 from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
-    from .input_sources.data_sources import NumpyPairedDataSource, ConsumableDataSource
     from .regressions import OnlineRegressor
 
 @save_to_cache("simple_bw_run")
