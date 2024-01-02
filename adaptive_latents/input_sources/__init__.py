@@ -1,3 +1,4 @@
+from . import hmm_simulation
 from .data_sources import NumpyTimedDataSource
 from .functional import (
     clip,
@@ -9,9 +10,8 @@ from .functional import (
     bwrap_alphas_ahead,
     resample_behavior
 )
-from datasets import (
+from .datasets import (
     construct_buzaki_data,
     construct_indy_data,
     construct_fly_data,
-    datasets
 )
