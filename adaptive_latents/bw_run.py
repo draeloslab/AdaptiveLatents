@@ -57,6 +57,7 @@ class BWRun:
         self.bw_timepoint_history = []
         self.reg_timepoint_history = []
         self.runtime = None
+        self.runtime_since_init = None
 
         self.n_living_history = []
         if save_A:
@@ -73,6 +74,7 @@ class BWRun:
 
     def run(self, save=False, limit=None, freeze=True):
         start_time = time.time()
+        time_since_init = None
 
         if len(self.obs_ds) < self.bw.M:
             warnings.warn("Data length shorter than initialization.")
@@ -102,6 +104,7 @@ class BWRun:
                         self.bw.init_nodes()
                         self.bw.e_step()  # todo: is this OK?
                         self.bw.grad_Q()
+                        time_since_init = time.time()
                     else:
                         self.bw.e_step()
                         self.bw.grad_Q()
@@ -134,9 +137,9 @@ class BWRun:
                     beh_next_t, beh_done = float("inf"), True
 
 
-
-
-        self.runtime = time.time() - start_time
+        end_time = time.time()
+        self.runtime_since_init = end_time - time_since_init
+        self.runtime = end_time - start_time
 
         if freeze:
             self.finish_and_remove_jax()
