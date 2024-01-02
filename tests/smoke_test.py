@@ -1,9 +1,10 @@
 from adaptive_latents import Bubblewrap
-from adaptive_latents.default_parameters import default_clock_parameters
+from adaptive_latents.default_parameters import default_clock_parameters, default_rwd_parameters
 from adaptive_latents.input_sources.data_sources import NumpyTimedDataSource
 from adaptive_latents.bw_run import BWRun, AnimationManager
 import adaptive_latents.plotting_functions as bpf
 from adaptive_latents.regressions import SymmetricNoisyRegressor
+import adaptive_latents.input_sources.datasets as datasets
 from scripts.main import main
 
 def test_can_use_cuda():
@@ -50,6 +51,19 @@ def test_can_make_video(rng, outdir):
     bw = Bubblewrap(3, **default_clock_parameters)
     reg = SymmetricNoisyRegressor(bw.N, n_beh)
     br = BWRun(bw, obs_ds, beh_ds, behavior_regressor=reg, animation_manager=ca, show_tqdm=False, output_directory=outdir)
+    br.run()
+
+
+def test_can_run_on_sparse_data(outdir):
+    identifier = datasets.individual_identifiers["buzaki"][0]
+    obs, raw_behavior, obs_t, beh_t = datasets.construct_buzaki_data(individual_identifier=identifier, bin_width=.03)
+
+    obs_ds = NumpyTimedDataSource(obs, obs_t, (0, 1))
+    beh_ds = NumpyTimedDataSource(raw_behavior, beh_t, (0, 1))
+
+    bw = Bubblewrap(obs.shape[1], **default_rwd_parameters)
+    reg = SymmetricNoisyRegressor(bw.N, raw_behavior.shape[1])
+    br = BWRun(bw, obs_ds=obs_ds, beh_ds=beh_ds, behavior_regressor=reg, show_tqdm=False, output_directory=outdir)
     br.run()
 
 def test_run_main(outdir):
