@@ -15,7 +15,7 @@ dependencies = [] # todo: might be able to migrate pyproject.toml to requirement
 
 
 [tool.setuptools]
-packages = ["bubblewrap"]
+packages = ["adaptive_latents"]
 
 [tool.distutils.egg_info]
 egg_base = "dist"

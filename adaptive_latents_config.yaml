@@ -1,7 +1,7 @@
 # these only apply to the adaptive_latents.input_sources.functional file
 attempt_to_cache: True
-validate_cache: False # this doesn't work yet
 show_cache_files: True
 
-data_path: ./generated/datasets
+# data_path: ./generated/datasets
+data_path: /home/jgould/Documents/Bubblewrap/generated/datasets
 output_path: ./generated

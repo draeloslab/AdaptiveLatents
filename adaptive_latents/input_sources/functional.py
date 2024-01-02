@@ -6,8 +6,6 @@ from proSVD import proSVD
 import adaptive_latents
 from tqdm import tqdm
 import hashlib
-from skimage.transform import resize
-from scipy.io import loadmat
 from adaptive_latents.config import CONFIG
 
 class NumpyEncoder(json.JSONEncoder):
@@ -57,10 +55,6 @@ def save_to_cache(file, location=adaptive_latents.config.CONFIG["data_path"] / "
                 cache_index[kwargs_as_key] = cache_file
                 with open(cache_index_file, 'bw') as fhan:
                     pickle.dump(cache_index, fhan)
-            elif CONFIG["validate_cache"]: # TODO: this doesn't work
-                result = original_function(**kwargs)
-                with open(os.path.join(location, cache_index[kwargs_as_key]), 'rb') as fhan:
-                    assert make_hashable_and_hash(result) == make_hashable_and_hash(pickle.load(fhan))
 
             with open(os.path.join(location, cache_index[kwargs_as_key]), 'rb') as fhan:
                 if CONFIG["show_cache_files"]:
@@ -220,69 +214,6 @@ def resample_behavior(raw_behavior,bin_centers,t):
         resampled_behavior[:,c] = np.interp(bin_centers, t[good_samples], raw_behavior[good_samples,c])
     return resampled_behavior
 
-@save_to_cache("generate_musal_dataset")
-def generate_musal_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_init_size=100):
-    """cam ∈ {1,2}"""
-    ca_sampling_rate = 31
-    video_sampling_rate = 30
-
-    #### load A
-    data_dir = CONFIG["data_path"] / "musal/their_data/2pData/Animals/mSM49/SpatialDisc/30-Jul-2018/"
-    variables = loadmat(data_dir/"data.mat",  squeeze_me=True, simplify_cells=True)
-    A = variables["data"]['dFOF']
-    _,n_samples_per_trial,_ = A.shape
-    A = np.vstack(A.T)
-
-    #### load trial start and end times, in video frames
-    def read_floats(file):
-        with open(file) as fhan:
-            text = fhan.read()
-            return [float(x) for x in text.split(",")]
-    on_times = read_floats(CONFIG["data_path"] / "musal" / "trialOn.txt")
-    off_times = read_floats(CONFIG["data_path"] / "musal" / "trialOff.txt")
-    trial_edges = np.array([on_times, off_times]).T
-    trial_edges = trial_edges[np.all(np.isfinite(trial_edges), axis=1)].astype(int)
-
-    #### load video
-    root_dir = data_dir / "BehaviorVideo"
-
-    start_V = 0  # 29801
-    end_V = trial_edges.max() # 89928
-    used_V = end_V - start_V
-
-    Wid, Hei = 320, 240
-    Wid0, Hei0 = Wid//4, Hei//4
-
-    # resized by half
-    Data = np.zeros((used_V, Wid//resize_factor, Hei//resize_factor))
-
-    for k in tqdm(range(16)):
-        name = f'{root_dir}/SVD_Cam{cam}-Seg{k+1}.mat'
-        # Load MATLAB .mat file
-        mat_contents = loadmat(name)
-        V = mat_contents['V'] # (89928, 500)
-        U = mat_contents['U'] # (500, 4800)
-
-        VU = V[start_V:end_V, :].dot(U) # (T, 4800)
-        seg = VU.reshape((used_V, Wid0, Hei0))
-        Wid1, Hei1 = Wid0//resize_factor, Hei0//resize_factor
-        seg = resize(seg, (used_V, Wid1, Hei1), mode='constant')
-
-        i, j = k//4, (k%4)
-        Data[:, i * Wid1: (i+ 1) * Wid1, j*Hei1 : (j + 1) * Hei1] = seg
-
-    #### dimension reduce video
-    t = np.arange(Data.shape[0])/video_sampling_rate
-    d = np.array(Data.reshape(Data.shape[0],-1))
-    del Data
-    d = prosvd_data(input_arr=d, output_d=video_target_dim, init_size=prosvd_init_size)
-    t, d = clip(t, d)
-
-    #### define times
-    ca_times = np.hstack([np.linspace(*trial_edges[i], n_samples_per_trial) for i in range(len(trial_edges))])
-    ca_times = ca_times/video_sampling_rate
-
-    return A, d, ca_times, t
 
 def main():
     obs, beh = get_from_saved_npz("jpca_reduced_sc.npz")
