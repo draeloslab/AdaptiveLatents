@@ -174,6 +174,7 @@ class Bubblewrap():
                                                                                                  self.eps, self.S1, x,
                                                                                                  self.S2, self.n_obs)
         if not self.go_fast and np.any(np.isnan(self.alpha)):
+            # this sometimes happens when the input data has a singular covariance matrix
             raise Exception("There's a NaN in the alphas, something's wrong.")
         self.t += 1
 

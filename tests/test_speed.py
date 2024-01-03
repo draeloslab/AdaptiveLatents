@@ -1,29 +1,24 @@
 import timeit
 import numpy as np
 import adaptive_latents.input_sources as ins
-from adaptive_latents import NumpyTimedDataSource, default_rwd_parameters, Bubblewrap, SymmetricNoisyRegressor, BWRun
+from adaptive_latents import default_rwd_parameters, Bubblewrap, SymmetricNoisyRegressor
 from proSVD import proSVD
 
-
-def test_fast_enough_for_buzaki_data():
-    identifier = ins.datasets.individual_identifiers["buzaki"][0]
+def get_steady_state_speed(psvd_input, regression_output, prosvd_k=6, max_steps=10_000):
     # todo: try transposing `obs`
-    bin_width = 0.03
-    obs, _, _, _ = ins.datasets.construct_buzaki_data(individual_identifier=identifier, bin_width=bin_width)
-
-    k = 6
-    psvd = proSVD(k)
-    bw = Bubblewrap(k, **default_rwd_parameters)
+    psvd = proSVD(prosvd_k)
+    bw = Bubblewrap(prosvd_k, **default_rwd_parameters)
+    reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=2)
 
     prosvd_init = 20
-    psvd.initialize(obs[:prosvd_init].T)
+    psvd.initialize(psvd_input[:prosvd_init].T)
 
     # initial observations
-    start = prosvd_init
-    end = start + bw.M
-    for i in range(start, end):
-        o = obs[i]
-        psvd.updateSVD(o[:,None])
+    start_index = prosvd_init
+    end_index = start_index + bw.M
+    for i in range(start_index, end_index):
+        o = psvd_input[i]
+        psvd.updateSVD(o[:, None])
         o = np.squeeze(o @ psvd.Q)
         bw.observe(o)
 
@@ -33,28 +28,41 @@ def test_fast_enough_for_buzaki_data():
     bw.grad_Q()
 
     # run online
-    max_steps = 10_000
-    start = prosvd_init + bw.M
-    end = min(start + max_steps, obs.shape[0])
+    start_index = prosvd_init + bw.M
+    end_index = min(start_index + max_steps, psvd_input.shape[0])
 
     start_time = timeit.default_timer()
-    for i in range(start, end):
-        o = obs[i]
-        psvd.updateSVD(o[:,None])
+    for i in range(start_index, end_index):
+        # prosvd update
+        o = psvd_input[i]
+        psvd.updateSVD(o[:, None])
         o = o @ psvd.Q
+
+        # bubblewrap update
         bw.observe(o)
         bw.e_step()
         bw.grad_Q()
+
+        # regression update
+        reg.safe_observe(np.array(bw.alpha), regression_output[i])
     end_time = timeit.default_timer()
 
-    elapsed_time = end_time - start_time
-    print(f"{elapsed_time = } {end-start = }")
-    print(f"{elapsed_time/(end-start) = } {bin_width * .5 = }")
-    assert elapsed_time/(end - start) < bin_width * .5
+    return end_time - start_time, end_index - start_index
 
-    # reg = SymmetricNoisyRegressor(bw.N, raw_behavior.shape[1])
-    # br = BWRun(bw, obs_ds=obs_ds, beh_ds=beh_ds, behavior_regressor=reg, show_tqdm=False, output_directory=outdir)
-    # br.run()
+
+def test_fast_enough_for_buzaki_data():
+    identifier = ins.datasets.individual_identifiers["buzaki"][0]
+    bin_width = 0.03
+    obs, position_data, obs_t, position_data_t = ins.datasets.construct_buzaki_data(individual_identifier=identifier, bin_width=bin_width)
+
+    position_data = ins.functional.resample_behavior(raw_behavior=position_data, bin_centers=obs_t, t=position_data_t)
+    position_data = position_data[:,:2]
+
+    elapsed_time, n_steps = get_steady_state_speed(psvd_input=obs, regression_output=position_data)
+
+    print(f"{elapsed_time = } {n_steps = }")
+    assert elapsed_time/n_steps < bin_width * .5
+
 
 if __name__ == '__main__':
     test_fast_enough_for_buzaki_data()
