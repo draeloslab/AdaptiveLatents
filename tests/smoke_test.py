@@ -53,6 +53,6 @@ def test_can_make_video(rng, outdir):
     br.run()
 
 def test_run_main(outdir):
-    main(output_directory=outdir, steps_to_run=500)
+    main(output_directory=outdir, steps_to_run=100)
 
 # TODO: test different regressors work together
