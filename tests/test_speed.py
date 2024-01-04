@@ -50,7 +50,7 @@ def get_steady_state_speed(psvd_input, regression_output, prosvd_k=6, max_steps=
     return end_time - start_time, end_index - start_index
 
 
-def test_fast_enough_for_buzaki_data():
+def test_fast_enough_for_resampled_buzaki_data():
     identifier = ins.datasets.individual_identifiers["buzaki"][0]
     bin_width = 0.03
     obs, position_data, obs_t, position_data_t = ins.datasets.construct_buzaki_data(individual_identifier=identifier, bin_width=bin_width)
@@ -62,7 +62,3 @@ def test_fast_enough_for_buzaki_data():
 
     print(f"{elapsed_time = } {n_steps = }")
     assert elapsed_time/n_steps < bin_width * .5
-
-
-if __name__ == '__main__':
-    test_fast_enough_for_buzaki_data()
