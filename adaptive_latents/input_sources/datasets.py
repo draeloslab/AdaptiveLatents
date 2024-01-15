@@ -28,7 +28,8 @@ individual_identifiers = {
             '2019_10_21_fly1.nwb'
             ],
     "buzaki": ["Mouse12-120806", "Mouse12-120807", "Mouse24-131216"],
-    "indy": ['indy_20160407_02.mat']
+    "indy": ['indy_20160407_02.mat'],
+    "maze": ['']
 }
 
 
@@ -183,6 +184,48 @@ def construct_fly_data(individual_identifier):
         # t = file.processing["behavior"].data_interfaces["ball_motion"].timestamps[:]
     return A, beh, t, t
 
+def construct_jenkins_data(bin_width):
+    fpath = CONFIG["data_path"] / '000128' / 'sub-Jenkins' / 'sub-Jenkins_ses-full_desc-train_behavior+ecephys.nwb'
+    with NWBHDF5IO(fpath, "r") as fhan:
+        nwb_in = fhan.read()
+        units = nwb_in.units.to_dataframe()
+        hand_pos = np.array(nwb_in.processing['behavior'].data_interfaces['hand_pos'].data)
+        hand_t = np.array(nwb_in.processing['behavior'].data_interfaces['hand_pos'].timestamps)
+
+    bin_edges = np.arange(units.iloc[0, 2][0, 0], units.iloc[0, 2][-1, -1] + bin_width, bin_width)
+
+    A = np.zeros((len(bin_edges) - 1, units.shape[0]))
+
+    for i in range(units.shape[0]):
+        A[:, i], _ = np.histogram(units.iloc[i, 1], bin_edges)
+
+    recorded_intervals = units.iloc[0, 2]
+
+    interval_to_start_from = 0
+
+    def intersection(start1, stop1, start2, stop2):
+        return max(min(stop1, stop2) - max(start1, start2), 0)
+
+    for i in range(len(bin_edges) - 1):
+        bin_start = bin_edges[i]
+        bin_stop = bin_edges[i + 1]
+        covered = 0
+        for j in range(interval_to_start_from, recorded_intervals.shape[0]):
+            interval_start, interval_stop = recorded_intervals[j]
+            if bin_start > interval_stop:
+                interval_to_start_from += 1
+                continue
+            if interval_start > bin_stop:
+                break
+            covered += intersection(bin_start, bin_stop, interval_start, interval_stop)
+
+        if covered / bin_width < .9:
+            A[i, :] = np.nan
+
+    bin_centers = np.convolve(bin_edges, [.5, .5], 'valid')
+
+    return A, hand_pos, bin_centers, hand_t
+
 
 @save_to_cache("generate_musal_dataset")
 def generate_musal_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_init_size=100):
@@ -247,3 +290,28 @@ def generate_musal_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_
     ca_times = ca_times/video_sampling_rate
 
     return A, d, ca_times, t
+
+def generate_maze():
+    parent_folder = CONFIG["data_path"] / '000128'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
