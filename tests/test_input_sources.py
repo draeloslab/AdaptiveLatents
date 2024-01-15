@@ -69,3 +69,7 @@ def test_can_load_indy():
 @longrun
 def test_can_load_musal():
     obs, raw_behavior, obs_t, beh_t = ins.datasets.generate_musal_dataset()
+
+@longrun
+def test_can_load_jenkins():
+    obs, raw_behavior, obs_t, beh_t = ins.datasets.construct_jenkins_data(bin_width=.03)
