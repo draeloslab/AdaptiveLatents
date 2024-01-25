@@ -8,34 +8,39 @@ if TYPE_CHECKING:
     import adaptive_latents
     from adaptive_latents import BWRun
 
+def _ellipse_r(a,b,theta):
+    return a*b / np.sqrt((np.cos(theta)*b)**2 + (np.sin(theta)*a)**2)
 
-def show_bubbles_2d(ax, data, bw, alpha_coefficient=1):
+def show_bubbles_2d(ax, data, bw, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45):
     A = bw.A
     mu = bw.mu
     L = bw.L
     n_obs = np.array(bw.n_obs)
     ax.cla()
-    ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff',
+    ax.scatter(data[:, dim_1], data[:, dim_2], s=5, color='#004cff',
                alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
     for n in reversed(np.arange(A.shape[0])):
         if n not in bw.dead_nodes:
             el = np.linalg.inv(L[n])
-            sig = el.T @ el
+            sig = el.T @ el # covariance matrix
             u, s, v = np.linalg.svd(sig)
-            width, height = np.sqrt(s[0]) * 3, np.sqrt(s[1]) * 3
+            print(s)
+            width, height = np.sqrt(s[0]) * n_sds, np.sqrt(s[1]) * n_sds # note width is always bigger
             angle = atan2(v[0, 1], v[0, 0]) * 360 / (2 * np.pi)
             el = Ellipse((mu[n, 0], mu[n, 1]), width, height, angle=angle, zorder=8)
             el.set_alpha(0.4 * alpha_coefficient)
             el.set_clip_box(ax.bbox)
             el.set_facecolor('#ed6713')
             ax.add_artist(el)
-            d = min(width, height)
-            ax.text(mu[n, 0] + .5 * d, mu[n, 1] + .5 * d, str(n), clip_on=True)
+
+            theta1 = name_theta - angle
+            r = _ellipse_r(width / 2, height / 2, theta1 / 180 * np.pi)
+            ax.text(mu[n, 0] + r * np.cos(name_theta / 180 * np.pi), mu[n, 1] + r * np.sin(name_theta / 180 * np.pi), str(n), clip_on=True)
         else:
             el = np.linalg.inv(L[n])
             sig = el.T @ el
             u, s, v = np.linalg.svd(sig)
-            width, height = np.sqrt(s[0]) * 3, np.sqrt(s[1]) * 3
+            width, height = np.sqrt(s[0]) * n_sds, np.sqrt(s[1]) * n_sds
             angle = atan2(v[0, 1], v[0, 0]) * 360 / (2 * np.pi)
             el = Ellipse((mu[n, 0], mu[n, 1]), width, height, angle=angle, zorder=8)
             el.set_alpha(0.05 * alpha_coefficient)
@@ -49,6 +54,31 @@ def show_bubbles_2d(ax, data, bw, alpha_coefficient=1):
     ax.scatter(mu[mask, 0], mu[mask, 1], c='k', zorder=10)
     ax.scatter(data[0, 0], data[0, 1], color="#004cff", s=10)
 
+def _limits(data):
+    low = min(data)
+    high = max(data)
+    return (high - low)/2, (high + low)/2
+
+def use_bigger_lims(ax, data, padding_proportion=0.05):
+    x_span, x_center = _limits(data[:,0])
+    x_span *= (1 + padding_proportion/2)
+    current_xlim = ax.get_xlim()
+    ax.set_xlim([min(current_xlim[0], x_center - x_span), max(current_xlim[1], x_center + x_span)])
+
+
+    y_span, y_center = _limits(data[:,1])
+    y_span *= (1 + padding_proportion/2)
+    current_ylim = ax.get_ylim()
+    ax.set_ylim([min(current_ylim[0], y_center - y_span), max(current_ylim[1], y_center + y_span)])
+
+def show_data_2d(ax, data, bw, n=10):
+    ax.cla()
+    ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff',
+               alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
+
+    start = max(data.shape[0] - n,0)
+    ax.plot(data[start:, 0], data[start:, 1], linewidth=3, color='#004cff', alpha=.5)
+    use_bigger_lims(ax, data)
 
 def show_active_bubbles_2d(ax, data, bw):
     mu = bw.mu
@@ -390,7 +420,7 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
         if colors:
             c = colors[idx]
         ax[2].plot(beh_error, color=c)
-        ax[2].set_ylabel('behavior mse')
+        ax[2].set_ylabel('behavior s.e.')
         ax[2].tick_params(axis='y')
         to_write[2].append((idx, f"{beh_error[n // 2:].mean():.3f}", dict(color=c)))
 
@@ -403,6 +433,7 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
     xticks = list(ax[2].get_xticks())
     xticks.append(n // 2)
     ax[2].set_xticks(xticks)
+    ax[2].set_xlabel("iteration #")
     ax[0].set_xlim(xlim)
     if show_title:
         ax[0].set_title(" ".join(to_print))

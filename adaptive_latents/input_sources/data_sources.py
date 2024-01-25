@@ -36,6 +36,7 @@ class NumpyTimedDataSource(DataSource):
         a = np.array(a)
         if len(a.shape) == 1:
             a = a[:, None]
+        assert a.shape[0] > a.shape[1]
         super().__init__(output_shape=len(a[0]), time_offsets=time_offsets)
         self.a = a
         self.t = timepoints if timepoints is not None else np.arange(a.shape[0])

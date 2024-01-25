@@ -29,13 +29,16 @@ class BWRun:
 
         self.bw: Bubblewrap = bw
         self.animation_manager: AnimationManager = animation_manager
-        self.obs_ds = obs_ds
+        self.obs_ds:NumpyTimedDataSource = obs_ds
         self.beh_ds = beh_ds
+
+        if self.obs_ds.output_shape > 10:
+            warnings.warn("Bubblewrap might not run well on high-D inputs. Consider using proSVD.")
 
         # only keep a behavior regressor if there is behavior
         self.behavior_regressor = None
         if self.beh_ds and self.beh_ds.output_shape > 0:
-            self.behavior_regressor : OnlineRegressor = behavior_regressor
+            self.behavior_regressor: OnlineRegressor = behavior_regressor
 
 
         time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
