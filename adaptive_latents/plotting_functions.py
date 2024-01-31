@@ -11,6 +11,28 @@ if TYPE_CHECKING:
 def _ellipse_r(a,b,theta):
     return a*b / np.sqrt((np.cos(theta)*b)**2 + (np.sin(theta)*a)**2)
 
+def add_2d_bubble(ax, el, center, n_sds, facecolor='#ed6713', name=None, alpha=1., name_theta=45):
+    el = np.linalg.inv(el)
+
+    sig = el.T @ el
+    proj_mat = np.eye(sig.shape[0])[:2, :]
+    sig = proj_mat @ sig @ proj_mat.T
+
+    center = proj_mat @ center
+
+    u, s, v = np.linalg.svd(sig)
+    width, height = np.sqrt(s[0]) * n_sds, np.sqrt(s[1]) * n_sds # note width is always bigger
+    angle = atan2(v[0, 1], v[0, 0]) * 360 / (2 * np.pi)
+    el = Ellipse((center[0], center[1]), width, height, angle=angle, zorder=8)
+    el.set_alpha(alpha)
+    el.set_clip_box(ax.bbox)
+    el.set_facecolor(facecolor)
+    ax.add_artist(el)
+
+    theta1 = name_theta - angle
+    r = _ellipse_r(width / 2, height / 2, theta1 / 180 * np.pi)
+    ax.text(center[0] + r * np.cos(name_theta / 180 * np.pi), center[1] + r * np.sin(name_theta / 180 * np.pi), name, clip_on=True)
+
 def show_bubbles_2d(ax, data, bw, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45):
     A = bw.A
     mu = bw.mu
@@ -20,33 +42,12 @@ def show_bubbles_2d(ax, data, bw, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3
     ax.scatter(data[:, dim_1], data[:, dim_2], s=5, color='#004cff',
                alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
     for n in reversed(np.arange(A.shape[0])):
-        if n not in bw.dead_nodes:
-            el = np.linalg.inv(L[n])
-            sig = el.T @ el # covariance matrix
-            u, s, v = np.linalg.svd(sig)
-            print(s)
-            width, height = np.sqrt(s[0]) * n_sds, np.sqrt(s[1]) * n_sds # note width is always bigger
-            angle = atan2(v[0, 1], v[0, 0]) * 360 / (2 * np.pi)
-            el = Ellipse((mu[n, 0], mu[n, 1]), width, height, angle=angle, zorder=8)
-            el.set_alpha(0.4 * alpha_coefficient)
-            el.set_clip_box(ax.bbox)
-            el.set_facecolor('#ed6713')
-            ax.add_artist(el)
-
-            theta1 = name_theta - angle
-            r = _ellipse_r(width / 2, height / 2, theta1 / 180 * np.pi)
-            ax.text(mu[n, 0] + r * np.cos(name_theta / 180 * np.pi), mu[n, 1] + r * np.sin(name_theta / 180 * np.pi), str(n), clip_on=True)
-        else:
-            el = np.linalg.inv(L[n])
-            sig = el.T @ el
-            u, s, v = np.linalg.svd(sig)
-            width, height = np.sqrt(s[0]) * n_sds, np.sqrt(s[1]) * n_sds
-            angle = atan2(v[0, 1], v[0, 0]) * 360 / (2 * np.pi)
-            el = Ellipse((mu[n, 0], mu[n, 1]), width, height, angle=angle, zorder=8)
-            el.set_alpha(0.05 * alpha_coefficient)
-            el.set_clip_box(ax.bbox)
-            el.set_facecolor('#000000')
-            ax.add_artist(el)
+        color = '#ed6713'
+        alpha = .4*alpha_coefficient
+        if n in bw.dead_nodes:
+            color = '#000000'
+            alpha = 0.05 *alpha_coefficient
+        add_2d_bubble(ax, L[n], mu[n], n_sds, name=n, facecolor=color,  alpha=alpha)
 
     mask = np.ones(mu.shape[0], dtype=bool)
     mask[n_obs < .1] = False
@@ -59,7 +60,7 @@ def _limits(data):
     high = max(data)
     return (high - low)/2, (high + low)/2
 
-def use_bigger_lims(ax, data, padding_proportion=0.05):
+def use_bigger_lims_from_data(ax, data, padding_proportion=0.05):
     x_span, x_center = _limits(data[:,0])
     x_span *= (1 + padding_proportion/2)
     current_xlim = ax.get_xlim()
@@ -71,6 +72,19 @@ def use_bigger_lims(ax, data, padding_proportion=0.05):
     current_ylim = ax.get_ylim()
     ax.set_ylim([min(current_ylim[0], y_center - y_span), max(current_ylim[1], y_center + y_span)])
 
+def use_bigger_lims(ax, old_lims=None, y=True, x=True):
+    new_lims = ax.axis()
+    if old_lims is None:
+        old_lims = new_lims
+
+    future_lims = [min(old_lims[0], new_lims[0]), max(old_lims[1], new_lims[1]), min(old_lims[2], new_lims[2]), max(old_lims[3], new_lims[3])]
+    if not y:
+        future_lims[2:] = new_lims[2:]
+
+    if not x:
+        future_lims[:2] = new_lims[:2]
+    ax.axis(future_lims)
+
 def show_data_2d(ax, data, bw, n=10):
     ax.cla()
     ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff',
@@ -78,33 +92,25 @@ def show_data_2d(ax, data, bw, n=10):
 
     start = max(data.shape[0] - n,0)
     ax.plot(data[start:, 0], data[start:, 1], linewidth=3, color='#004cff', alpha=.5)
-    use_bigger_lims(ax, data)
+    use_bigger_lims_from_data(ax, data)
 
-def show_active_bubbles_2d(ax, data, bw):
-    mu = bw.mu
-    L = bw.L
+
+def show_active_bubbles_2d(ax, data, bw, name_theta=45, n_sds=3, history_length=1):
     ax.cla()
     ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff',
                alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
-    ax.scatter(data[-1, 0], data[-1, 1], s=10, color='red')
+    # ax.scatter(data[-1, 0], data[-1, 1], s=10, color='red')
+
+    if history_length > 1:
+        start = max(data.shape[0] - history_length,0)
+        ax.plot(data[start:, 0], data[start:, 1], linewidth=3, color='#af05ed', alpha=.5)
 
     to_draw = np.argsort(np.array(bw.alpha))[-3:]
     opacities = np.array(bw.alpha)[to_draw]
     opacities = opacities * .5 / opacities.max()
 
     for i, n in enumerate(to_draw):
-        el = np.linalg.inv(L[n])
-        sig = el.T @ el
-        u, s, v = np.linalg.svd(sig)
-        width, height = np.sqrt(s[0]) * 3, np.sqrt(s[1]) * 3
-        angle = atan2(v[0, 1], v[0, 0]) * 360 / (2 * np.pi)
-        el = Ellipse((mu[n, 0], mu[n, 1]), width, height, angle=angle, zorder=8)
-        el.set_alpha(opacities[i])
-        el.set_clip_box(ax.bbox)
-        el.set_facecolor('#ed6713')
-        ax.add_artist(el)
-        d = min(width, height)
-        ax.text(mu[n, 0] + .25 * d, mu[n, 1] + .25 * d, str(n), alpha=min(opacities[i] * 2, 1), clip_on=True)
+        add_2d_bubble(ax, bw.L[n], bw.mu[n], n_sds, name=n, alpha=opacities[i], name_theta=name_theta)
 
 
 # def br_plot_3d(br):
@@ -204,24 +210,28 @@ def show_A(ax, bw):
 
 def show_alpha(ax, br, offset=0):
     ax.cla()
-    ims = ax.imshow(np.array(br.alpha_history[0][-19:] + [br.bw.alpha]).T, aspect='auto', interpolation='nearest')
+    ims = ax.imshow(np.array(br.alpha_history[0][-20:]).T, aspect='auto', interpolation='nearest')
 
     ax.set_title("State Estimate ($\\alpha$)")
     live_nodes = [x for x in np.arange(br.bw.N) if x not in br.bw.dead_nodes]
     ax.set_yticks(live_nodes)
+    ax.set_yticklabels([str(x) if idx % (len(live_nodes)//20) == 0 else "" for idx, x in enumerate(live_nodes)])
     ax.set_ylabel("bubble")
     ax.set_xlabel("steps (ago)")
     # ax.set_xticks([0.5,5,10,15,20])
     # ax.set_xticklabels([-20, -15, -10, -5, 0])
 
 
-def show_behavior_variables(ax, br, beh):
-    # todo: this function is fragile, maybe delete it?
+def show_behavior(ax, br):
+    old_lims = ax.axis()
+    if len(ax.collections) + len(ax.lines) == 0:
+        old_lims = None
     ax.cla()
-    br: adaptive_latents.bw_run.BWRun
-    ax.plot(br.behavior_pred_history[0][-20:])
-    ax.plot(beh[-20:])
-    ax.set_title("Behavior prediction")
+    beh, beh_t = br.beh_ds.get_history()
+    ax.plot(beh_t[-20:], beh[-20:], linewidth=3)
+    ax.set_title("Behavior")
+    ax.set_xticklabels([])
+    use_bigger_lims(ax, old_lims, x=False)
 
 
 def show_A_eigenspectrum(ax, bw):
@@ -376,7 +386,8 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
     for key in keep_keys:
         to_print.append(f"{key}: {[p.get(key) for p in ps]}")
 
-    fig, ax = plt.subplots(figsize=(12, 5), nrows=3, ncols=1, sharex='all', layout='tight')
+    fig, ax = plt.subplots(figsize=(14, 5), nrows=3, ncols=2, sharex='col', layout='tight', gridspec_kw={'width_ratios': [7, 1]})
+    fig: plt.Figure
     to_write = [[], [], []]
 
     n = 0
@@ -384,19 +395,30 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
         br: adaptive_latents.bw_run.BWRun
         n = max(n, br.entropy_history[offset].shape[0])
 
-        xlim = n * np.array([-0.01, 1.07])
 
         predictions = br.prediction_history[offset]
         smoothed_predictions = _one_sided_ewma(predictions, smoothing_scale)
+        _, obs_t = br.obs_ds.get_history()
+        obs_t = obs_t[-predictions.size:]
+
+        # xlim = (max(obs_t) - min(obs_t)) * np.array([-0.01, 1.07]) + (max(obs_t) + min(obs_t))/2
+        xrange = max(obs_t) - min(obs_t)
+        xlim = (
+            min(obs_t) - 0.01 * xrange,
+            max(obs_t) + 0.07 * xrange,
+        )
 
         c = 'black'
         if colors:
             c = colors[idx]
-        ax[0].plot(predictions, alpha=0.25, color=c)
-        ax[0].plot(smoothed_predictions, color=c, label=br.pickle_file.split("/")[-1].split(".")[0].split("_")[-1])
-        ax[0].tick_params(axis='y')
-        # todo: bring this back
-        ax[0].set_ylabel('prediction')
+
+        import warnings
+        warnings.warn("check these timepoints actually line up, I'm just clipping here")
+
+        ax[0,0].plot(obs_t, predictions, alpha=0.25, color=c)
+        ax[0,0].plot(obs_t, smoothed_predictions, color=c, label=br.pickle_file.split("/")[-1].split(".")[0].split("_")[-1])
+        ax[0,0].tick_params(axis='y')
+        ax[0,0].set_ylabel('prediction')
         to_write[0].append((idx, f"{predictions[n // 2:].mean():.3f}", dict(color=c)))
 
         entropy = br.entropy_history[offset]
@@ -405,39 +427,52 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
         c = 'black'
         if colors:
             c = colors[idx]
-        ax[1].plot(entropy, color=c, alpha=0.25)
+        ax[1,0].plot(obs_t, entropy, color=c, alpha=0.25)
 
-        ax[1].plot(smoothed_entropy, color=c)
+        ax[1,0].plot(obs_t, smoothed_entropy, color=c)
         max_entropy = np.log2(br.bw.N)
-        ax[1].plot([0, entropy.shape[0]], [max_entropy, ] * 2, 'k--')
+        ax[1,0].plot([0, entropy.shape[0]], [max_entropy, ] * 2, 'k--')
 
-        ax[1].tick_params(axis='y')
-        ax[1].set_ylabel('entropy')
+        ax[1,0].tick_params(axis='y')
+        ax[1,0].set_ylabel('entropy')
         to_write[1].append((idx, f"{entropy[n // 2:].mean():.3f}", dict(color=c)))
 
         beh_error = np.squeeze(br.behavior_error_history[offset] ** 2)
         c = 'black'
         if colors:
             c = colors[idx]
-        ax[2].plot(beh_error, color=c)
-        ax[2].set_ylabel('behavior s.e.')
-        ax[2].tick_params(axis='y')
+
+        ax[2,0].plot(br.reg_timepoint_history,beh_error, color=c)
+        ax[2,0].set_ylabel('behavior sq.e.')
+        ax[2,0].tick_params(axis='y')
         to_write[2].append((idx, f"{beh_error[n // 2:].mean():.3f}", dict(color=c)))
 
     for i, l in enumerate(to_write):
-        ylim = ax[i].get_ylim()
+        ylim = ax[i,0].get_ylim()
         yrange = ylim[1] - ylim[0]
         for idx, text, kw in l:
-            ax[i].text(n * 1.01, ylim[1] - (idx + 1) * yrange / 7, text, clip_on=True, **kw)
+            ax[i,0].text(max(obs_t) + xrange * 0.01, ylim[1] - (idx + 1) * yrange / 7, text, clip_on=True, **kw)
 
-    xticks = list(ax[2].get_xticks())
-    xticks.append(n // 2)
-    ax[2].set_xticks(xticks)
-    ax[2].set_xlabel("iteration #")
-    ax[0].set_xlim(xlim)
+    xticks = list(ax[2,0].get_xticks())
+
+    # todo:check this line
+    xticks.append(obs_t[n // 2])
+    ax[2,0].set_xticks(xticks)
+    ax[2,0].set_xticklabels(list(map(lambda x: str(round(x)), xticks[:-1]))+ [""])
+    ax[2,0].set_xlabel("time (s)")
+    ax[0,0].set_xlim(xlim)
     if show_title:
-        ax[0].set_title(" ".join(to_print))
+        ax[0,0].set_title(" ".join(to_print))
     else:
         print(to_print)
     if show_legend:
-        ax[0].legend(loc="lower right")
+        ax[0,0].legend(loc="lower right")
+
+    gs = ax[0,1].get_gridspec()
+    for a in ax[:,1]:
+        a.remove()
+    axbig = fig.add_subplot(gs[:,1])
+    axbig.axis("off")
+    to_write = "\n".join([f"{k}: {v}" for k,v in ps[0].items()])
+    to_write += f"\n\ntime: {br.runtime_since_init:.1f} s\nend of dataset? {'y' if br.hit_end_of_dataset else 'n'}"
+    axbig.text(0,1, to_write, transform=axbig.transAxes, verticalalignment="top")

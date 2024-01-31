@@ -61,6 +61,7 @@ class BWRun:
         self.reg_timepoint_history = []
         self.runtime = None
         self.runtime_since_init = None
+        self.hit_end_of_dataset = False
 
         self.n_living_history = []
         if save_A:
@@ -98,6 +99,7 @@ class BWRun:
                 if beh_done or obs_next_t < beh_next_t:
                     obs = next(self.obs_ds)
                     self.bw.observe(obs)
+                    obs_next_t, obs_done = self.obs_ds.preview_next_timepoint()
 
                     if bw_step < self.bw.M:
                         bw_step += 1
@@ -120,6 +122,7 @@ class BWRun:
                     pbar.update(1)
                 else:
                     beh = next(self.beh_ds)
+                    beh_next_t, beh_done = self.beh_ds.preview_next_timepoint()
                     if hasattr(self.bw, 'alpha'):
                         self.reg_timepoint_history.append(self.beh_ds.current_timepoint())
                         if self.behavior_regressor:
@@ -133,16 +136,12 @@ class BWRun:
                                 self.behavior_pred_history[offset].append(bp)
                                 self.behavior_error_history[offset].append(bp - b)
 
-                obs_next_t, obs_done = self.obs_ds.preview_next_timepoint()
-                if self.beh_ds:
-                    beh_next_t, beh_done = self.beh_ds.preview_next_timepoint()
-                else:
-                    beh_next_t, beh_done = float("inf"), True
 
 
         end_time = time.time()
         self.runtime_since_init = end_time - time_since_init
         self.runtime = end_time - start_time
+        self.hit_end_of_dataset = obs_done and beh_done
 
         if freeze:
             self.finish_and_remove_jax()

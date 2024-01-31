@@ -96,6 +96,27 @@ def prosvd_data(input_arr, output_d, init_size):
         output.append(obs)
     return np.array(output).reshape((-1, output_d))
 
+def prosvd_data_with_Qs(input_arr, output_d, init_size):
+    pro = proSVD(k=output_d)
+    pro.initialize(input_arr[:init_size].T)
+
+    output = []
+    old_Qs = []
+    for i in range(init_size, len(input_arr)):
+        obs = input_arr[i:i + 1, :]
+        if np.any(np.isnan(obs)):
+            output.append(np.zeros(output_d) * np.nan)
+            continue
+        old_Qs.append(np.array(pro.Q))
+        pro.preupdate()
+        pro.updateSVD(obs.T)
+        pro.postupdate()
+
+        obs = obs @ pro.Q
+
+        output.append(obs)
+    return np.array(output).reshape((-1, output_d)), np.array(old_Qs)
+
 
 def zscore(input_arr, init_size=6, clip=True):
     mean = 0
@@ -185,7 +206,7 @@ def clip(*args, maxlen=float("inf")):
 
     inputs:
         *args: a set of iterables
-        maxlen: a maximum length to trim them all down to (defaults to the shortest of the lengths of the iterables)
+        maxlen: a maximum length to trim them all down to (defaults to the shortest of the lengths of the trimmed iterables)
 
     outputs:
          clipped_arrays: the arrays passed in as `*args`, but shortened
@@ -205,8 +226,6 @@ def clip(*args, maxlen=float("inf")):
     clipped_arrays = [a[m:] for a in args]
     return clipped_arrays
 
-
-
 def resample_behavior(raw_behavior,bin_centers,t):
     good_samples = ~np.any(np.isnan(raw_behavior), axis=1)
     resampled_behavior = np.zeros((bin_centers.shape[0], raw_behavior.shape[1]))
@@ -214,6 +233,8 @@ def resample_behavior(raw_behavior,bin_centers,t):
         resampled_behavior[:,c] = np.interp(bin_centers, t[good_samples], raw_behavior[good_samples,c])
     return resampled_behavior
 
+def center_from_first_n(A, n=100):
+    return A[n:] - A[:n].mean(axis=0)
 
 def main():
     obs, beh = get_from_saved_npz("jpca_reduced_sc.npz")

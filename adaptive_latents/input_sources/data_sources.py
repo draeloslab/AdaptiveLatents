@@ -83,7 +83,6 @@ class NumpyTimedDataSource(DataSource):
         inside_index = item + self.clear_range[0] + offset
         return self.a[inside_index]
 
-
     def get_history(self, depth=None):
         slice_end = self.index + self.clear_range[0]
         slice_start = self.clear_range[0]
@@ -93,4 +92,4 @@ class NumpyTimedDataSource(DataSource):
         if slice_start < self.clear_range[0]:
             raise IndexError()
 
-        return self.a[slice_start:slice_end]
+        return self.a[slice_start:slice_end], self.t[slice_start:slice_end]
