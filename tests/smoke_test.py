@@ -55,4 +55,10 @@ def test_can_make_video(rng, outdir):
 def test_run_main(outdir):
     main(output_directory=outdir, steps_to_run=100)
 
+def test_nsteps_inbwrun_works_correctly():
+    # also tqdm flag
+    # also should make the timing of logs more clear
+    assert False
+
+
 # TODO: test different regressors work together

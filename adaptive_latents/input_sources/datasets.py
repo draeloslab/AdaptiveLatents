@@ -10,6 +10,8 @@ from adaptive_latents.config import CONFIG
 
 
 individual_identifiers = {
+    "indy": ['indy_20160407_02.mat'],
+    "buzaki": ["Mouse12-120806", "Mouse12-120807", "Mouse24-131216"],
     'fly': ['2019_06_28_fly2.nwb',
             '2019_07_01_fly2.nwb',
             '2019_08_07_fly2.nwb',
@@ -27,9 +29,9 @@ individual_identifiers = {
             '2019_10_18_fly3.nwb',
             '2019_10_21_fly1.nwb'
             ],
-    "buzaki": ["Mouse12-120806", "Mouse12-120807", "Mouse24-131216"],
-    "indy": ['indy_20160407_02.mat'],
-    "maze": ['']
+    'jenkins': [],
+    'musal':[],
+    'nason20': [],
 }
 
 
@@ -291,15 +293,48 @@ def generate_musal_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_
 
     return A, d, ca_times, t
 
-def generate_maze():
-    parent_folder = CONFIG["data_path"] / '000128'
+
+def construct_nason20_dataset(bin_size_in_ms=150):
+    file = '/home/jgould/Documents/Bubblewrap/generated/datasets/sbp/OnlineTrainingData.mat'
+    mat = loadmat(file, squeeze_me=True, simplify_cells=True)
+    data = mat['OnlineTrainingData']
+    n_channels = data[0]['SpikingBandPower'].shape[1]
+
+    for i in range(len(data) - 1):
+        assert data[i + 1]['ExperimentTime'][0] - data[i]['ExperimentTime'][-1] == 3
+
+    A = []
+    t = []
+    beh = []
+    for i, trial in enumerate(data):
+        A_spacer = np.nan * np.zeros((3,n_channels))
+        t_spacer = np.arange(1,4) + trial['ExperimentTime'][-1]
+        beh_spacer = t_spacer * np.nan
+        if i == len(data)-1:
+            A_spacer = np.zeros((0,n_channels))
+            t_spacer = []
+            beh_spacer = []
+        sub_A_spaced = np.vstack([trial['SpikingBandPower'], A_spacer])
+        sub_t_spaced = np.hstack([trial['ExperimentTime'], t_spacer])
+        sub_beh_spaced = np.hstack([trial['FingerAngle'], beh_spacer])
+        A.append(sub_A_spaced)
+        t.append(sub_t_spaced)
+        beh.append(sub_beh_spaced)
+    A = np.vstack(A)
+    t = np.hstack(t) / 1000 # converts to seconds
+    beh = np.hstack(beh)
+
+    s = t > 1.260 # there's an early dead zone
+    A, beh, t = A[s], beh[s], t[s]
 
 
+    aug = np.column_stack([t,beh, A])
+    binned_aug = aug[aug.shape[0] % bin_size_in_ms:,:].reshape(( -1, bin_size_in_ms, aug.shape[1]))
+    t = binned_aug[:,:,0].max(axis=1)
+    beh = np.nanmean(binned_aug[:,:,1], axis=1)
+    A = np.nanmean(binned_aug[:,:,2:], axis=1)
 
-
-
-
-
+    return A, beh, t, t
 
 
 
