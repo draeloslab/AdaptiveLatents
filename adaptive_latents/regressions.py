@@ -37,6 +37,61 @@ class OnlineRegressor(ABC):
         pass
 
 
+class VanillaOnlineRegressor(OnlineRegressor):
+    def __init__(self, input_d, output_d, init_min_ratio=3):
+        super().__init__(input_d, output_d)
+
+        # core stuff
+        self.D = None
+        self.F = np.zeros([self.input_d, self.input_d])
+        self.c = np.zeros([self.input_d, self.output_d])
+
+        # initializations
+        self.init_min_ratio = init_min_ratio
+        self.n_observed = 0
+
+    def initialize(self, use_stored=True, x_history=None, y_history=None):
+        if not use_stored:
+            for i in np.arange(x_history.shape[0]):
+                self.observe(x=x_history[i], y=y_history[i], update_D=False)
+        self.D = np.linalg.pinv(self.F)
+
+    def observe(self, x, y, update_D=False):
+        x = x.reshape([-1, 1])
+        y = np.squeeze(y)
+
+        if update_D:
+            self.D = rank_one_update_formula1(self.D, x)
+        else:
+            self.F = self.F + x @ x.T
+        self.c = self.c + x * y
+
+        self.n_observed += 1
+
+    def safe_observe(self, x, y):
+        if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
+            return
+        x, y = np.array(x), np.array(y)
+        if self.n_observed >= self.init_min_ratio * self.input_d or self.D is not None:
+            self.observe(x, y, update_D=True)
+        else:
+            self.observe(x, y, update_D=False)
+            if self.n_observed >= self.init_min_ratio * self.input_d:
+                self.initialize()
+
+    def get_beta(self):
+        return self.D @ self.c
+
+    def predict(self, x):
+        if self.D is None:
+            return np.nan * np.ones(shape=[self.output_d, ])
+
+        w = self.D @ self.c
+
+        return x.T @ w
+
+
+
 class SymmetricNoisyRegressor(OnlineRegressor):
     def __init__(self, input_d, output_d, forgetting_factor=1e-4, noise_scale=1e-3, n_perturbations=3, seed=24,
                  init_min_ratio=3):
@@ -101,6 +156,9 @@ class SymmetricNoisyRegressor(OnlineRegressor):
             self.observe(x, y, update_D=False)
             if self.n_observed >= self.init_min_ratio * self.input_d:
                 self.initialize()
+
+    def get_beta(self):
+        return self.D @ self.c
 
     def predict(self, x):
         if self.D is None:

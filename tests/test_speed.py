@@ -4,11 +4,11 @@ import adaptive_latents.input_sources as ins
 from adaptive_latents import default_rwd_parameters, Bubblewrap, SymmetricNoisyRegressor
 from proSVD import proSVD
 
-def get_steady_state_speed(psvd_input, regression_output, prosvd_k=6, max_steps=10_000):
+def get_steady_state_speed(psvd_input, regression_output, prosvd_k=6, bw_params=None, max_steps=10_000):
     # todo: try transposing `obs`
     psvd = proSVD(prosvd_k)
-    bw = Bubblewrap(prosvd_k, **default_rwd_parameters)
-    reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=2)
+    bw = Bubblewrap(prosvd_k, **dict(default_rwd_parameters, **(bw_params if bw_params is not None else {})))
+    reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=regression_output.shape[1])
 
     prosvd_init = 20
     psvd.initialize(psvd_input[:prosvd_init].T)
