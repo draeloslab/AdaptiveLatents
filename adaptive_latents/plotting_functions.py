@@ -112,6 +112,38 @@ def show_active_bubbles_2d(ax, data, bw, name_theta=45, n_sds=3, history_length=
     for i, n in enumerate(to_draw):
         add_2d_bubble(ax, bw.L[n], bw.mu[n], n_sds, name=n, alpha=opacities[i], name_theta=name_theta)
 
+def show_active_bubbles_and_connections_2d(ax, data, bw, name_theta=45, n_sds=3, history_length=1):
+    ax.cla()
+    ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff',
+               alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
+    # ax.scatter(data[-1, 0], data[-1, 1], s=10, color='red')
+
+    if history_length > 1:
+        start = max(data.shape[0] - history_length,0)
+        ax.plot(data[start:, 0], data[start:, 1], linewidth=3, color='#af05ed', alpha=.5)
+
+    to_draw = np.argsort(np.array(bw.alpha))[-3:]
+    opacities = np.array(bw.alpha)[to_draw]
+    opacities = opacities * .5 / opacities.max()
+
+    for i, n in enumerate(to_draw):
+        add_2d_bubble(ax, bw.L[n], bw.mu[n], n_sds, name=n, alpha=opacities[i], name_theta=name_theta)
+
+        if i==2:
+            connections = np.array(bw.A[n])
+            self_connection = connections[n]
+            other_connection = np.array(connections)
+            other_connection[n] = 0
+            c_to_draw = np.argsort(connections)[-3:]
+            c_opacities = (other_connection / other_connection.sum())[c_to_draw]
+            for j, m in enumerate(c_to_draw):
+                if n != m:
+                    line = np.array(bw.mu)[[n, m]]
+                    ax.plot(line[:,0], line[:,1], color='k', alpha=1)
+
+
+
+
 
 # def br_plot_3d(br):
 #     # TODO: make a plot_3d like above
@@ -228,7 +260,8 @@ def show_behavior(ax, br):
         old_lims = None
     ax.cla()
     beh, beh_t = br.beh_ds.get_history()
-    ax.plot(beh_t[-20:], beh[-20:], linewidth=3)
+    ax.plot(beh_t[-20:], beh[-20:], linewidth=3, color='k')
+    ax.plot(beh_t[-20:], br.behavior_pred_history[0][-20:], linewidth=3, alpha=.5)
     ax.set_title("Behavior")
     ax.set_xticklabels([])
     use_bigger_lims(ax, old_lims, x=False)

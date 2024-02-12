@@ -80,6 +80,8 @@ class VanillaOnlineRegressor(OnlineRegressor):
                 self.initialize()
 
     def get_beta(self):
+        if self.D is None:
+            return np.zeros((self.input_d, self.output_d)) * np.nan
         return self.D @ self.c
 
     def predict(self, x):
@@ -167,6 +169,93 @@ class SymmetricNoisyRegressor(OnlineRegressor):
         w = self.D @ self.c
 
         return x.T @ w
+
+class HistoricalSNR(OnlineRegressor):
+    def __init__(self, input_d, output_d, forgetting_factor=1e-4, noise_scale=1e-3, n_perturbations=3, seed=24,
+                 init_min_ratio=3, history_length=1):
+        super().__init__(input_d, output_d)
+
+        forgetting_factor = 1-forgetting_factor
+
+        if n_perturbations < 1:
+            raise Exception("the number of perturbations has to be more than 1")
+
+        if forgetting_factor > 1:
+            raise Exception("the forgetting factor should be in (0,1]")
+
+        # core stuff
+        self.forgetting_factor = forgetting_factor
+        self.D = None
+        self.F = np.zeros([self.input_d, self.input_d])
+        self.c = np.zeros([self.input_d, self.output_d])
+        self.noise_scale = noise_scale
+        self.rng = np.random.default_rng(seed)
+        self.n_perturbations = n_perturbations
+        self.x_history = deque(maxlen=history_length)
+        self.y_history = deque(maxlen=history_length)
+
+        # initializations
+        self.init_min_ratio = init_min_ratio
+        self.n_observed = 0
+
+    def initialize(self, use_stored=True, x_history=None, y_history=None):
+        if not use_stored:
+            for i in np.arange(x_history.shape[0]):
+                self.observe(x=x_history[i], y=y_history[i], update_D=False)
+        self.D = np.linalg.pinv(self.F)
+
+    def observe(self, x, y, update_D=False):
+        x = x.reshape([-1, 1])
+        y = np.squeeze(y)
+        self.x_history.append(x)
+        self.y_history.append(y)
+
+        x = np.array(self.x_history).flatten().reshape([-1, 1])
+        y = np.array(self.y_history).flatten()
+
+        if update_D:
+            self.D /= self.forgetting_factor
+        else:
+            self.F *= self.forgetting_factor
+
+        self.c *= self.forgetting_factor
+
+        for _ in range(self.n_perturbations):
+            dx = self.rng.normal(scale=self.noise_scale, size=x.shape)
+            for c in [-1, 1]:
+                new_x = x + dx * c
+                if update_D:
+                    self.D = rank_one_update_formula1(self.D, new_x)
+                else:
+                    self.F = self.F + new_x @ new_x.T
+                self.c = self.c + new_x * y
+
+        self.n_observed += 1
+
+    def safe_observe(self, x, y):
+        if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
+            return
+        x, y = np.array(x), np.array(y)
+        if self.n_observed >= self.init_min_ratio * self.input_d or self.D is not None:
+            self.observe(x, y, update_D=True)
+        else:
+            self.observe(x, y, update_D=False)
+            if self.n_observed >= self.init_min_ratio * self.input_d:
+                self.initialize()
+
+    def get_beta(self):
+        return self.D @ self.c
+
+    def predict(self, x):
+        x = np.array(list(self.x_history)[:-1] + [x])
+        x = x.flatten()
+        if self.D is None:
+            return np.nan * np.ones(shape=[self.output_d, ])
+
+        w = self.D @ self.c
+
+        return x.T @ w
+
 
 
 class BinarySNR(SymmetricNoisyRegressor):

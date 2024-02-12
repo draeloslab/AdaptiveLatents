@@ -294,7 +294,7 @@ def generate_musal_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_
     return A, d, ca_times, t
 
 
-def construct_nason20_dataset(bin_size_in_ms=150):
+def construct_nason20_dataset(bin_width_in_ms=150):
     file = '/home/jgould/Documents/Bubblewrap/generated/datasets/sbp/OnlineTrainingData.mat'
     mat = loadmat(file, squeeze_me=True, simplify_cells=True)
     data = mat['OnlineTrainingData']
