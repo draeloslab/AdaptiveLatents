@@ -4,7 +4,7 @@ import adaptive_latents.input_sources as ins
 from adaptive_latents import default_rwd_parameters, Bubblewrap, SymmetricNoisyRegressor
 from proSVD import proSVD
 
-def get_steady_state_speed(psvd_input, regression_output, prosvd_k=6, bw_params=None, max_steps=10_000):
+def get_speed_over_time(psvd_input, regression_output, prosvd_k=6, bw_params=None, max_steps=10_000):
     # todo: try transposing `obs`
     psvd = proSVD(prosvd_k)
     bw = Bubblewrap(prosvd_k, **dict(default_rwd_parameters, **(bw_params if bw_params is not None else {})))
@@ -31,10 +31,12 @@ def get_steady_state_speed(psvd_input, regression_output, prosvd_k=6, bw_params=
     start_index = prosvd_init + bw.M
     end_index = min(start_index + max_steps, psvd_input.shape[0])
 
-    start_time = timeit.default_timer()
+    times = []
     for i in range(start_index, end_index):
-        # prosvd update
         o = psvd_input[i]
+
+        start_time = timeit.default_timer()
+        # prosvd update
         psvd.updateSVD(o[:, None])
         o = o @ psvd.Q
 
@@ -45,9 +47,13 @@ def get_steady_state_speed(psvd_input, regression_output, prosvd_k=6, bw_params=
 
         # regression update
         reg.safe_observe(np.array(bw.alpha), regression_output[i])
-    end_time = timeit.default_timer()
+        reg.predict(np.array(bw.alpha @ bw.A))
 
-    return end_time - start_time, end_index - start_index
+        end_time = timeit.default_timer()
+        times.append(end_time - start_time)
+
+
+    return times
 
 
 def test_fast_enough_for_resampled_buzaki_data():
@@ -58,7 +64,6 @@ def test_fast_enough_for_resampled_buzaki_data():
     position_data = ins.functional.resample_behavior(raw_behavior=position_data, bin_centers=obs_t, t=position_data_t)
     position_data = position_data[:,:2]
 
-    elapsed_time, n_steps = get_steady_state_speed(psvd_input=obs, regression_output=position_data)
+    step_times = get_speed_over_time(psvd_input=obs, regression_output=position_data)
 
-    print(f"{elapsed_time = } {n_steps = }")
-    assert elapsed_time/n_steps < bin_width * .5
+    assert np.quantile(step_times, .99) < bin_width * .5
