@@ -85,7 +85,7 @@ def prosvd_data(input_arr, output_d, init_size):
     for i in tqdm(range(init_size, len(input_arr))):
         obs = input_arr[i:i + 1, :]
         if np.any(np.isnan(obs)):
-            output.append(np.zeros(output_d) * np.nan)
+            output.append(obs @ pro.Q)
             continue
         pro.preupdate()
         pro.updateSVD(obs.T)
