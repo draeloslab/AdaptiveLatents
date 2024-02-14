@@ -3,7 +3,7 @@ import h5py
 import os
 from scipy.io import loadmat
 from tqdm import tqdm
-from .functional import save_to_cache, clip, prosvd_data
+from .functional import save_to_cache, clip, prosvd_data, center_from_first_n
 from skimage.transform import resize
 from pynwb import NWBHDF5IO
 from adaptive_latents.config import CONFIG
@@ -329,13 +329,45 @@ def construct_nason20_dataset(bin_width_in_ms=150):
 
 
     aug = np.column_stack([t,beh, A])
-    binned_aug = aug[aug.shape[0] % bin_size_in_ms:,:].reshape(( -1, bin_size_in_ms, aug.shape[1]))
+    binned_aug = aug[aug.shape[0] % bin_width_in_ms:,:].reshape(( -1, bin_width_in_ms, aug.shape[1]))
     t = binned_aug[:,:,0].max(axis=1)
     beh = np.nanmean(binned_aug[:,:,1], axis=1)
     A = np.nanmean(binned_aug[:,:,2:], axis=1)
 
     return A, beh, t, t
 
+def construct_unpublished24(include_position=True, include_velocity=False, include_acceleration=False):
+    mat = loadmat(CONFIG['data_path'] / 'Chestek' / 'jgould_first_extraction.mat', squeeze_me=True, simplify_cells=True)
+    pre_smooth_beh = mat["feats"][1]
+    pre_smooth_A = mat["feats"][0]
+    pre_smooth_t = mat["feats"][2] / 1000
+
+    pre_smooth_beh = pre_smooth_beh.reshape((pre_smooth_beh.shape[0], 3, 5))
+
+    nonzero_columns = pre_smooth_beh.std(axis=0) > 0
+    assert np.all(~(nonzero_columns[0, :] ^ nonzero_columns))  # checks that fingers always have the same values
+    pre_smooth_beh = pre_smooth_beh[:, :,
+                     nonzero_columns[0, :]]  # the booleans select for position, velocity, and acceleration
+    pre_smooth_beh = pre_smooth_beh[:, [include_position, include_velocity, include_acceleration], :].reshape(pre_smooth_beh.shape[0],
+                                                                        -1)  # the three booleans select for position, velocity, and acceleration
+    kernel = np.exp(np.linspace(0, -1, 5))
+    kernel /= kernel.sum()
+
+
+    mode = 'valid'
+    pre_prosvd_A = np.column_stack([np.convolve(kernel, column, mode) for column in pre_smooth_A.T])
+    pre_prosvd_t = np.convolve(np.hstack([[1],kernel[:-1]*0]), pre_smooth_t, mode)
+    pre_prosvd_beh = pre_smooth_beh
+
+
+    pre_prosvd_A = center_from_first_n(pre_prosvd_A, 100)
+    pre_prosvd_A, pre_prosvd_beh, pre_prosvd_t = clip(pre_prosvd_A, pre_prosvd_beh, pre_prosvd_t)
+
+    pre_jpca_A = prosvd_data(input_arr=pre_prosvd_A, output_d=4, init_size=50)
+    pre_jpca_A, pre_jpca_t, pre_jpca_beh = clip(pre_jpca_A, pre_prosvd_t, pre_prosvd_beh)
+
+    A, beh, t = pre_jpca_A, pre_jpca_beh, pre_jpca_t
+    return A, beh, t, t
 
 
 

@@ -7,7 +7,7 @@ from proSVD import proSVD
 def get_speed_over_time(psvd_input, regression_output, prosvd_k=6, bw_params=None, max_steps=10_000):
     # todo: try transposing `obs`
     psvd = proSVD(prosvd_k)
-    bw = Bubblewrap(prosvd_k, **dict(default_rwd_parameters, **(bw_params if bw_params is not None else {})))
+    bw = Bubblewrap(prosvd_k, **dict(default_rwd_parameters, go_fast=True, **(bw_params if bw_params is not None else {})))
     reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=regression_output.shape[1])
 
     prosvd_init = 20
@@ -31,7 +31,7 @@ def get_speed_over_time(psvd_input, regression_output, prosvd_k=6, bw_params=Non
     start_index = prosvd_init + bw.M
     end_index = min(start_index + max_steps, psvd_input.shape[0])
 
-    times = []
+    times = {"prosvd":[], "bubblewrap":[], "regression":[], "regression prediction":[]}
     for i in range(start_index, end_index):
         o = psvd_input[i]
 
@@ -39,18 +39,28 @@ def get_speed_over_time(psvd_input, regression_output, prosvd_k=6, bw_params=Non
         # prosvd update
         psvd.updateSVD(o[:, None])
         o = o @ psvd.Q
+        end_time = timeit.default_timer()
+        times["prosvd"].append(end_time-start_time)
 
         # bubblewrap update
+        start_time = timeit.default_timer()
         bw.observe(o)
         bw.e_step()
         bw.grad_Q()
+        end_time = timeit.default_timer()
+        times["bubblewrap"].append(end_time-start_time)
 
         # regression update
+        start_time = timeit.default_timer()
         reg.safe_observe(np.array(bw.alpha), regression_output[i])
-        reg.predict(np.array(bw.alpha @ bw.A))
-
         end_time = timeit.default_timer()
-        times.append(end_time - start_time)
+        times["regression"].append(end_time-start_time)
+
+        start_time = timeit.default_timer()
+        reg.predict(np.array(bw.alpha @ bw.A))
+        end_time = timeit.default_timer()
+        times["regression prediction"].append(end_time-start_time)
+
 
 
     return times
