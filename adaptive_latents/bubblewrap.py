@@ -1,10 +1,8 @@
 import numpy
-import jax.numpy as np
-import time
+import jax.numpy as jnp
 from collections import deque
 from jax import jit, grad, vmap
 from jax import nn, random
-from .regressions import WindowRegressor, SymmetricNoisyRegressor
 
 # todo: make this a parameter?
 epsilon = 1e-10
@@ -50,7 +48,7 @@ class Bubblewrap():
 
     def init_nodes(self):
         ### Based on observed data so far of length M
-        self.mu = np.zeros((self.N, self.d))
+        self.mu = jnp.zeros((self.N, self.d))
 
         com = center_mass(self.mu)
         if len(self.obs.saved_obs) > 1:
@@ -63,7 +61,7 @@ class Bubblewrap():
 
         self.mu += obs_com
 
-        prior = (1 / self.N) * np.ones(self.N)
+        prior = (1 / self.N) * jnp.ones(self.N)
 
         self.alpha = self.lam_0 * prior
         self.last_alpha = self.alpha.copy()
@@ -74,15 +72,15 @@ class Bubblewrap():
         self.mus_orig = self.get_mus0(self.mu_orig)
 
         ### Initialize model parameters (A,En,...)
-        self.A = np.ones((self.N, self.N)) - np.eye(self.N)
-        self.A /= np.sum(self.A, axis=1)
-        self.B = np.zeros((self.N))
-        self.En = np.zeros((self.N, self.N))
+        self.A = jnp.ones((self.N, self.N)) - jnp.eye(self.N)
+        self.A /= jnp.sum(self.A, axis=1)
+        self.B = jnp.zeros((self.N))
+        self.En = jnp.zeros((self.N, self.N))
 
-        self.S1 = np.zeros((self.N, self.d))
-        self.S2 = np.zeros((self.N, self.d, self.d))
+        self.S1 = jnp.zeros((self.N, self.d))
+        self.S2 = jnp.zeros((self.N, self.d, self.d))
 
-        self.log_A = np.zeros((self.N, self.N))
+        self.log_A = jnp.zeros((self.N, self.N))
 
         fullSigma = numpy.zeros((self.N, self.d, self.d), dtype="float32")
         self.L = numpy.zeros((self.N, self.d, self.d))
@@ -90,33 +88,33 @@ class Bubblewrap():
         if self.batch and not self.go_fast:
             var = self.obs.cov
         else:
-            var = np.diag(np.var(np.array(self.obs.saved_obs), axis=0))
+            var = jnp.diag(jnp.var(jnp.array(self.obs.saved_obs), axis=0))
         for n in numpy.arange(self.N):
             fullSigma[n] = var * (self.nu + self.d + 1) / (self.N ** (2 / self.d))
 
             ## Optimization is done with L split into L_lower and L_diag elements
             ## L is defined using cholesky of precision matrix, NOT covariance
-            L = np.linalg.cholesky(fullSigma[n])
-            self.L[n] = np.linalg.inv(L).T
-            self.L_diag[n] = np.log(np.diag(self.L[n]))
-        self.L_lower = np.tril(self.L, -1)
+            L = jnp.linalg.cholesky(fullSigma[n])
+            self.L[n] = jnp.linalg.inv(L).T
+            self.L_diag[n] = jnp.log(jnp.diag(self.L[n]))
+        self.L_lower = jnp.tril(self.L, -1)
         self.sigma_orig = fullSigma[0]
 
         self._add_jited_functions()
 
         ## for adam gradients
-        self.m_mu = np.zeros_like(self.mu)
-        self.m_L = np.zeros_like(self.L_lower)
-        self.m_L_diag = np.zeros_like(self.L_diag)
-        self.m_A = np.zeros_like(self.A)
+        self.m_mu = jnp.zeros_like(self.mu)
+        self.m_L = jnp.zeros_like(self.L_lower)
+        self.m_L_diag = jnp.zeros_like(self.L_diag)
+        self.m_A = jnp.zeros_like(self.A)
 
-        self.v_mu = np.zeros_like(self.mu)
-        self.v_L = np.zeros_like(self.L_lower)
-        self.v_L_diag = np.zeros_like(self.L_diag)
-        self.v_A = np.zeros_like(self.A)
+        self.v_mu = jnp.zeros_like(self.mu)
+        self.v_L = jnp.zeros_like(self.L_lower)
+        self.v_L_diag = jnp.zeros_like(self.L_diag)
+        self.v_A = jnp.zeros_like(self.A)
 
         ## Variables for keeping track of dead nodes
-        self.dead_nodes = np.arange(0, self.N).tolist()
+        self.dead_nodes = jnp.arange(0, self.N).tolist()
         self.dead_nodes_ind = self.n_thresh * numpy.ones(self.N)
         self.current_node = 0
 
@@ -151,7 +149,7 @@ class Bubblewrap():
 
         if not self.go_fast and self.obs.cov is not None and self.mu_orig is not None:
             lamr = 0.02  # this is $\lambda$ from the paper
-            eta = np.sqrt(lamr * np.diag(self.obs.cov))  # this is $\nu$ from the paper
+            eta = jnp.sqrt(lamr * jnp.diag(self.obs.cov))  # this is $\nu$ from the paper
 
             self.mu_orig = (1 - lamr) * self.mu_orig + lamr * self.obs.mean + eta * numpy.random.normal(
                 size=(self.N, self.d))
@@ -168,18 +166,19 @@ class Bubblewrap():
     def single_e_step(self, x):
         self.beta = 1 + 10 / (self.t + 1)
         self.B = self.logB_jax(x, self.mu, self.L, self.L_diag)
+        print(self.B)
         self.update_B(x)
         self.gamma, self.alpha, self.En, self.S1, self.S2, self.n_obs = self.update_internal_jax(self.A, self.B,
                                                                                                  self.alpha, self.En,
                                                                                                  self.eps, self.S1, x,
                                                                                                  self.S2, self.n_obs)
-        if not self.go_fast and np.any(np.isnan(self.alpha)):
+        if not self.go_fast and jnp.any(jnp.isnan(self.alpha)):
             # this sometimes happens when the input data has a singular covariance matrix
             raise Exception("There's a NaN in the alphas, something's wrong.")
         self.t += 1
 
     def update_B(self, x):
-        if np.max(self.B) < self.B_thresh:
+        if jnp.max(self.B) < self.B_thresh:
             if not (self.dead_nodes):
                 target = numpy.argmin(self.n_obs)
                 if self.printing:
@@ -277,9 +276,9 @@ beta2 = 0.999
 def single_adam(step, m, v, grad, t, val):
     m = beta1 * m + (1 - beta1) * grad
     v = beta2 * v + (1 - beta2) * grad ** 2
-    m_hat = m / (1 - np.power(beta1, t + 1))
-    v_hat = v / (1 - np.power(beta2, t + 1))
-    update = step * m_hat / (np.sqrt(v_hat) + epsilon)
+    m_hat = m / (1 - jnp.power(beta1, t + 1))
+    v_hat = v / (1 - jnp.power(beta2, t + 1))
+    update = step * m_hat / (jnp.sqrt(v_hat) + epsilon)
     val -= update
     return m, v, val
 
@@ -291,22 +290,22 @@ def sm(log_A):
 
 @jit
 def sum_me(En):
-    return np.sum(En)
+    return jnp.sum(En)
 
 
 @jit
 def amax(A):
-    return np.argmax(A)
+    return jnp.argmax(A)
 
 
 @jit
 def get_L(x, y):
-    return np.tril(np.diag(np.exp(x) + epsilon) + np.tril(y, -1))
+    return jnp.tril(jnp.diag(jnp.exp(x) + epsilon) + jnp.tril(y, -1))
 
 
 @jit
 def get_L_inv(L):
-    return np.linalg.inv(L)
+    return jnp.linalg.inv(L)
 
 
 @jit
@@ -316,54 +315,54 @@ def get_sig_inv(L):
 
 @jit
 def get_fullSigma(L):
-    inv = np.linalg.inv(L)
+    inv = jnp.linalg.inv(L)
     return inv.T @ inv
 
 
 @jit
 def get_sub_l(L):
-    return L.flatten() / np.linalg.norm(L.flatten())
+    return L.flatten() / jnp.linalg.norm(L.flatten())
 
 
 @jit
 def get_mus(mu):
-    return np.outer(mu, mu)
+    return jnp.outer(mu, mu)
 
 
 @jit
 def get_ld(L):
-    return -2 * np.sum(L)
+    return -2 * jnp.sum(L)
 
 
 @jit
 def Q_j(mu, L_lower, L_diag, log_A, S1, lam, S2, n_obs, En, nu, sigma_orig, beta, d, mu_orig):
-    L = np.tril(np.diag(np.exp(L_diag) + epsilon) + np.tril(L_lower, -1))
+    L = jnp.tril(jnp.diag(jnp.exp(L_diag) + epsilon) + jnp.tril(L_lower, -1))
     sig_inv = L @ L.T
-    mus = np.outer(mu, mu)
-    mus_orig = np.outer(mu_orig, mu_orig)
-    ld = -2 * np.sum(L_diag)
+    mus = jnp.outer(mu, mu)
+    mus_orig = jnp.outer(mu_orig, mu_orig)
+    ld = -2 * jnp.sum(L_diag)
 
     summed = 0
     summed += (S1 + lam * mu_orig).dot(sig_inv).dot(mu)
-    summed += (-1 / 2) * np.trace((sigma_orig + S2 + lam * mus_orig + (lam + n_obs) * mus) @ sig_inv)
+    summed += (-1 / 2) * jnp.trace((sigma_orig + S2 + lam * mus_orig + (lam + n_obs) * mus) @ sig_inv)
     summed += (-1 / 2) * (nu + n_obs + d + 2) * ld
-    summed += np.sum((En + beta - 1) * nn.log_softmax(log_A))
-    return -np.sum(summed)
+    summed += jnp.sum((En + beta - 1) * nn.log_softmax(log_A))
+    return -jnp.sum(summed)
 
 
 @jit
 def single_logB(x, mu, L, L_diag):
     n = mu.shape[0]
-    B = (-1 / 2) * np.linalg.norm((x - mu) @ L) ** 2 - (n / 2) * np.log(2 * np.pi) + np.sum(L_diag)
+    B = (-1 / 2) * jnp.linalg.norm((x - mu) @ L) ** 2 - (n / 2) * jnp.log(2 * jnp.pi) + jnp.sum(L_diag)
     return B
 
 
 @jit
 def expB(B):
-    max_Bind = np.argmax(B)
+    max_Bind = jnp.argmax(B)
     current_node = max_Bind
     B -= B[max_Bind]
-    B = np.exp(B)
+    B = jnp.exp(B)
     return current_node, B
 
 
@@ -371,9 +370,9 @@ def expB(B):
 def update_internal(A, B, last_alpha, En, eps, S1, obs_curr, S2, n_obs):
     gamma = B * A / (last_alpha.dot(A).dot(B) + 1e-16)
     alpha = last_alpha.dot(gamma)
-    En = gamma * last_alpha[:, np.newaxis] + (1 - eps) * En
-    S1 = (1 - eps) * S1 + alpha[:, np.newaxis] * obs_curr
-    S2 = (1 - eps) * S2 + alpha[:, np.newaxis, np.newaxis] * (obs_curr[:, np.newaxis] * obs_curr.T)
+    En = gamma * last_alpha[:, jnp.newaxis] + (1 - eps) * En
+    S1 = (1 - eps) * S1 + alpha[:, jnp.newaxis] * obs_curr
+    S2 = (1 - eps) * S2 + alpha[:, jnp.newaxis, jnp.newaxis] * (obs_curr[:, jnp.newaxis] * obs_curr.T)
     n_obs = (1 - eps) * n_obs + alpha
     return gamma, alpha, En, S1, S2, n_obs
 
@@ -383,28 +382,28 @@ def kill_dead_nodes(ind2, n_thresh, n_obs, S1, S2, En, log_A):
     N = n_obs.shape[0]
     d = S1.shape[1]
     n_obs = n_obs.at[ind2].set(0)
-    S1 = S1.at[ind2].set(np.zeros(d))
-    S2 = S2.at[ind2].set(np.zeros((d, d)))
-    log_A = log_A.at[ind2].set(np.zeros(N))
-    log_A = log_A.at[:, ind2].set(np.zeros(N))
+    S1 = S1.at[ind2].set(jnp.zeros(d))
+    S2 = S2.at[ind2].set(jnp.zeros((d, d)))
+    log_A = log_A.at[ind2].set(jnp.zeros(N))
+    log_A = log_A.at[:, ind2].set(jnp.zeros(N))
     return n_obs, S1, S2, En, log_A
 
 
 # gets jit-ed later
 def pred_ahead(B, A, alpha, steps_ahead):
-    AT = np.linalg.matrix_power(A, steps_ahead)
-    return np.log(alpha @ AT @ np.exp(B) + 1e-16)
+    AT = jnp.linalg.matrix_power(A, steps_ahead)
+    return jnp.log(alpha @ AT @ jnp.exp(B) + 1e-16)
 
 
 # gets jit-ed later
 def entropy(A, alpha, steps_ahead):
-    AT = np.linalg.matrix_power(A, steps_ahead)
+    AT = jnp.linalg.matrix_power(A, steps_ahead)
     one = alpha @ AT
-    return - np.sum(one.dot(np.log2(alpha @ AT)))
+    return - jnp.sum(one.dot(jnp.log2(alpha @ AT)))
 
 
 def center_mass(points):
-    return numpy.mean(points, axis=0)
+    return jnp.mean(jnp.array(points), axis=0)
 
 
 class Observations:
@@ -439,7 +438,7 @@ class Observations:
 
             if self.n_obs > 2:
                 if self.cov is None:
-                    self.cov = np.cov(np.array(self.saved_obs).T, bias=True)
+                    self.cov = jnp.cov(jnp.array(self.saved_obs).T, bias=True)
                 else:
                     self.cov = update_cov(self.cov, self.last_mean, self.curr, self.mean, self.n_obs)
 

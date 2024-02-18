@@ -37,4 +37,5 @@ def main(output_directory=CONFIG["output_path"]/"bubblewrap_runs", steps_to_run=
     br.run(limit=steps_to_run)
 
 if __name__ == '__main__':
-    main(steps_to_run=100)
+    print("hi")
+    # main(steps_to_run=100)
