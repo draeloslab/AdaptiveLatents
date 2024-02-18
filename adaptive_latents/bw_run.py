@@ -25,7 +25,7 @@ def simple_bw_run(input_arr, t, time_offsets, bw_params):
 
 class BWRun:
     def __init__(self, bw, obs_ds, beh_ds=None, behavior_regressor=None, animation_manager=None, save_A=False, show_tqdm=True,
-                 output_directory=CONFIG["output_path"]/"bubblewrap_runs"):
+                 output_directory=CONFIG["output_path"]/"bubblewrap_runs", notes=()):
 
         self.bw: Bubblewrap = bw
         self.animation_manager: AnimationManager = animation_manager
@@ -35,6 +35,7 @@ class BWRun:
         if self.obs_ds.output_shape > 10:
             warnings.warn("Bubblewrap might not run well on high-D inputs. Consider using proSVD.")
 
+        self.notes = notes
         # only keep a behavior regressor if there is behavior
         self.behavior_regressor = None
         if self.beh_ds and self.beh_ds.output_shape > 0:
