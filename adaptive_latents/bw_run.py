@@ -11,6 +11,7 @@ from .input_sources.data_sources import NumpyTimedDataSource
 import warnings
 import time
 from .config import CONFIG
+from jax.lib import xla_bridge
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -35,7 +36,8 @@ class BWRun:
         if self.obs_ds.output_shape > 10:
             warnings.warn("Bubblewrap might not run well on high-D inputs. Consider using proSVD.")
 
-        self.notes = notes
+        self.notes = list(notes)
+
         # only keep a behavior regressor if there is behavior
         self.behavior_regressor = None
         if self.beh_ds and self.beh_ds.output_shape > 0:
@@ -65,8 +67,25 @@ class BWRun:
         self.hit_end_of_dataset = False
 
         self.n_living_history = []
+        # self.history = {
+        #     "A": lambda bw: np.array(bw.A),
+        #     "B": lambda bw: np.array(bw.B),
+        #     "mu": lambda bw: np.array(bw.mu),
+        #     "L": lambda bw: np.array(bw.mu),
+        #     # "pre_B": lambda bw: np.array(bw.B),
+        # }
         if save_A:
             self.A_history = []
+            self.B_history = []
+            self.pre_B_history = []
+
+            self.mu_history = []
+            self.L_history = []
+            self.L_diag_history = []
+            self.L_m_history = []
+            self.L_v_history = []
+            self.L_grad_history = []
+
 
         self.saved = False
         self.frozen = False
@@ -95,7 +114,7 @@ class BWRun:
         else:
             beh_next_t, beh_done = float("inf"), True
 
-        with tqdm(total=limit) as pbar:
+        with tqdm(total=limit, disable=not self.show_tqdm) as pbar:
             while not (obs_done and beh_done) and bw_step <= limit:
                 if beh_done or obs_next_t < beh_next_t:
                     obs = next(self.obs_ds)
@@ -173,6 +192,16 @@ class BWRun:
         self.n_living_history.append(self.bw.N - len(self.bw.dead_nodes))
         if self.save_A:
             self.A_history.append(self.bw.A)
+            self.pre_B_history.append(self.bw.logB_jax(offset_pairs[1], self.bw.mu, self.bw.L, self.bw.L_diag))
+            self.B_history.append(self.bw.B)
+            self.mu_history.append(self.bw.mu)
+            self.L_history.append(self.bw.L)
+            self.L_diag_history.append(self.bw.L_diag)
+            self.L_m_history.append(np.array(self.bw.m_L))
+            self.L_v_history.append(np.array(self.bw.v_L))
+            self.L_grad_history.append(np.array(self.bw.grad_L))
+
+
 
         if self.animation_manager and self.animation_manager.frame_draw_condition(step, self.bw):
             self.animation_manager.draw_frame(step, self.bw, self)
@@ -200,6 +229,16 @@ class BWRun:
         self.n_living_history = np.array(self.n_living_history)
         if self.save_A:
             self.A_history = np.array(self.A_history)
+            self.pre_B_history = np.array(self.pre_B_history)
+            self.B_history = np.array(self.B_history)
+            self.mu_history = np.array(self.mu_history)
+            self.L_history = np.array(self.L_history)
+            self.L_diag_history = np.array(self.L_diag_history)
+            self.L_m_history = np.array(self.L_m_history)
+            self.L_v_history = np.array(self.L_v_history)
+            self.L_grad_history = np.array(self.L_grad_history)
+
+
 
         self.bw.freeze()
 
