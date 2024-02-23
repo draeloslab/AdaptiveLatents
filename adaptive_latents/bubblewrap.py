@@ -41,10 +41,15 @@ class Bubblewrap():
         # observations of the data; M is how many to keep in history
         if self.batch: M = self.batch_size
         self.obs = Observations(self.d, M=M, go_fast=go_fast)
-        self.get_mus0 = jit(vmap(get_mus, 0))
+        self._add_jited_functions()
         self.mu_orig = None
 
         self.frozen = False
+
+        self.backend_note = None
+        if not self.go_fast:
+            from jax.lib import xla_bridge
+            self.backend_note = xla_bridge.get_backend().platform
 
     def init_nodes(self):
         ### Based on observed data so far of length M
@@ -100,7 +105,7 @@ class Bubblewrap():
         self.L_lower = jnp.tril(self.L, -1)
         self.sigma_orig = fullSigma[0]
 
-        self._add_jited_functions()
+        # self._add_jited_functions()
 
         ## for adam gradients
         self.m_mu = jnp.zeros_like(self.mu)
@@ -121,6 +126,8 @@ class Bubblewrap():
         self.t = 1  # todo: what is this doing in ADAM?
 
     def _add_jited_functions(self):
+        self.get_mus0 = jit(vmap(get_mus, 0))
+
         ## Set up gradients
         ## Change grad to value_and_grad if we want Q values
         self.grad_all = jit(
@@ -128,8 +135,10 @@ class Bubblewrap():
 
         ## Other jitted functions
         self.logB_jax = jit(vmap(single_logB, in_axes=(None, 0, 0, 0)))
-        self.expB_jax = jit(expB)
-        self.update_internal_jax = jit(update_internal)
+        self.expB_jax = expB # todo: add back JAX
+        # self.update_internal_jax = jit(update_internal)
+        # TODO: make sure update_internal_jax is actually jax
+        self.update_internal_jax = update_internal
         self.kill_nodes = jit(kill_dead_nodes)
         self.pred_ahead = jit(pred_ahead, static_argnames=['steps_ahead'])
         self.sum_me = jit(sum_me)
@@ -166,7 +175,6 @@ class Bubblewrap():
     def single_e_step(self, x):
         self.beta = 1 + 10 / (self.t + 1)
         self.B = self.logB_jax(x, self.mu, self.L, self.L_diag)
-        print(self.B)
         self.update_B(x)
         self.gamma, self.alpha, self.En, self.S1, self.S2, self.n_obs = self.update_internal_jax(self.A, self.B,
                                                                                                  self.alpha, self.En,
@@ -235,11 +243,12 @@ class Bubblewrap():
     def grad_Q(self):
         for _ in range(self.num_grad_q):
             divisor = 1 + self.sum_me(self.En)
-            (grad_mu, grad_L, grad_L_diag, grad_A) = self.grad_all(self.mu, self.L_lower, self.L_diag, self.log_A, self.S1,
+            (self.grad_mu, self.grad_L, self.grad_L_diag, self.grad_A) = self.grad_all(self.mu, self.L_lower, self.L_diag, self.log_A, self.S1,
                                                                    self.lam, self.S2, self.n_obs, self.En, self.nu,
                                                                    self.sigma_orig, self.beta, self.d, self.mu_orig)
 
-            self.run_adam(grad_mu / divisor, grad_L / divisor, grad_L_diag / divisor, grad_A / divisor)
+
+            self.run_adam(self.grad_mu / divisor, self.grad_L / divisor, self.grad_L_diag / divisor, self.grad_A / divisor)
 
             self.A = sm(self.log_A)
 
@@ -357,12 +366,13 @@ def single_logB(x, mu, L, L_diag):
     return B
 
 
-@jit
+# @jit
 def expB(B):
     max_Bind = jnp.argmax(B)
     current_node = max_Bind
     B -= B[max_Bind]
     B = jnp.exp(B)
+    # B = B.at[10:].set(0)
     return current_node, B
 
 

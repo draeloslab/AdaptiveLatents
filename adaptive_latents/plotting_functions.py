@@ -217,9 +217,15 @@ def show_active_bubbles_and_connections_2d(ax, data, bw, name_theta=45, n_sds=3,
 #     ax.text(in1, in2, 100, s='b', transform=ax.transAxes, fontsize=16, fontweight='bold', va='top', ha='right')
 #     plt.show()
 
-def show_A(ax, bw):
+def show_A(ax, fig, bw, show_log=False):
     ax.cla()
-    ims = ax.imshow(bw.A, aspect='equal', interpolation='nearest')
+
+    A = np.array(bw.A)
+    if show_log:
+        A = np.log(A)
+    img = ax.imshow(A, aspect='equal', interpolation='nearest')
+    # fig.colorbar(img)
+
 
     ax.set_title("Transition Matrix (A)")
     ax.set_xlabel("To")
@@ -240,14 +246,41 @@ def show_A(ax, bw):
 #     ax.set_ylim([min(old_ylim[0], new_ylim[0]), max(old_ylim[1], new_ylim[1])])
 
 
-def show_alpha(ax, br, offset=0):
+def show_alpha(ax, br, offset=0, show_log=False):
     ax.cla()
-    ims = ax.imshow(np.array(br.alpha_history[0][-20:]).T, aspect='auto', interpolation='nearest')
+    to_show = np.array(br.alpha_history[offset][-20:]).T
+    if show_log:
+        to_show = np.log(to_show)
+
+    ims = ax.imshow(to_show, aspect='auto', interpolation='nearest')
 
     ax.set_title("State Estimate ($\\alpha$)")
     live_nodes = [x for x in np.arange(br.bw.N) if x not in br.bw.dead_nodes]
     ax.set_yticks(live_nodes)
-    ax.set_yticklabels([str(x) if idx % (len(live_nodes)//20) == 0 else "" for idx, x in enumerate(live_nodes)])
+    if len(live_nodes) > 20:
+        ax.set_yticklabels([str(x) if idx % (len(live_nodes)//20) == 0 else "" for idx, x in enumerate(live_nodes)])
+    else:
+        ax.set_yticklabels([str(x) for x in live_nodes])
+    ax.set_ylabel("bubble")
+    ax.set_xlabel("steps (ago)")
+    # ax.set_xticks([0.5,5,10,15,20])
+    # ax.set_xticklabels([-20, -15, -10, -5, 0])
+
+def show_B(ax, br, show_log=False):
+    ax.cla()
+    to_show = np.array(br.B_history[-20:]).T
+    if show_log:
+        to_show = np.log(to_show)
+
+    ims = ax.imshow(to_show, aspect='auto', interpolation='nearest')
+
+    # ax.set_title("State Estimate ($\\alpha$)")
+    # live_nodes = [x for x in np.arange(br.bw.N) if x not in br.bw.dead_nodes]
+    # ax.set_yticks(live_nodes)
+    # if len(live_nodes) > 20:
+    #     ax.set_yticklabels([str(x) if idx % (len(live_nodes)//20) == 0 else "" for idx, x in enumerate(live_nodes)])
+    # else:
+    #     ax.set_yticklabels([str(x) for x in live_nodes])
     ax.set_ylabel("bubble")
     ax.set_xlabel("steps (ago)")
     # ax.set_xticks([0.5,5,10,15,20])
@@ -270,7 +303,8 @@ def show_behavior(ax, br):
 def show_A_eigenspectrum(ax, bw):
     ax.cla()
     eig = np.sort(np.linalg.eigvals(bw.A))[::-1]
-    ax.plot(eig, '.')
+    ax.plot(np.real(eig), '.')
+    ax.plot(np.imag(eig), '.')
     ax.set_title("Eigenspectrum of A")
     ax.set_ylim([0, 1])
 
@@ -404,10 +438,12 @@ def _deduce_bw_parameters(bw):
                 go_fast=bw.go_fast,
                 copy_row_on_teleport=bw.copy_row_on_teleport,
                 num_grad_q=bw.num_grad_q,
+                backend=bw.backend_note
                 )
 
 
 def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=True, show_title=True):
+    colors = ["black"] + [f"C{i}" for i in range(len(brs) - 1)]
     ps = [_deduce_bw_parameters(br.bw) for br in brs]
     keys = set([leaf for tree in ps for leaf in tree.keys()])
     keep_keys = []
@@ -419,9 +455,14 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
     for key in keep_keys:
         to_print.append(f"{key}: {[p.get(key) for p in ps]}")
 
-    fig, ax = plt.subplots(figsize=(14, 5), nrows=3, ncols=2, sharex='col', layout='tight', gridspec_kw={'width_ratios': [7, 1]})
+    include_behavior = False
+    beh_plot_raw_data = brs[0].behavior_error_history[offset]
+    if beh_plot_raw_data.size == 0 or np.all(np.isnan(beh_plot_raw_data)):
+        include_behavior = False
+
+    fig, ax = plt.subplots(figsize=(14, 5), nrows=2+include_behavior, ncols=2, sharex='col', layout='tight', gridspec_kw={'width_ratios': [7, 1]})
     fig: plt.Figure
-    to_write = [[], [], []]
+    to_write = [[] for _ in range(ax.shape[0])]
 
     n = 0
     for idx, br in enumerate(brs):
@@ -470,15 +511,16 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
         ax[1,0].set_ylabel('entropy')
         to_write[1].append((idx, f"{entropy[n // 2:].mean():.3f}", dict(color=c)))
 
-        beh_error = np.squeeze(br.behavior_error_history[offset] ** 2)
-        c = 'black'
-        if colors:
-            c = colors[idx]
+        if include_behavior:
+            beh_error = np.squeeze(br.behavior_error_history[offset] ** 2)
+            c = 'black'
+            if colors:
+                c = colors[idx]
 
-        ax[2,0].plot(br.reg_timepoint_history,beh_error, color=c)
-        ax[2,0].set_ylabel('behavior sq.e.')
-        ax[2,0].tick_params(axis='y')
-        to_write[2].append((idx, f"{beh_error[n // 2:].mean():.3f}", dict(color=c)))
+            ax[-1,0].plot(br.reg_timepoint_history,beh_error, color=c)
+            ax[-1,0].set_ylabel('behavior sq.e.')
+            ax[-1,0].tick_params(axis='y')
+            to_write[2].append((idx, f"{beh_error[n // 2:].mean():.3f}", dict(color=c)))
 
     for i, l in enumerate(to_write):
         ylim = ax[i,0].get_ylim()
@@ -486,14 +528,18 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
         for idx, text, kw in l:
             ax[i,0].text(max(obs_t) + xrange * 0.01, ylim[1] - (idx + 1) * yrange / 7, text, clip_on=True, **kw)
 
-    xticks = list(ax[2,0].get_xticks())
+    xticks = list(ax[-1,0].get_xticks())
 
     # todo:check this line
     xticks.append(obs_t[n // 2])
-    ax[2,0].set_xticks(xticks)
-    ax[2,0].set_xticklabels(list(map(lambda x: str(round(x)), xticks[:-1]))+ [""])
-    ax[2,0].set_xlabel("time (s)")
+    ax[-1,0].set_xticks(xticks)
+    ax[-1,0].set_xticklabels(list(map(lambda x: str(round(x)), xticks[:-1]))+ [""])
+    ax[-1,0].set_xlabel("time (s)")
     ax[0,0].set_xlim(xlim)
+
+    for axis in ax[:,0]:
+        axis.format_coord = lambda x, y: 'x={:g}, y={:g}'.format(x, y)
+
     if show_title:
         ax[0,0].set_title(" ".join(to_print))
     else:
@@ -508,4 +554,6 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
     axbig.axis("off")
     to_write = "\n".join([f"{k}: {v}" for k,v in ps[0].items()])
     to_write += f"\n\ntime: {br.runtime_since_init:.1f} s\nend of dataset? {'y' if br.hit_end_of_dataset else 'n'}"
+    for note in br.notes:
+        to_write += f"\n{note}"
     axbig.text(0,1, to_write, transform=axbig.transAxes, verticalalignment="top")

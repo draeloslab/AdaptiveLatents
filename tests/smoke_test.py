@@ -60,5 +60,7 @@ def test_nsteps_inbwrun_works_correctly():
     # also should make the timing of logs more clear
     assert False
 
+def test_can_save_and_reload():
+    assert False
 
 # TODO: test different regressors work together
