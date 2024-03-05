@@ -43,12 +43,8 @@ class BWRun:
         if self.beh_ds and self.beh_ds.output_shape > 0:
             self.behavior_regressor: OnlineRegressor = behavior_regressor
 
-
-        time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-        self.output_prefix = os.path.join(output_directory, f"bubblewrap_run_{time_string}")
-        self.pickle_file = f"{self.output_prefix}.pickle"
-        if self.animation_manager:
-            self.animation_manager.set_final_output_location(f"{self.output_prefix}.{self.animation_manager.extension}")
+        self.output_directory = output_directory
+        self.create_new_filenames()
 
         # self.total_runtime = None
         self.save_A = save_A
@@ -96,7 +92,7 @@ class BWRun:
             assert self.beh_ds.output_shape == self.behavior_regressor.output_d
         # note that if there is no behavior, the behavior dimensions will be zero
 
-    def run(self, save=False, limit=None, freeze=True):
+    def run(self, save=False, limit=None, freeze=True, initialize=True):
         start_time = time.time()
         time_since_init = None
 
@@ -121,11 +117,11 @@ class BWRun:
                     self.bw.observe(obs)
                     obs_next_t, obs_done = self.obs_ds.preview_next_timepoint()
 
-                    if bw_step < self.bw.M:
+                    if initialize and bw_step < self.bw.M:
                         bw_step += 1
                         pbar.update(1)
                         continue
-                    elif bw_step == self.bw.M:
+                    elif initialize and bw_step == self.bw.M:
                         self.bw.init_nodes()
                         self.bw.e_step()  # todo: is this OK?
                         self.bw.grad_Q()
@@ -159,7 +155,7 @@ class BWRun:
 
 
         end_time = time.time()
-        self.runtime_since_init = end_time - time_since_init
+        self.runtime_since_init = (end_time - time_since_init) if time_since_init is not None else np.nan
         self.runtime = end_time - start_time
         self.hit_end_of_dataset = obs_done and beh_done
 
@@ -207,6 +203,14 @@ class BWRun:
             self.animation_manager.draw_frame(step, self.bw, self)
 
         self.bw_timepoint_history.append(self.obs_ds.current_timepoint())
+
+    def create_new_filenames(self):
+        time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+
+        self.output_prefix = os.path.join(self.output_directory, f"bubblewrap_run_{time_string}")
+        self.pickle_file = f"{self.output_prefix}.pickle"
+        if self.animation_manager:
+            self.animation_manager.set_final_output_location(f"{self.output_prefix}.{self.animation_manager.extension}")
 
     def finish_and_remove_jax(self):
         self.frozen = True
