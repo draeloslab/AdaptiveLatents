@@ -1,7 +1,8 @@
 import os
 import sys
 
-match sys.argv[1]:
+backend = sys.argv[1]
+match backend:
     case "cpu":
         os.environ["JAX_PLATFORM_NAME"] = "cpu"
     case "gpu":
@@ -9,14 +10,18 @@ match sys.argv[1]:
     case _:
         raise Exception()
 
+limit = eval(sys.argv[2])
+
 from adaptive_latents import Bubblewrap, BWRun, AnimationManager, NumpyTimedDataSource, default_rwd_parameters
 import adaptive_latents.plotting_functions as pfs
 from adaptive_latents import CONFIG
 import numpy as np
 
 def main():
-    t = np.arange(0, 2*np.pi*50, np.pi/5)
+    
+    t = np.arange(0, 2*np.pi*100, np.pi/5)
     X = np.column_stack([np.cos(t), np.sin(t)])
+    X = X + np.random.default_rng(0).normal(size=X.shape)*1e-3
     in_ds = NumpyTimedDataSource(X, t, time_offsets=(0,1))
 
     bw = Bubblewrap(dim=2, **dict(default_rwd_parameters, num=200, num_grad_q=1, step=8e-2))
@@ -48,9 +53,9 @@ def main():
     # am = CustomAnimation()
 
     # define the object to coordinate all the other objects
-    br = BWRun(bw=bw, obs_ds=in_ds, animation_manager=am, show_tqdm=True, save_A=True)
+    br = BWRun(bw=bw, obs_ds=in_ds, animation_manager=am, show_tqdm=False, save_A=True)
 
-    br.run(limit=200, save=True, freeze=False)
+    br.run(limit=limit, save=True, freeze=False if limit is not None else True)
     # print(f"{numpy.array(bw.L)[0][0][0]:.32f} ({ xla_bridge.get_backend().platform })")
 
 if __name__ == '__main__':

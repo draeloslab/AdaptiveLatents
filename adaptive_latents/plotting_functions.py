@@ -442,7 +442,7 @@ def _deduce_bw_parameters(bw):
                 )
 
 
-def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=True, show_title=True):
+def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=True, show_title=True, red_lines=(), minutes=False):
     colors = ["black"] + [f"C{i}" for i in range(len(brs) - 1)]
     ps = [_deduce_bw_parameters(br.bw) for br in brs]
     keys = set([leaf for tree in ps for leaf in tree.keys()])
@@ -474,6 +474,9 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
         smoothed_predictions = _one_sided_ewma(predictions, smoothing_scale)
         _, obs_t = br.obs_ds.get_history()
         obs_t = obs_t[-predictions.size:]
+
+        if minutes:
+            obs_t = np.array(obs_t) / 60
 
         # xlim = (max(obs_t) - min(obs_t)) * np.array([-0.01, 1.07]) + (max(obs_t) + min(obs_t))/2
         xrange = max(obs_t) - min(obs_t)
@@ -528,17 +531,26 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
         for idx, text, kw in l:
             ax[i,0].text(max(obs_t) + xrange * 0.01, ylim[1] - (idx + 1) * yrange / 7, text, clip_on=True, **kw)
 
-    xticks = list(ax[-1,0].get_xticks())
+    # todo:check this line and bring it back
+    # xticks = list(ax[-1,0].get_xticks())
+    # xticks.append(obs_t[n // 2])
+    # ax[-1,0].set_xticks(xticks)
+    # ax[-1,0].set_xticklabels(list(map(lambda x: str(round(x)), xticks[:-1]))+ [""])
 
-    # todo:check this line
-    xticks.append(obs_t[n // 2])
-    ax[-1,0].set_xticks(xticks)
-    ax[-1,0].set_xticklabels(list(map(lambda x: str(round(x)), xticks[:-1]))+ [""])
-    ax[-1,0].set_xlabel("time (s)")
+    if minutes:
+        ax[-1,0].set_xlabel("time (min)")
+    else:
+        ax[-1,0].set_xlabel("time (s)")
+
     ax[0,0].set_xlim(xlim)
 
     for axis in ax[:,0]:
         axis.format_coord = lambda x, y: 'x={:g}, y={:g}'.format(x, y)
+
+    for axis in ax[:,0]:
+        axis: plt.Axes
+        for line in red_lines:
+            axis.axvline(line, color='red', alpha=.5)
 
     if show_title:
         ax[0,0].set_title(" ".join(to_print))

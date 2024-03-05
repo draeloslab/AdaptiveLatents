@@ -273,6 +273,9 @@ class Bubblewrap():
         self.__dict__.update(state)
         if not state["frozen"]:
             self._add_jited_functions()
+            if not self.go_fast:
+                from jax.lib import xla_bridge
+                self.backend_note += " " + xla_bridge.get_backend().platform
 
 
 beta1 = 0.99

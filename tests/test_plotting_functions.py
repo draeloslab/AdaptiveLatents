@@ -36,3 +36,6 @@ def test_axis_plots(make_br):
 def test_comparison_plots(make_br):
     brs = [make_br() for _ in range(3)]
     bpf.compare_metrics(brs, offset=0)
+
+def test_redlines_on_attribute_of_bwrun():
+    assert False
