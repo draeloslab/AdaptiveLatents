@@ -86,7 +86,7 @@ def jpca_data(X):
         U = U_from_beta(reg.get_beta(), n, U)
         observations.append(X[i] @ U)
 
-    return np.array(observations)
+    return np.array(observations), U
 
 
 def align_column_spaces(A, B):
@@ -104,6 +104,7 @@ def generate_circle_embedded_in_high_d(rng, m=1000, n=4, stddev=1, shape=(10,10)
     X_all = (circle @ C.T) + rng.normal(size=(m+1,n))*stddev
     X, X_dot = X_and_X_dot_from_data(X_all)
     return X, X_dot, dict(C=C)
+
 # def generate_by_circle(rng, m=1000, n=4):
 #     t = np.linspace(0, m/50*np.pi*2, m+1)
 #     circle = np.column_stack([np.cos(t),np.sin(t)]) @ np.diag([20,10])

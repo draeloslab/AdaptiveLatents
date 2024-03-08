@@ -6,8 +6,8 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegFileWriter
-from .input_sources.functional import save_to_cache
-from .input_sources.data_sources import NumpyTimedDataSource
+from .input_sources.utils import save_to_cache
+from .input_sources.timed_data_source import NumpyTimedDataSource
 import warnings
 import time
 from .config import CONFIG
@@ -77,10 +77,15 @@ class BWRun:
 
             self.mu_history = []
             self.L_history = []
+            self.L_lower_history = []
             self.L_diag_history = []
-            self.L_m_history = []
-            self.L_v_history = []
-            self.L_grad_history = []
+            self.L_diag_m_history = []
+            self.L_diag_v_history = []
+            self.L_diag_grad_history = []
+
+            self.L_lower_m_history = []
+            self.L_lower_v_history = []
+            self.L_lower_grad_history = []
 
 
         self.saved = False
@@ -193,9 +198,14 @@ class BWRun:
             self.mu_history.append(self.bw.mu)
             self.L_history.append(self.bw.L)
             self.L_diag_history.append(self.bw.L_diag)
-            self.L_m_history.append(np.array(self.bw.m_L))
-            self.L_v_history.append(np.array(self.bw.v_L))
-            self.L_grad_history.append(np.array(self.bw.grad_L))
+            self.L_diag_m_history.append(np.array(self.bw.m_L_diag))
+            self.L_diag_v_history.append(np.array(self.bw.v_L_diag))
+            self.L_diag_grad_history.append(np.array(self.bw.grad_L_diag))
+
+            self.L_lower_history.append(self.bw.L_lower)
+            self.L_lower_m_history.append(np.array(self.bw.m_L_lower))
+            self.L_lower_v_history.append(np.array(self.bw.v_L_lower))
+            self.L_lower_grad_history.append(np.array(self.bw.grad_L_lower))
 
 
 
@@ -237,10 +247,16 @@ class BWRun:
             self.B_history = np.array(self.B_history)
             self.mu_history = np.array(self.mu_history)
             self.L_history = np.array(self.L_history)
+
             self.L_diag_history = np.array(self.L_diag_history)
-            self.L_m_history = np.array(self.L_m_history)
-            self.L_v_history = np.array(self.L_v_history)
-            self.L_grad_history = np.array(self.L_grad_history)
+            self.L_diag_m_history = np.array(self.L_diag_m_history)
+            self.L_diag_v_history = np.array(self.L_diag_v_history)
+            self.L_diag_grad_history = np.array(self.L_diag_grad_history)
+
+            self.L_lower_history = np.array(self.L_lower_history)
+            self.L_lower_m_history = np.array(self.L_lower_m_history)
+            self.L_lower_v_history = np.array(self.L_lower_v_history)
+            self.L_lower_grad_history = np.array(self.L_lower_grad_history)
 
 
 

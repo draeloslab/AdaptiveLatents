@@ -28,6 +28,4 @@ def make_paths_absolute(config, path):
             new_config[key] = value
     return new_config
 
-
-
-CONFIG = make_paths_absolute(*get_raw_config())
+CONFIG=make_paths_absolute(*get_raw_config())

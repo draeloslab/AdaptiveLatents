@@ -3,7 +3,7 @@ import h5py
 import os
 from scipy.io import loadmat
 from tqdm import tqdm
-from .functional import save_to_cache, clip, prosvd_data, center_from_first_n
+from .utils import save_to_cache, clip, prosvd_data, center_from_first_n
 from skimage.transform import resize
 from pynwb import NWBHDF5IO
 from adaptive_latents.config import CONFIG
@@ -294,7 +294,8 @@ def generate_musal_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_
     return A, d, ca_times, t
 
 
-def construct_nason20_dataset(bin_width_in_ms=150):
+def construct_nason20_data(bin_width=0.15):
+    bin_width_in_ms = int(bin_width*1000)
     file = '/home/jgould/Documents/Bubblewrap/generated/datasets/sbp/OnlineTrainingData.mat'
     mat = loadmat(file, squeeze_me=True, simplify_cells=True)
     data = mat['OnlineTrainingData']
@@ -336,7 +337,7 @@ def construct_nason20_dataset(bin_width_in_ms=150):
 
     return A, beh, t, t
 
-def construct_unpublished24(include_position=True, include_velocity=False, include_acceleration=False):
+def construct_unpublished24_data(include_position=True, include_velocity=False, include_acceleration=False):
     mat = loadmat(CONFIG['data_path'] / 'Chestek' / 'jgould_first_extraction.mat', squeeze_me=True, simplify_cells=True)
     pre_smooth_beh = mat["feats"][1]
     pre_smooth_A = mat["feats"][0]

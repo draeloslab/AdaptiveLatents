@@ -39,10 +39,10 @@ def save_to_cache(file, location=adaptive_latents.config.CONFIG["data_path"] / "
         if not adaptive_latents.config.CONFIG["attempt_to_cache"]:
             return original_function
 
-        def new_function(**kwargs):
+        def new_function(_recalculate_cache_value=False, **kwargs):
             kwargs_as_key = make_hashable_and_hash(kwargs)
 
-            if kwargs_as_key not in cache_index or not os.path.exists(location / cache_index[kwargs_as_key]):
+            if _recalculate_cache_value or kwargs_as_key not in cache_index or not os.path.exists(location / cache_index[kwargs_as_key]):
                 result = original_function(**kwargs)
 
                 hstring = str(kwargs_as_key)[-15:]
@@ -97,6 +97,7 @@ def prosvd_data(input_arr, output_d, init_size):
     return np.array(output).reshape((-1, output_d))
 
 def prosvd_data_with_Qs(input_arr, output_d, init_size):
+    # todo: combine this with prosvd_data
     pro = proSVD(k=output_d)
     pro.initialize(input_arr[:init_size].T)
 
@@ -144,16 +145,6 @@ def zscore(input_arr, init_size=6, clip=True):
     return output
 
 # todo: some rank-version of zscore?
-
-
-def shuffle_time(*input_arr_list, rng=None):
-    if rng is None:
-        rng = np.random.default_rng(0)
-
-    p = rng.permutation(input_arr_list[0].shape[0])
-
-    return [x[p,:] for x in input_arr_list]
-
 
 @save_to_cache("bwrap_alphas")
 def bwrap_alphas(input_arr, bw_params):
@@ -226,22 +217,12 @@ def clip(*args, maxlen=float("inf")):
     clipped_arrays = [a[m:] for a in args]
     return clipped_arrays
 
-def resample_behavior(raw_behavior,bin_centers,t):
-    good_samples = ~np.any(np.isnan(raw_behavior), axis=1)
-    resampled_behavior = np.zeros((bin_centers.shape[0], raw_behavior.shape[1]))
+def resample_timeseries(old_timeseries, new_sample_times, old_sample_times):
+    good_samples = ~np.any(np.isnan(old_timeseries), axis=1)
+    resampled_behavior = np.zeros((new_sample_times.shape[0], old_timeseries.shape[1]))
     for c in range(resampled_behavior.shape[1]):
-        resampled_behavior[:,c] = np.interp(bin_centers, t[good_samples], raw_behavior[good_samples,c])
+        resampled_behavior[:,c] = np.interp(new_sample_times, old_sample_times[good_samples], old_timeseries[good_samples,c])
     return resampled_behavior
 
 def center_from_first_n(A, n=100):
     return A[n:] - A[:n].mean(axis=0)
-
-def main():
-    obs, beh = get_from_saved_npz("jpca_reduced_sc.npz")
-    obs = zscore(prosvd_data(obs, output_d=2, init_size=30), init_size=3)
-    alphas = bwrap_alphas(input_arr=obs, bw_params=adaptive_latents.default_parameters.default_jpca_dataset_parameters)
-    print(alphas)
-
-
-if __name__ == '__main__':
-    main()
