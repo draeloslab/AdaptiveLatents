@@ -1,7 +1,7 @@
 from adaptive_latents import Bubblewrap, BWRun, AnimationManager, SymmetricNoisyRegressor
 from adaptive_latents.regressions import NearestNeighborRegressor
 from adaptive_latents.default_parameters import default_jpca_dataset_parameters
-from adaptive_latents.input_sources.data_sources import NumpyDataSource, PairWrapperSource
+from adaptive_latents.input_sources.timed_data_source import NumpyDataSource, PairWrapperSource
 import numpy as np
 
 

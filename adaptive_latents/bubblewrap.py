@@ -109,12 +109,12 @@ class Bubblewrap():
 
         ## for adam gradients
         self.m_mu = jnp.zeros_like(self.mu)
-        self.m_L = jnp.zeros_like(self.L_lower)
+        self.m_L_lower = jnp.zeros_like(self.L_lower)
         self.m_L_diag = jnp.zeros_like(self.L_diag)
         self.m_A = jnp.zeros_like(self.A)
 
         self.v_mu = jnp.zeros_like(self.mu)
-        self.v_L = jnp.zeros_like(self.L_lower)
+        self.v_L_lower = jnp.zeros_like(self.L_lower)
         self.v_L_diag = jnp.zeros_like(self.L_diag)
         self.v_A = jnp.zeros_like(self.A)
 
@@ -243,12 +243,12 @@ class Bubblewrap():
     def grad_Q(self):
         for _ in range(self.num_grad_q):
             divisor = 1 + self.sum_me(self.En)
-            (self.grad_mu, self.grad_L, self.grad_L_diag, self.grad_A) = self.grad_all(self.mu, self.L_lower, self.L_diag, self.log_A, self.S1,
-                                                                   self.lam, self.S2, self.n_obs, self.En, self.nu,
-                                                                   self.sigma_orig, self.beta, self.d, self.mu_orig)
+            (self.grad_mu, self.grad_L_lower, self.grad_L_diag, self.grad_A) = self.grad_all(self.mu, self.L_lower, self.L_diag, self.log_A, self.S1,
+                                                                                             self.lam, self.S2, self.n_obs, self.En, self.nu,
+                                                                                             self.sigma_orig, self.beta, self.d, self.mu_orig)
 
 
-            self.run_adam(self.grad_mu / divisor, self.grad_L / divisor, self.grad_L_diag / divisor, self.grad_A / divisor)
+            self.run_adam(self.grad_mu / divisor, self.grad_L_lower / divisor, self.grad_L_diag / divisor, self.grad_A / divisor)
 
             self.A = sm(self.log_A)
 
@@ -257,7 +257,7 @@ class Bubblewrap():
     def run_adam(self, mu, L, L_diag, A):
         ## inputs are gradients
         self.m_mu, self.v_mu, self.mu = single_adam(self.step, self.m_mu, self.v_mu, mu, self.t, self.mu)
-        self.m_L, self.v_L, self.L_lower = single_adam(self.step, self.m_L, self.v_L, L, self.t, self.L_lower)
+        self.m_L_lower, self.v_L_lower, self.L_lower = single_adam(self.step, self.m_L_lower, self.v_L_lower, L, self.t, self.L_lower)
         self.m_L_diag, self.v_L_diag, self.L_diag = single_adam(self.step, self.m_L_diag, self.v_L_diag, L_diag, self.t,
                                                                 self.L_diag)
         self.m_A, self.v_A, self.log_A = single_adam(self.step, self.m_A, self.v_A, A, self.t, self.log_A)

@@ -1,10 +1,14 @@
+import pytest
+
 from adaptive_latents import Bubblewrap
 from adaptive_latents.default_parameters import default_clock_parameters, default_rwd_parameters
-from adaptive_latents.input_sources.data_sources import NumpyTimedDataSource
+from adaptive_latents.input_sources.timed_data_source import NumpyTimedDataSource
 from adaptive_latents.bw_run import BWRun, AnimationManager
 import adaptive_latents.plotting_functions as bpf
 from adaptive_latents.regressions import SymmetricNoisyRegressor
-from scripts.main import main
+from scripts.main import main # todo: remove this?
+import pickle
+import numpy as np
 
 def test_can_use_cuda():
     from jax.lib import xla_bridge
@@ -43,7 +47,7 @@ def test_can_make_video(rng, outdir):
         n_cols = 1
         outfile = outdir / "movie.mp4"
         def custom_draw_frame(self, step, bw, br):
-            bpf.show_A(self.ax[0,0], bw) # note: you would usually index into ax, but this call uses 1 row and 1 column
+            bpf.show_A(self.ax[0,0], self.fig, bw) # note: you would usually index into ax, but this call uses 1 row and 1 column
 
     ca = CustomAnimation()
 
@@ -55,12 +59,52 @@ def test_can_make_video(rng, outdir):
 def test_run_main(outdir):
     main(output_directory=outdir, steps_to_run=100)
 
-def test_nsteps_inbwrun_works_correctly():
-    # also tqdm flag
-    # also should make the timing of logs more clear
-    assert False
 
-def test_can_save_and_reload():
-    assert False
+def test_can_save_and_freeze(rng, outdir):
+    # note I'm also passing save_A
+    m, n_obs, n_beh = 300, 3, 4
+    obs = rng.normal(size=(m, n_obs))
+    obs_ds = NumpyTimedDataSource(obs, None, (0,1))
+    bw = Bubblewrap(3, **default_clock_parameters)
+    br = BWRun(bw, obs_ds, show_tqdm=False, output_directory=outdir, save_A=True)
+    br.run(limit=100, save=True, freeze=True)
 
-# TODO: test different regressors work together
+    pickle_file = br.pickle_file
+    del br
+
+    with open(pickle_file, 'br') as fhan:
+        br = pickle.load(fhan)
+
+    assert type(br.bw.A) == np.ndarray
+
+    with pytest.raises(Exception):
+        br.run()
+
+def test_can_save_and_rerun(rng, outdir):
+    m, n_obs, n_beh = 300, 3, 4
+    obs = rng.normal(size=(m, n_obs))
+    obs_ds = NumpyTimedDataSource(obs, None, (0, 1))
+
+    bw = Bubblewrap(3, **default_clock_parameters)
+    br = BWRun(bw, obs_ds, show_tqdm=False, output_directory=outdir)
+    br.run(limit=100,save=True, freeze=False)
+
+    br.run(limit=100, save=True, freeze=False)
+
+    pickle_file = br.pickle_file
+    del br
+
+    with open(pickle_file, 'br') as fhan:
+        br = pickle.load(fhan)
+
+    assert not type(br.bw.A) == np.ndarray
+
+    br.run()
+
+# TODO:
+#  test different regressors work together
+#  test_can_save_and_reload
+#  test_nsteps_inbwrun_works_correctly
+#  also tqdm flag
+#  also should make the timing of logs more clear
+#  test_can_save_A_and_other_logs

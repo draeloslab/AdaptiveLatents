@@ -13,7 +13,8 @@ def test_axis_plots(make_br):
     ax = axs[0]
     br:BWRun = make_br()
     bw = br.bw
-    obs, beh = br.obs_ds.get_history(), br.beh_ds.get_history()
+    obs, obs_t =  br.obs_ds.get_history() 
+    beh, beh_t = br.beh_ds.get_history()
 
     offset = 3
     predicted_location = br.obs_ds.get_atemporal_data_point(offset=offset)
@@ -21,9 +22,9 @@ def test_axis_plots(make_br):
     ### good ###
     bpf.show_bubbles_2d(ax, obs, bw)
     bpf.show_active_bubbles_2d(ax, obs, bw)
-    bpf.show_A(ax, bw)
+    bpf.show_A(ax, fig, bw)
     bpf.show_alpha(ax, br)
-    bpf.show_behavior_variables(ax, br, beh)
+    bpf.show_behavior(ax, br)
     bpf.show_A_eigenspectrum(ax, bw)
     bpf.show_data_distance(ax, obs, max_step=50)
 
@@ -37,5 +38,5 @@ def test_comparison_plots(make_br):
     brs = [make_br() for _ in range(3)]
     bpf.compare_metrics(brs, offset=0)
 
-def test_redlines_on_attribute_of_bwrun():
-    assert False
+# TODO:
+#     test_redlines_on_attribute_of_bwrun

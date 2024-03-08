@@ -1,4 +1,5 @@
 generated/datasets/*
+htmlcov/*
 
 *.mp4
 *.json

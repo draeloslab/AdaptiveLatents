@@ -1,8 +1,70 @@
 import numpy as np
 import adaptive_latents.input_sources as ins
 import pytest
+from adaptive_latents import CONFIG
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
+
+def test_utils_run(rng):
+    # note I do not test correctness here
+    A = rng.normal(size=(1000, 10))
+    t = np.arange(A.shape[0])
+
+    A = ins.utils.center_from_first_n(A)
+    A = ins.utils.zscore(A)
+    A = ins.utils.prosvd_data(input_arr=A, output_d=2, init_size=10, _recalculate_cache_value=True)
+
+    A, t = ins.utils.clip(A,t)
+
+def test_hmm_runs(rng):
+    # note I do not test correctness here
+    for hmm in (
+        ins.hmm_simulation.HMM.wandering_gaussian_clock_hmm(n_states=10),
+        ins.hmm_simulation.HMM.teetering_gaussian_clock_hmm(n_states=10),
+        ins.hmm_simulation.HMM.inverting_gaussian_clock_hmm(n_states=10),
+        ins.hmm_simulation.HMM.discrete_clock_hmm(n_states=10),
+    ):
+        hmm.simulate(100, rng)
+        states, observations = hmm.simulate_with_states(10, rng)
+        hmm.advance_one_step(rng, states[-1])
+
+
+def test_can_load_file():
+    obs, beh = ins.utils.get_from_saved_npz("jpca_reduced_sc.npz")
+
+@longrun
+def test_can_load_fly():
+    for identifier in ins.datasets.individual_identifiers["fly"]:
+        obs, raw_behavior, obs_t, beh_t = ins.datasets.construct_fly_data(individual_identifier=identifier)
+
+@longrun
+def test_can_load_indy():
+    for identifier in ins.datasets.individual_identifiers["indy"]:
+        obs, raw_behavior, obs_t, beh_t = ins.datasets.construct_indy_data(individual_identifier=identifier, bin_width=.03)
+
+@longrun
+def test_can_load_jenkins():
+    obs, raw_behavior, obs_t, beh_t = ins.datasets.construct_jenkins_data(bin_width=.03)
+
+@longrun
+def test_can_load_nason20_dataset():
+    obs, raw_behavior, obs_t, beh_t = ins.datasets.construct_nason20_data(bin_width=.03)
+
+@longrun
+def test_can_load_unpublished24():
+    obs, raw_behavior, obs_t, beh_t = ins.datasets.construct_unpublished24_data()
+
+@longrun
+def test_can_load_buzaki():
+    for identifier in ins.datasets.individual_identifiers["buzaki"]:
+        obs, raw_behavior, obs_t, beh_t = ins.datasets.construct_buzaki_data(individual_identifier=identifier,
+                                                                             bin_width=.03,
+                                                                             _recalculate_cache_value=True)
+
+@longrun
+def test_can_load_musal():
+    obs, raw_behavior, obs_t, beh_t = ins.datasets.generate_musal_dataset(_recalculate_cache_value=True)
+
 
 # @pytest.fixture(params=["numpy"])
 # def ds(rng, request):
@@ -45,31 +107,3 @@ longrun = pytest.mark.skipif("not config.getoption('longrun')")
 #             assert np.all(beh == curr_beh)
 #         last_obs = obs
 #         last_beh = beh
-
-def test_can_load_file():
-    obs, beh = ins.functional.get_from_saved_npz("jpca_reduced_sc.npz")
-
-@longrun
-def test_can_load_fly():
-    for identifier in ins.datasets.individual_identifiers["fly"]:
-        obs, raw_behavior, obs_t, beh_t = ins.datasets.construct_fly_data(individual_identifier=identifier)
-
-
-@longrun
-def test_can_load_buzaki():
-    for identifier in ins.datasets.individual_identifiers["buzaki"]:
-        obs, raw_behavior, obs_t, beh_t = ins.datasets.construct_buzaki_data(individual_identifier=identifier, bin_width=.03)
-
-
-@longrun
-def test_can_load_indy():
-    for identifier in ins.datasets.individual_identifiers["indy"]:
-        obs, raw_behavior, obs_t, beh_t = ins.datasets.construct_indy_data(individual_identifier=identifier, bin_width=.03)
-
-@longrun
-def test_can_load_musal():
-    obs, raw_behavior, obs_t, beh_t = ins.datasets.generate_musal_dataset()
-
-@longrun
-def test_can_load_jenkins():
-    obs, raw_behavior, obs_t, beh_t = ins.datasets.construct_jenkins_data(bin_width=.03)

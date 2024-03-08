@@ -1,5 +1,5 @@
 from adaptive_latents import Bubblewrap, BWRun, AnimationManager, SymmetricNoisyRegressor, NumpyTimedDataSource, default_rwd_parameters
-from adaptive_latents.input_sources.functional import get_from_saved_npz
+from adaptive_latents.input_sources.utils import get_from_saved_npz
 import adaptive_latents.plotting_functions as pfs
 from adaptive_latents import CONFIG
 
@@ -13,7 +13,7 @@ def main(output_directory=CONFIG["output_path"]/"bubblewrap_runs", steps_to_run=
 
     # define the (optional) method to regress the HMM state from `bw.alpha`
     # reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=1)
-    reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=1, maxlen=600)
+    reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=1, init_min_ratio=1.2)
 
     class CustomAnimation(AnimationManager):
         n_rows = 1
@@ -22,7 +22,7 @@ def main(output_directory=CONFIG["output_path"]/"bubblewrap_runs", steps_to_run=
         extension = "mp4"
 
         def custom_draw_frame(self, step, bw: Bubblewrap, br: BWRun):
-            historical_observations = br.obs_ds.get_history()
+            historical_observations, _ = br.obs_ds.get_history()
 
             pfs.show_bubbles_2d(self.ax[0,0], historical_observations, bw, alpha_coefficient=.5)
             self.ax[0,0].set_title(f"Step {step}")
@@ -33,8 +33,7 @@ def main(output_directory=CONFIG["output_path"]/"bubblewrap_runs", steps_to_run=
     # define the object to coordinate all the other objects
     br = BWRun(bw=bw, obs_ds=in_ds, beh_ds=out_ds, behavior_regressor=reg, animation_manager=am, show_tqdm=True, output_directory=output_directory)
 
-    # run and save the output
-    br.run(limit=steps_to_run)
+    br.run(limit=steps_to_run, save=True)
 
 if __name__ == '__main__':
     main(steps_to_run=100)

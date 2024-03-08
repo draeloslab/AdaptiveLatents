@@ -1,15 +1,22 @@
-from adaptive_latents.regressions import NearestNeighborRegressor, SymmetricNoisyRegressor, WindowRegressor
+from adaptive_latents.regressions import NearestNeighborRegressor, SymmetricNoisyRegressor, WindowRegressor, VanillaOnlineRegressor, AutoRegressor
 import pytest
 import numpy as np
 
-@pytest.fixture(params=["nearest_n", "noisy", "window"])
+@pytest.fixture(params=["nearest_n", "noisy", "window", "vanilla", "auto"])
 def reg_maker(request):
-    if request.param == "nearest_n":
-        return NearestNeighborRegressor
-    elif request.param == "noisy":
-        return SymmetricNoisyRegressor
-    elif request.param == "window":
-        return WindowRegressor
+    match request.param:
+        case "nearest_n":
+            return NearestNeighborRegressor
+        case "noisy":
+            return SymmetricNoisyRegressor
+        case "window":
+            return WindowRegressor
+        case "vanilla":
+            return VanillaOnlineRegressor
+        case "auto":
+            return AutoRegressor
+        case _:
+            raise Exception()
 
 def test_can_run_1d(reg_maker, rng):
     w = np.array([2, -3])
@@ -94,3 +101,6 @@ def test_will_ignore_nan_inputs(reg_maker, rng):
             reg.safe_observe(inputs[i], outputs[i])
 
         assert np.all(np.isfinite(reg.predict(np.zeros(n))))
+
+# todo:
+#  special auto regressor tests for history dependency
