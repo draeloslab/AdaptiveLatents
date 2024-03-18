@@ -19,8 +19,9 @@ pip install -e .
 # edit the adaptive_latents_config.yaml file
 
 # test if everything is working
-pytest . --longrun # (optional)
+pytest
 python scripts/main.py
+pytest --longrun # (optional)
 ```
 
 

@@ -9,7 +9,7 @@ class GaussianEmissionModel:
         self.number_of_states = means.shape[0]
 
     def get_observation(self, bubble, rng):
-        return rng.multivariate_normal(self.means[bubble, :], self.covariances[bubble, :, :])
+        return rng.multivariate_normal(self.means[bubble, ...], self.covariances[bubble, ...])
 
 
 def make_p(X):
@@ -47,7 +47,7 @@ class HMM:
         assert np.all(self.transition_matrix >= 0)
 
     @staticmethod
-    def gaussian_clock_hmm(n_states, p1=1., angle=0., variance_scale=1., radius=10):
+    def gaussian_clock_hmm(n_states=12, p1=.5, angle=0., variance_scale=1., radius=10, high_d_pad=0):
         transition_matrix = np.eye(n_states)
         diag_indices = list(np.diag_indices(n_states))
         diag_indices[1] = np.roll(diag_indices[1], -1)
@@ -58,13 +58,13 @@ class HMM:
         initial_distribution = np.zeros(n_states)
         initial_distribution[0] = 1
 
-        data_dimension = 2
+        data_dimension = 2 + high_d_pad
         means = np.zeros((n_states, data_dimension))
         variances = np.stack([np.eye(data_dimension) * variance_scale for _ in range(n_states)])
 
         for i in range(n_states):
             theta = 2 * np.pi * i / n_states + angle
-            means[i, :] = np.array([np.cos(theta), np.sin(theta)]) * radius
+            means[i, :] = np.array([np.cos(theta), np.sin(theta)] + [0] * high_d_pad) * radius
 
         return HMM(transition_matrix, GaussianEmissionModel(means, variances), initial_distribution)
 
@@ -191,6 +191,58 @@ class HMM:
         observation_matrix = make_p(np.eye(n_states) + .2)
 
         return HMM(transition_matrix, DiscreteEmissionModel(observation_matrix), initial_distribution)
+
+    @staticmethod
+    def wave_clock_hmm(n_states=21, displacement_center=3, displacement_spread=.3, variance_scale=1., radius=10, angle=0):
+        assert n_states % 2 == 1  # this just makes things easier with the center of the hill
+
+        p = np.exp(-1/2 * (np.linspace(-1,1,n_states)/displacement_spread)**2)
+        p /= p.sum()
+        p = np.roll(p, shift=(p.shape[0] // 2 + 1))
+
+        transition_matrix = np.array([np.roll(p, shift=shift + displacement_center) for shift in range(n_states)])
+
+
+
+        initial_distribution = np.zeros(n_states)
+        initial_distribution[0] = 1
+
+        data_dimension = 2
+        means = np.zeros((n_states, data_dimension))
+        variances = np.stack([np.eye(data_dimension) * variance_scale for _ in range(n_states)])
+
+        for i in range(n_states):
+            theta = 2 * np.pi * i / n_states + angle
+            means[i, :] = np.array([np.cos(theta), np.sin(theta)]) * radius
+
+        return HMM(transition_matrix, GaussianEmissionModel(means, variances), initial_distribution)
+
+    @staticmethod
+    def infinity_pool_hmm(n_states=21, displacement_center=3, displacement_spread=.3, variance_scale=1., a=10, angle=0):
+        assert n_states % 2 == 1  # this just makes things easier with the center of the hill
+
+        p = np.exp(-1/2 * (np.linspace(-1,1,n_states)/displacement_spread)**2)
+        p /= p.sum()
+        p = np.roll(p, shift=(p.shape[0] // 2 + 1))
+
+        transition_matrix = np.array([np.roll(p, shift=shift + displacement_center) for shift in range(n_states)])
+
+
+
+        initial_distribution = np.zeros(n_states)
+        initial_distribution[0] = 1
+
+        data_dimension = 2
+        means = np.zeros((n_states, data_dimension))
+        variances = np.stack([np.eye(data_dimension) * variance_scale for _ in range(n_states)])
+
+        for i in range(n_states):
+            theta = 2 * np.pi * i / n_states
+            x_coord = a * np.cos(theta) / (1 + np.sin(theta)**2)
+            y_coord = a * np.cos(theta) * np.sin(theta)/ (1 + np.sin(theta)**2)
+            means[i, :] = np.array([x_coord, y_coord])
+
+        return HMM(transition_matrix, GaussianEmissionModel(means, variances), initial_distribution)
 
     def simulate_with_states(self, n_steps, rng, start_state=None):
         observations = np.zeros((n_steps, self.emission_model.embedded_dimension))

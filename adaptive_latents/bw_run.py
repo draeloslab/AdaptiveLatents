@@ -6,7 +6,6 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegFileWriter
-from .input_sources.utils import save_to_cache
 from .input_sources.timed_data_source import NumpyTimedDataSource
 import warnings
 import time
@@ -16,13 +15,6 @@ from jax.lib import xla_bridge
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .regressions import OnlineRegressor
-
-@save_to_cache("simple_bw_run")
-def simple_bw_run(input_arr, t, time_offsets, bw_params):
-    bw = Bubblewrap(input_arr.shape[1], **bw_params)
-    br = BWRun(bw, NumpyTimedDataSource(input_arr, t, time_offsets), show_tqdm=True)
-    br.run(save=True)
-    return br
 
 class BWRun:
     def __init__(self, bw, obs_ds, beh_ds=None, behavior_regressor=None, animation_manager=None, save_A=False, show_tqdm=True,
@@ -263,7 +255,12 @@ class BWRun:
         self.bw.freeze()
 
     # Metrics
-    def evaluate_regressor(self, reg, o, o_t, train_offset=0, test_offset=1):
+    def evaluate_regressor(self, reg, o=None, o_t=None, train_offset=0, test_offset=1):
+        warnings.warn("this method isn't tested well, use at your own risk")
+        if o is None and o_t is None:
+            o = self.beh_ds.a
+            o_t = self.beh_ds.t
+
         assert len(o_t) == len(o)
         train_alphas = self.alpha_history[train_offset]
         test_alphas = self.alpha_history[test_offset]
@@ -291,19 +288,13 @@ class BWRun:
 
         return pred, truth, pred_times # predicted, true, times
 
-    def add_regressor_post_hoc(self, reg, o, o_t, train_offset=0, test_offset=1):
-        predictions, truth, pred_times = self.evaluate_regressor(reg, o, o_t, train_offset, test_offset)
-        self.reg_timepoint_history = np.array(pred_times)
-        self.behavior_pred_history = {test_offset: np.array(predictions)}
-        self.behavior_error_history = {test_offset: np.array(predictions - truth)}
-        return predictions, truth, pred_times # predicted, true, times
-
-    def _last_half_index(self):
-
+    def _last_half_index(self, offset=1):
+        warnings.warn("this method is outdated for non-synchronous data")
+        assert offset in self.obs_ds.time_offsets
         assert self.frozen
         assert self.obs_ds.time_offsets
-        pred = self.prediction_history[self.obs_ds.time_offsets[0]]
-        assert np.all(np.isfinite(pred))
+        pred = self.prediction_history[offset]
+        assert np.all(np.isfinite(pred)) # this works because there are no skipped steps
         return len(pred)//2
 
     def behavior_pred_corr(self, offset):
