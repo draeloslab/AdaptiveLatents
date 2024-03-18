@@ -19,7 +19,7 @@ import numpy as np
 
 def main():
     
-    t = np.arange(0, 2*np.pi*100, np.pi/5)
+    t = np.arange(0, 2*np.pi*200, np.pi/5)
     X = np.column_stack([np.cos(t), np.sin(t)])
     X = X + np.random.default_rng(0).normal(size=X.shape)*1e-3
     in_ds = NumpyTimedDataSource(X, np.arange(t.shape[0]), time_offsets=(0,1))

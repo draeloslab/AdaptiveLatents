@@ -6,11 +6,12 @@ from jax import nn, random
 
 # todo: make this a parameter?
 epsilon = 1e-10
+# todo: is n_thresh a real parameter?
 
 
 class Bubblewrap():
     def __init__(self, dim, num=1000, seed=42, M=30, lam=1, nu=1e-2, eps=3e-2, B_thresh=1e-4, step=1e-6, n_thresh=5e-4,
-                 batch=False, batch_size=1, go_fast=False, copy_row_on_teleport=True, num_grad_q=1):
+                 batch=False, batch_size=1, go_fast=False, copy_row_on_teleport=True, num_grad_q=1, sigma_orig_adjustment=0):
         self.N = num  # Number of nodes
         self.d = dim  # dimension of the space
         self.seed = seed
@@ -24,6 +25,7 @@ class Bubblewrap():
         self.step = step
         self.copy_row_on_teleport = copy_row_on_teleport
         self.num_grad_q = num_grad_q
+        self.sigma_orig_adjust = sigma_orig_adjustment
 
         self.batch = batch
         self.batch_size = batch_size
@@ -162,7 +164,7 @@ class Bubblewrap():
 
             self.mu_orig = (1 - lamr) * self.mu_orig + lamr * self.obs.mean + eta * numpy.random.normal(
                 size=(self.N, self.d))
-            self.sigma_orig = self.obs.cov * (self.nu + self.d + 1) / (self.N ** (2 / self.d))
+            self.sigma_orig = self.obs.cov * (self.nu + self.d + 1) / ((self.N + self.sigma_orig_adjust) ** (2 / self.d))
 
     def e_step(self):
         # take E step; after observation
@@ -247,8 +249,15 @@ class Bubblewrap():
                                                                                              self.lam, self.S2, self.n_obs, self.En, self.nu,
                                                                                              self.sigma_orig, self.beta, self.d, self.mu_orig)
 
+            # #todo: this is very dangerous and slow
+            # self.grad_L_diag = numpy.array(self.grad_L_diag)
+            # self.grad_L_diag[self.grad_L_diag > 10] = 10
+            # self.grad_L_diag[self.grad_L_diag < -10] = -10
 
             self.run_adam(self.grad_mu / divisor, self.grad_L_lower / divisor, self.grad_L_diag / divisor, self.grad_A / divisor)
+
+            # for bubble in bubbles:
+            #     make_bubble_aspect_ratio_smaller
 
             self.A = sm(self.log_A)
 

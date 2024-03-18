@@ -1,7 +1,7 @@
 import pytest
 
 from adaptive_latents import Bubblewrap
-from adaptive_latents.default_parameters import default_clock_parameters, default_rwd_parameters
+from adaptive_latents.default_parameters import default_clock_parameters
 from adaptive_latents.input_sources.timed_data_source import NumpyTimedDataSource
 from adaptive_latents.bw_run import BWRun, AnimationManager
 import adaptive_latents.plotting_functions as bpf
@@ -100,6 +100,14 @@ def test_can_save_and_rerun(rng, outdir):
     assert not type(br.bw.A) == np.ndarray
 
     br.run()
+
+def test_some_br_methods_run(premade_br):
+    premade_br.entropy_summary(offset=1)
+    premade_br.log_pred_p_summary(offset=1)
+
+    reg = SymmetricNoisyRegressor(input_d=premade_br.bw.A.shape[0], output_d=1)
+    premade_br.evaluate_regressor(reg)
+
 
 # TODO:
 #  test different regressors work together

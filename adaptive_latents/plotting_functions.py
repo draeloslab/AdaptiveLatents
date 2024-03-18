@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 def _ellipse_r(a,b,theta):
     return a*b / np.sqrt((np.cos(theta)*b)**2 + (np.sin(theta)*a)**2)
 
-def add_2d_bubble(ax, el, center, n_sds, facecolor='#ed6713', name=None, alpha=1., name_theta=45):
+def add_2d_bubble(ax, el, center, n_sds, facecolor='#ed6713', name=None, alpha=1., name_theta=45, show_name=True):
     el = np.linalg.inv(el)
 
     sig = el.T @ el
@@ -29,11 +29,12 @@ def add_2d_bubble(ax, el, center, n_sds, facecolor='#ed6713', name=None, alpha=1
     el.set_facecolor(facecolor)
     ax.add_artist(el)
 
-    theta1 = name_theta - angle
-    r = _ellipse_r(width / 2, height / 2, theta1 / 180 * np.pi)
-    ax.text(center[0] + r * np.cos(name_theta / 180 * np.pi), center[1] + r * np.sin(name_theta / 180 * np.pi), name, clip_on=True)
+    if show_name:
+        theta1 = name_theta - angle
+        r = _ellipse_r(width / 2, height / 2, theta1 / 180 * np.pi)
+        ax.text(center[0] + r * np.cos(name_theta / 180 * np.pi), center[1] + r * np.sin(name_theta / 180 * np.pi), name, clip_on=True)
 
-def show_bubbles_2d(ax, data, bw, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45):
+def show_bubbles_2d(ax, data, bw, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45, show_names=True, tail_length=0, no_bubbles=False):
     A = bw.A
     mu = bw.mu
     L = bw.L
@@ -41,19 +42,24 @@ def show_bubbles_2d(ax, data, bw, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3
     ax.cla()
     ax.scatter(data[:, dim_1], data[:, dim_2], s=5, color='#004cff',
                alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
-    for n in reversed(np.arange(A.shape[0])):
-        color = '#ed6713'
-        alpha = .4*alpha_coefficient
-        if n in bw.dead_nodes:
-            color = '#000000'
-            alpha = 0.05 *alpha_coefficient
-        add_2d_bubble(ax, L[n], mu[n], n_sds, name=n, facecolor=color,  alpha=alpha)
+    if tail_length > 0:
+        start = max(data.shape[0] - tail_length, 0)
+        ax.plot(data[start:, 0], data[start:, 1], linewidth=3, color='#004cff', alpha=.5)
 
-    mask = np.ones(mu.shape[0], dtype=bool)
-    mask[n_obs < .1] = False
-    mask[bw.dead_nodes] = False
-    ax.scatter(mu[mask, 0], mu[mask, 1], c='k', zorder=10)
-    ax.scatter(data[0, 0], data[0, 1], color="#004cff", s=10)
+    if not no_bubbles:
+        for n in reversed(np.arange(A.shape[0])):
+            color = '#ed6713'
+            alpha = .4*alpha_coefficient
+            if n in bw.dead_nodes:
+                color = '#000000'
+                alpha = 0.05 *alpha_coefficient
+            add_2d_bubble(ax, L[n], mu[n], n_sds, name=n, facecolor=color,  alpha=alpha, show_name=show_names, name_theta=name_theta)
+
+        mask = np.ones(mu.shape[0], dtype=bool)
+        mask[n_obs < .1] = False
+        mask[bw.dead_nodes] = False
+        ax.scatter(mu[mask, 0], mu[mask, 1], c='k', zorder=10)
+        ax.scatter(data[0, 0], data[0, 1], color="#004cff", s=10)
 
 def _limits(data):
     low = min(data)
@@ -334,11 +340,11 @@ def show_data_distance(ax, d, max_step=50):
     ax.set_ylabel("distance")
 
 
-def show_nstep_pred_pdf(ax, br, other_axis, fig, offset=1):
+def show_nstep_pdf(ax, br, other_axis, fig, hmm=None, method="br", offset=1, show_colorbar=True):
     """
     the other_axis is supposed to be something showing the bubbles, so they line up
     """
-    if ax.collections:
+    if ax.collections and show_colorbar:
         old_vmax = ax.collections[-3].colorbar.vmax
         old_vmin = ax.collections[-3].colorbar.vmin
         ax.collections[-3].colorbar.remove()
@@ -356,16 +362,35 @@ def show_nstep_pred_pdf(ax, br, other_axis, fig, offset=1):
     pdf = np.zeros(shape=(density, density))
     for i in range(density):
         for j in range(density):
-            x = np.array([x_bins[i] + x_bins[i + 1], y_bins[j] + y_bins[j + 1]]) / 2
-            b_values = bw.logB_jax(x, bw.mu, bw.L, bw.L_diag)
-            pdf[i, j] = bw.alpha @ np.linalg.matrix_power(bw.A, offset) @ np.exp(b_values)
+            match method:
+                case "br":
+                    x = np.array([x_bins[i] + x_bins[i + 1], y_bins[j] + y_bins[j + 1]]) / 2
+                    b_values = bw.logB_jax(x, bw.mu, bw.L, bw.L_diag)
+                    pdf[i, j] = bw.alpha @ np.linalg.matrix_power(bw.A, offset) @ np.exp(b_values)
+                case "hmm":
+                    emission_model: adaptive_latents.input_sources.hmm_simulation.GaussianEmissionModel = hmm.emission_model
+                    node_history, _ = br.beh_ds.get_history()
+                    current_node = node_history[-1]
+                    state_p_vec = np.zeros(emission_model.means.shape[0])
+                    state_p_vec[current_node] = 1
+
+                    x = np.array([x_bins[i] + x_bins[i + 1], y_bins[j] + y_bins[j + 1]]) / 2
+                    pdf_p_vec = np.zeros(emission_model.means.shape[0])
+                    for k in range(pdf_p_vec.size):
+                        mu = emission_model.means[k]
+                        sigma = emission_model.covariances[k]
+                        displacement = x - mu
+                        pdf_p_vec[k] = 1/(np.sqrt((2*np.pi)**mu.size * np.linalg.det(sigma))) * np.exp(-1/2 * displacement.T @ np.linalg.inv(sigma) @ displacement)
+
+                    pdf[i, j] = state_p_vec @ np.linalg.matrix_power(hmm.transition_matrix, offset) @ pdf_p_vec
 
     # these might control the colors
     # cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T, vmin=min(vmin, pdf.min()), vmax=max(vmax, pdf.max()))
     # cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T, vmin=0, vmax=0.03) #log, vmin=-15, vmax=-5
 
     cmesh = ax.pcolormesh(x_bins, y_bins, pdf.T)
-    fig.colorbar(cmesh)
+    if show_colorbar:
+        fig.colorbar(cmesh)
 
     current_location = br.obs_ds.get_atemporal_data_point(0)
     offset_location = br.obs_ds.get_atemporal_data_point(offset)
@@ -376,44 +401,6 @@ def show_nstep_pred_pdf(ax, br, other_axis, fig, offset=1):
 
     ax.set_title(f"{offset}-step pred.")
 
-
-def show_alphas_given_regression_value(ax, br, behavior_value, step, history_length=50, alpha_offset=1, hist_axis=None):
-    # this is probably best used with a discrete output and the nearest neighbor regression
-    br: BWRun
-    ax: plt.Axes
-    beh_hist = br.beh_ds.get_history()
-    shorter = min(len(beh_hist), len(br.alpha_history))
-    beh_hist = beh_hist[-shorter:]
-    a_hist = np.array(br.alpha_history[alpha_offset][-shorter:])
-    mask = np.squeeze(beh_hist == behavior_value)
-    to_show = a_hist[mask]
-    to_show = to_show[-history_length:]
-
-    ax.imshow(to_show, interpolation='nearest')
-
-    ax.set_title(f"$\\alpha$ given beh=={behavior_value}")
-    ax.set_xlabel("$\\alpha$ index")
-    if hist_axis is not None:
-        hist_axis.cla()
-        hist_axis: plt.Axes
-        hist_axis.bar(np.arange(to_show.shape[1]), to_show.sum(axis=0) / to_show.sum())
-
-
-# def show_w_sideways(ax, bw, current_behavior):
-#     ax.cla()
-#     w = np.array(bw.D @ bw.Ct_y)
-#     w[bw.dead_nodes] = 0
-#
-#     a = np.array(bw.alpha)
-#     a = a / np.max(a)
-#     ax.plot(w, np.arange(w.size), alpha=0.25)
-#     ax.scatter(w, np.arange(w.size), alpha=a, c="C0")
-#     ylim = ax.get_ylim()
-#     ax.vlines(current_behavior[0], alpha=.5, ymin=ylim[0], ymax=ylim[1], colors="C1" )
-#     ax.set_ylabel("bubble #")
-#     ax.set_xlabel("weight magnitude")
-#     ax.set_title(r"Weights (times $\alpha$)")
-#     ax.set_xlim([-21, 21])
 
 
 def _one_sided_ewma(data, com=100):
@@ -438,11 +425,12 @@ def _deduce_bw_parameters(bw):
                 go_fast=bw.go_fast,
                 copy_row_on_teleport=bw.copy_row_on_teleport,
                 num_grad_q=bw.num_grad_q,
-                backend=bw.backend_note
+                backend=bw.backend_note,
+                sigma_orig_adjustment = bw.sigma_orig_adjust,
                 )
 
 
-def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=True, show_title=True, red_lines=(), minutes=False):
+def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=True, show_title=True, red_lines=(), minutes=False, include_behavior=True):
     colors = ["black"] + [f"C{i}" for i in range(len(brs) - 1)]
     ps = [_deduce_bw_parameters(br.bw) for br in brs]
     keys = set([leaf for tree in ps for leaf in tree.keys()])
@@ -455,7 +443,6 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
     for key in keep_keys:
         to_print.append(f"{key}: {[p.get(key) for p in ps]}")
 
-    include_behavior = False
     beh_plot_raw_data = brs[0].behavior_error_history[offset]
     if beh_plot_raw_data.size == 0 or np.all(np.isnan(beh_plot_raw_data)):
         include_behavior = False

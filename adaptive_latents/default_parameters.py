@@ -25,6 +25,8 @@ default_rwd_parameters = dict(
     seed=42,
     num_grad_q=1,
     copy_row_on_teleport=True,
+    sigma_orig_adjustment=0,
+    n_thresh=5e-4,
 )
 
 default_jpca_dataset_parameters = dict(
@@ -40,6 +42,8 @@ default_jpca_dataset_parameters = dict(
     seed=42,
     num_grad_q=1,
     copy_row_on_teleport=True,
+    sigma_orig_adjustment=0,
+    n_thresh=5e-4,
 )
 
 default_clock_parameters = dict(
@@ -56,6 +60,8 @@ default_clock_parameters = dict(
     seed=42,
     num_grad_q=1,
     copy_row_on_teleport=True,
+    sigma_orig_adjustment=0,
+    n_thresh=5e-4,
 )
 
 # reasonable_parameter_ranges = dict(
