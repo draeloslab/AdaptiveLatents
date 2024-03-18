@@ -23,7 +23,7 @@ def test_can_run_with_beh(rng, outdir):
 
     bw = Bubblewrap(n_obs, **default_clock_parameters)
     reg = SymmetricNoisyRegressor(bw.N, n_beh)
-    br = BWRun(bw, obs_ds=obs_ds, beh_ds=beh_ds, behavior_regressor=reg, show_tqdm=False, output_directory=outdir)
+    br = BWRun(bw, in_ds=obs_ds, out_ds=beh_ds, behavior_regressor=reg, show_tqdm=False, output_directory=outdir)
     br.run()
 
 def test_can_run_without_beh(rng, outdir):
@@ -47,7 +47,7 @@ def test_can_make_video(rng, outdir):
         n_cols = 1
         outfile = outdir / "movie.mp4"
         def custom_draw_frame(self, step, bw, br):
-            bpf.show_A(self.ax[0,0], self.fig, bw) # note: you would usually index into ax, but this call uses 1 row and 1 column
+            bpf.show_A(self.ax[0,0], self.fig, bw)
 
     ca = CustomAnimation()
 
@@ -101,7 +101,21 @@ def test_can_save_and_rerun(rng, outdir):
 
     br.run()
 
+def test_if_new_method_equals_old(premade_br):
+    br = premade_br
+    for variable in ['alpha', 'A', 'mu', 'L', 'B', 'L_lower', 'L_diag']:
+        assert np.all(br.model_step_variable_history[variable][-1] == br.bw.__dict__[variable])
+
+    for variable in ['A', 'mu', 'L', 'B', 'L_lower', 'L_diag']:
+        assert np.array_equal(br.__dict__[f"{variable}_history"], br.model_step_variable_history[variable], equal_nan=True)
+
+    for offset in br.input_ds.time_offsets:
+        assert np.array_equal(br.alpha_history[offset], br.model_offset_variable_history["alpha_prediction"][offset], equal_nan=True)
+        assert np.array_equal(br.prediction_history[offset], br.model_offset_variable_history["log_pred_p"][offset], equal_nan=True)
+        assert np.array_equal(br.entropy_history[offset], br.model_offset_variable_history["entropy"][offset], equal_nan=True)
+
 def test_some_br_methods_run(premade_br):
+    # todo: these might be deleted?
     premade_br.entropy_summary(offset=1)
     premade_br.log_pred_p_summary(offset=1)
 
@@ -116,3 +130,4 @@ def test_some_br_methods_run(premade_br):
 #  also tqdm flag
 #  also should make the timing of logs more clear
 #  test_can_save_A_and_other_logs
+#  can make all this faster

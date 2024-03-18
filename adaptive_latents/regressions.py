@@ -19,22 +19,20 @@ class OnlineRegressor(ABC):
         """This is called when the algorithm has enough information to start making predictions; it initializes the
         regression. Usually use_stored will be true, and the algorithm will use previously observed data, but x and y
         can also be passed in as the initialization data."""
-        pass
 
     @abstractmethod
     def safe_observe(self, x, y):
         """This function saves an observation and possibly updates initializes parameters if the regressor has seen
         enough data."""
-        pass
 
     @abstractmethod
     def observe(self, x, y):
-        """This function observes a datapoint; usually you want safe_observe."""
-        pass
+        """This function observes a datapoint, but does not check if the regression is initialized; usually you want
+        safe_observe."""
 
     @abstractmethod
     def predict(self, x):
-        pass
+        """This function returns the predicted y for some given x."""
 
 
 class VanillaOnlineRegressor(OnlineRegressor):
