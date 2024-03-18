@@ -298,7 +298,7 @@ def show_behavior(ax, br):
     if len(ax.collections) + len(ax.lines) == 0:
         old_lims = None
     ax.cla()
-    beh, beh_t = br.beh_ds.get_history()
+    beh, beh_t = br.output_ds.get_history()
     ax.plot(beh_t[-20:], beh[-20:], linewidth=3, color='k')
     ax.plot(beh_t[-20:], br.behavior_pred_history[0][-20:], linewidth=3, alpha=.5)
     ax.set_title("Behavior")
@@ -369,7 +369,7 @@ def show_nstep_pdf(ax, br, other_axis, fig, hmm=None, method="br", offset=1, sho
                     pdf[i, j] = bw.alpha @ np.linalg.matrix_power(bw.A, offset) @ np.exp(b_values)
                 case "hmm":
                     emission_model: adaptive_latents.input_sources.hmm_simulation.GaussianEmissionModel = hmm.emission_model
-                    node_history, _ = br.beh_ds.get_history()
+                    node_history, _ = br.output_ds.get_history()
                     current_node = node_history[-1]
                     state_p_vec = np.zeros(emission_model.means.shape[0])
                     state_p_vec[current_node] = 1
@@ -392,8 +392,8 @@ def show_nstep_pdf(ax, br, other_axis, fig, hmm=None, method="br", offset=1, sho
     if show_colorbar:
         fig.colorbar(cmesh)
 
-    current_location = br.obs_ds.get_atemporal_data_point(0)
-    offset_location = br.obs_ds.get_atemporal_data_point(offset)
+    current_location = br.input_ds.get_atemporal_data_point(0)
+    offset_location = br.input_ds.get_atemporal_data_point(offset)
 
     ax.scatter(offset_location[0], offset_location[1], c='white')
 
@@ -459,7 +459,7 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
 
         predictions = br.prediction_history[offset]
         smoothed_predictions = _one_sided_ewma(predictions, smoothing_scale)
-        _, obs_t = br.obs_ds.get_history()
+        _, obs_t = br.input_ds.get_history()
         obs_t = obs_t[-predictions.size:]
 
         if minutes:

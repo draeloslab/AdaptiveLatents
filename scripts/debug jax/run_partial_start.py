@@ -33,7 +33,7 @@ def main():
         extension = "mp4"
 
         def custom_draw_frame(self, step, bw: Bubblewrap, br: BWRun):
-            historical_observations, _ = br.obs_ds.get_history()
+            historical_observations, _ = br.input_ds.get_history()
 
             # pfs.show_bubbles_2d(self.ax[0,1], historical_observations, bw, alpha_coefficient=.5)
             pfs.show_B(self.ax[0,1], br, show_log=False)
@@ -53,7 +53,7 @@ def main():
     # am = CustomAnimation()
 
     # define the object to coordinate all the other objects
-    br = BWRun(bw=bw, obs_ds=in_ds, animation_manager=am, show_tqdm=False, save_A=True)
+    br = BWRun(bw=bw, in_ds=in_ds, animation_manager=am, show_tqdm=False, save_A=True)
 
     br.run(limit=limit, save=True, freeze=False if limit is not None else True)
     # print(f"{numpy.array(bw.L)[0][0][0]:.32f} ({ xla_bridge.get_backend().platform })")

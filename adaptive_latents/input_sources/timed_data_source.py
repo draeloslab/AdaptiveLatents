@@ -1,43 +1,19 @@
-from abc import ABC, abstractmethod
 import numpy as np
 
-class DataSource(ABC):
-    def __init__(self, output_shape, time_offsets=()):
-        self.length = None
-        self.time_offsets = time_offsets
-        self.output_shape = output_shape
-        self.init_size = 0
-
-    @abstractmethod
-    def __iter__(self):
-        pass
-
-    @abstractmethod
-    def __next__(self):
-        pass
-
-    @abstractmethod
-    def get_atemporal_data_point(self, offset=0):
-        pass
-
-    @abstractmethod
-    def get_history(self, depth=None):
-        pass
-
-    def __len__(self):
-        return self.length
-
-    # @abstractmethod
-    # def reset(self):
-    #     pass
-
-class NumpyTimedDataSource(DataSource):
+class NumpyTimedDataSource:
     def __init__(self, a, timepoints, time_offsets=()):
         a = np.array(a)
         if len(a.shape) == 1:
             a = a[:, None]
         assert a.shape[0] > a.shape[1]
-        super().__init__(output_shape=len(a[0]), time_offsets=time_offsets)
+
+        self.length = None
+        self.time_offsets = time_offsets
+        self.output_shape = len(a[0])
+        self.init_size = 0
+
+
+
         self.a = a
         self.t = timepoints if timepoints is not None else np.arange(a.shape[0])
         assert len(self.t) == len(self.a)
@@ -60,6 +36,9 @@ class NumpyTimedDataSource(DataSource):
 
         self.index += 1
         return d
+
+    def __len__(self):
+        return self.length
 
     def current_timepoint(self):
         return self.t[self.index]
@@ -93,3 +72,8 @@ class NumpyTimedDataSource(DataSource):
             raise IndexError()
 
         return self.a[slice_start:slice_end], self.t[slice_start:slice_end]
+
+"""
+todo:
+    should these have state?
+"""

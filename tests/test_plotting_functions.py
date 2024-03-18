@@ -14,8 +14,8 @@ def test_axis_plots(premade_br, premade_big_br):
     ax = axs[0]
     br:BWRun = premade_br
     bw = br.bw
-    obs, obs_t = br.obs_ds.get_history()
-    beh, beh_t = br.beh_ds.get_history()
+    obs, obs_t = br.input_ds.get_history()
+    beh, beh_t = br.output_ds.get_history()
 
     big_br:BWRun = premade_big_br
 

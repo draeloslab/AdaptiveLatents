@@ -22,7 +22,7 @@ def main(output_directory=CONFIG["output_path"]/"bubblewrap_runs", steps_to_run=
         extension = "mp4"
 
         def custom_draw_frame(self, step, bw: Bubblewrap, br: BWRun):
-            historical_observations, _ = br.obs_ds.get_history()
+            historical_observations, _ = br.input_ds.get_history()
 
             pfs.show_bubbles_2d(self.ax[0,0], historical_observations, bw, alpha_coefficient=.5)
             self.ax[0,0].set_title(f"Step {step}")
@@ -31,7 +31,7 @@ def main(output_directory=CONFIG["output_path"]/"bubblewrap_runs", steps_to_run=
     am = CustomAnimation()
 
     # define the object to coordinate all the other objects
-    br = BWRun(bw=bw, obs_ds=in_ds, beh_ds=out_ds, behavior_regressor=reg, animation_manager=am, show_tqdm=True, output_directory=output_directory)
+    br = BWRun(bw=bw, in_ds=in_ds, out_ds=out_ds, behavior_regressor=reg, animation_manager=am, show_tqdm=True, output_directory=output_directory)
 
     br.run(limit=steps_to_run, save=True)
 
