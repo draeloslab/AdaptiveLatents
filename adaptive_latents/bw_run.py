@@ -105,6 +105,7 @@ class BWRun:
             "B": lambda bw, _: bw.B,
             "mu": lambda bw, _: bw.mu,
             "L": lambda bw, _: bw.L,
+            "Q": lambda bw, _: bw.Q,
 
             "L_lower": lambda bw, _: bw.L_lower,
             "L_lower_m": lambda bw, _: bw.m_L_lower,
@@ -117,7 +118,6 @@ class BWRun:
             "L_diag_grad": lambda bw, _: bw.grad_L_diag,
 
             "pre_B": lambda bw, d: bw.logB_jax(d['offset_pairs'][1], bw.mu, bw.L, bw.L_diag),
-
             # "n_living":...,
         }
 
