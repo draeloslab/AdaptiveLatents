@@ -99,37 +99,6 @@ def test_can_save_and_rerun(rng, outdir):
 
     br.run()
 
-def test_if_new_method_equals_old(premade_br):
-    br = premade_br
-    for variable in ['alpha', 'A', 'mu', 'L', 'B', 'L_lower', 'L_diag']:
-        assert np.all(br.model_step_variable_history[variable][-1] == br.bw.__dict__[variable])
-
-    for variable in ['A', 'mu', 'L', 'B', 'L_lower', 'L_diag']:
-        assert np.array_equal(br.__dict__[f"{variable}_history"], br.model_step_variable_history[variable], equal_nan=True)
-
-    for offset in br.input_ds.time_offsets:
-        assert np.array_equal(br.alpha_history[offset], br.model_offset_variable_history["alpha_prediction"][offset], equal_nan=True)
-        assert np.array_equal(br.prediction_history[offset], br.model_offset_variable_history["log_pred_p"][offset], equal_nan=True)
-        assert np.array_equal(br.entropy_history[offset], br.model_offset_variable_history["entropy"][offset], equal_nan=True)
-
-    # test the h variable
-    for variable in ['A', 'mu', 'L', 'B', 'L_lower', 'L_diag']:
-        assert np.array_equal(br.h.__dict__[variable], br.model_step_variable_history[variable], equal_nan=True)
-
-    for offset in br.input_ds.time_offsets:
-        assert np.array_equal(br.h.alpha_prediction[offset], br.model_offset_variable_history["alpha_prediction"][offset], equal_nan=True)
-        assert np.array_equal(br.h.log_pred_p[offset], br.model_offset_variable_history["log_pred_p"][offset], equal_nan=True)
-        assert np.array_equal(br.h.entropy[offset], br.model_offset_variable_history["entropy"][offset], equal_nan=True)
-
-def test_some_br_methods_run(premade_br):
-    # todo: these might be deleted?
-    premade_br.entropy_summary(offset=1)
-    premade_br.log_pred_p_summary(offset=1)
-
-    reg = SymmetricNoisyRegressor(input_d=premade_br.bw.A.shape[0], output_d=1)
-    premade_br.evaluate_regressor(reg)
-
-
 # TODO:
 #  test different regressors work together
 #  test_can_save_and_reload

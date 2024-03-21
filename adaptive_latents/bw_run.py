@@ -6,7 +6,6 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegFileWriter
-from .input_sources.timed_data_source import NumpyTimedDataSource
 import warnings
 import time
 from .config import CONFIG
@@ -15,6 +14,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .regressions import OnlineRegressor
+    from .input_sources.timed_data_source import NumpyTimedDataSource
 
 class BWRun:
     def __init__(self, bw, in_ds, out_ds=None, behavior_regressor=None, animation_manager=None, save_A=False, show_tqdm=True,
@@ -39,45 +39,22 @@ class BWRun:
         self.output_directory = output_directory
         self.create_new_filenames()
 
-        # self.total_runtime = None
         self.save_A = save_A
         self.show_tqdm = show_tqdm
 
-        self.prediction_history = {k: [] for k in in_ds.time_offsets}
-        self.entropy_history = {k: [] for k in in_ds.time_offsets}
-        self.behavior_pred_history = {k: [] for k in in_ds.time_offsets}
-        self.behavior_error_history = {k: [] for k in in_ds.time_offsets}
-        self.alpha_history = {k: [] for k in in_ds.time_offsets}
         self.bw_timepoint_history = []
         self.reg_timepoint_history = []
+
         self.runtime = None
         self.runtime_since_init = None
         self.hit_end_of_dataset = False
 
-        self.n_living_history = []
 
         self.add_lambda_functions()
         self.model_offset_variable_history = {key: {offset: [] for offset in in_ds.time_offsets} for key in self.model_offset_variables_to_track}
+        self.output_offset_variable_history = {key: {offset: [] for offset in in_ds.time_offsets} for key in self.output_offset_variables_to_track}
         self.model_step_variable_history = {key:[] for key in self.model_step_variables_to_track}
-
-
-        if save_A:
-            self.A_history = []
-            self.B_history = []
-            self.pre_B_history = []
-
-            self.mu_history = []
-            self.L_history = []
-            self.L_lower_history = []
-            self.L_diag_history = []
-            self.L_diag_m_history = []
-            self.L_diag_v_history = []
-            self.L_diag_grad_history = []
-
-            self.L_lower_m_history = []
-            self.L_lower_v_history = []
-            self.L_lower_grad_history = []
-
+        self.output_step_variable_history = {key:[] for key in self.output_step_variables_to_track}
 
         self.saved = False
         self.frozen = False
@@ -118,11 +95,11 @@ class BWRun:
             "L_diag_grad": lambda bw, _: bw.grad_L_diag,
 
             "pre_B": lambda bw, d: bw.logB_jax(d['offset_pairs'][1], bw.mu, bw.L, bw.L_diag),
-            # "n_living":...,
+            "n_dead": lambda bw, d: len(bw.dead_nodes)
         }
 
-        self.output_step_variables_to_track = dict()
-        self.output_offset_variables_to_track = dict()
+        self.output_step_variables_to_track = {}
+        self.output_offset_variables_to_track = {"beh_pred": None, "beh_error": None} # todo: make these lambdas
 
     def run(self, save=False, limit=None, freeze=True, initialize=True):
         start_time = time.time()
@@ -172,18 +149,16 @@ class BWRun:
                     beh = next(self.output_ds)
                     beh_next_t, beh_done = self.output_ds.preview_next_timepoint()
                     if hasattr(self.bw, 'alpha'):
-                        self.reg_timepoint_history.append(self.output_ds.current_timepoint())
                         if self.output_regressor:
+                            self.reg_timepoint_history.append(self.output_ds.current_timepoint())
                             self.output_regressor.safe_observe(self.bw.alpha, beh)
-
                             for offset in self.output_ds.time_offsets:
                                 b = self.output_ds.get_atemporal_data_point(offset)
-                                alpha_ahead = self.alpha_history[offset][-1]
+                                alpha_ahead = self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset)
                                 bp = self.output_regressor.predict(alpha_ahead)
 
-                                self.behavior_pred_history[offset].append(bp)
-                                self.behavior_error_history[offset].append(bp - b)
-
+                                self.output_offset_variable_history["beh_pred"][offset].append(bp)
+                                self.output_offset_variable_history["beh_error"][offset].append(bp - b)
 
 
         end_time = time.time()
@@ -205,44 +180,9 @@ class BWRun:
                 d = dict()
                 self.model_offset_variable_history[key][offset].append(f(self.bw, o, offset, d))
 
-            p = self.bw.pred_ahead(self.bw.logB_jax(o, self.bw.mu, self.bw.L, self.bw.L_diag), self.bw.A, self.bw.alpha,
-                                   offset)
-            self.prediction_history[offset].append(p)
-
-            e = self.bw.get_entropy(self.bw.A, self.bw.alpha, offset)
-            self.entropy_history[offset].append(e)
-            self.alpha_history[offset].append(self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset))
-
-            # if self.behavior_regressors:
-            #     for i in range(len(self.behavior_regressors)):
-            #         alpha_ahead = np.array(self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset)).reshape(-1, 1)
-            #         bp = self.behavior_regressors[i].predict(alpha_ahead)
-            #
-            #         self.behavior_pred_history[i][offset].append(bp)
-            #         self.behavior_error_history[i][offset].append(bp - b)
-
-        self.n_living_history.append(self.bw.N - len(self.bw.dead_nodes))
-        if self.save_A:
-            self.A_history.append(self.bw.A)
-            self.pre_B_history.append(self.bw.logB_jax(offset_pairs[1], self.bw.mu, self.bw.L, self.bw.L_diag))
-            self.B_history.append(self.bw.B)
-            self.mu_history.append(self.bw.mu)
-            self.L_history.append(self.bw.L)
-            self.L_diag_history.append(self.bw.L_diag)
-            self.L_diag_m_history.append(np.array(self.bw.m_L_diag))
-            self.L_diag_v_history.append(np.array(self.bw.v_L_diag))
-            self.L_diag_grad_history.append(np.array(self.bw.grad_L_diag))
-
-            self.L_lower_history.append(self.bw.L_lower)
-            self.L_lower_m_history.append(np.array(self.bw.m_L_lower))
-            self.L_lower_v_history.append(np.array(self.bw.v_L_lower))
-            self.L_lower_grad_history.append(np.array(self.bw.grad_L_lower))
-
             for key, f in self.model_step_variables_to_track.items():
                 d = dict(offset_pairs=offset_pairs)
                 self.model_step_variable_history[key].append(f(self.bw, d))
-
-
 
         if self.animation_manager and self.animation_manager.frame_draw_condition(step, self.bw):
             self.animation_manager.draw_frame(step, self.bw, self)
@@ -266,106 +206,25 @@ class BWRun:
         def convert_dict(d):
             return {k: np.array(v) for k, v in d.items()}
 
-        self.prediction_history = convert_dict(self.prediction_history)
-        self.entropy_history = convert_dict(self.entropy_history)
-        self.behavior_pred_history = convert_dict(self.behavior_pred_history)
-        self.behavior_error_history = convert_dict(self.behavior_error_history)
-        self.alpha_history = convert_dict(self.alpha_history)
 
         self.bw_timepoint_history = np.array(self.bw_timepoint_history)
         self.reg_timepoint_history = np.array(self.reg_timepoint_history)
 
-        self.n_living_history = np.array(self.n_living_history)
-        if self.save_A:
-            self.A_history = np.array(self.A_history)
-            self.pre_B_history = np.array(self.pre_B_history)
-            self.B_history = np.array(self.B_history)
-            self.mu_history = np.array(self.mu_history)
-            self.L_history = np.array(self.L_history)
+        self.model_offset_variable_history = {k: convert_dict(v) for k, v in self.model_offset_variable_history.items()}
+        self.output_offset_variable_history = {k: convert_dict(v) for k, v in self.output_offset_variable_history.items()}
 
-            self.L_diag_history = np.array(self.L_diag_history)
-            self.L_diag_m_history = np.array(self.L_diag_m_history)
-            self.L_diag_v_history = np.array(self.L_diag_v_history)
-            self.L_diag_grad_history = np.array(self.L_diag_grad_history)
-
-            self.L_lower_history = np.array(self.L_lower_history)
-            self.L_lower_m_history = np.array(self.L_lower_m_history)
-            self.L_lower_v_history = np.array(self.L_lower_v_history)
-            self.L_lower_grad_history = np.array(self.L_lower_grad_history)
-
-            self.model_step_variable_history = convert_dict(self.model_step_variable_history)
+        self.model_step_variable_history = convert_dict(self.model_step_variable_history)
+        self.output_step_variable_history = convert_dict(self.output_step_variable_history)
 
         self.h = SimpleNamespace(
             **self.model_step_variable_history,
-            **self.model_offset_variable_history
+            **self.model_offset_variable_history,
+            **self.output_step_variable_history,
+            **self.output_offset_variable_history,
         )
 
 
         self.bw.freeze()
-
-    # Metrics
-    def evaluate_regressor(self, reg, o=None, o_t=None, train_offset=0, test_offset=1):
-        warnings.warn("this method isn't tested well, use at your own risk")
-        if o is None and o_t is None:
-            o = self.output_ds.a
-            o_t = self.output_ds.t
-
-        assert len(o_t) == len(o)
-        train_alphas = self.alpha_history[train_offset]
-        test_alphas = self.alpha_history[test_offset]
-        alpha_t = self.bw_timepoint_history
-        pred = []
-        truth = []
-        pred_times = []
-
-        j = 0
-        for i, obs_time in enumerate(o_t):
-            while (j+1) < len(alpha_t) and alpha_t[j+1] <= obs_time:
-                j += 1
-            if j < len(alpha_t) and obs_time <= alpha_t[j]:
-                reg.safe_observe(train_alphas[j],o[i])
-                pred.append(reg.predict(test_alphas[j]))
-                truth.append(o[i])
-                pred_times.append(alpha_t[j])
-                j += 1
-
-        pred = np.array(pred)
-        pred_times = np.array(pred_times)
-        truth = np.array(truth)
-        if len(pred.shape) == 1:
-            pred = pred.reshape(-1, 1)
-
-        return pred, truth, pred_times # predicted, true, times
-
-    def _last_half_index(self, offset=1):
-        warnings.warn("this method is outdated for non-synchronous data")
-        assert offset in self.input_ds.time_offsets
-        assert self.frozen
-        assert self.input_ds.time_offsets
-        pred = self.prediction_history[offset]
-        assert np.all(np.isfinite(pred)) # this works because there are no skipped steps
-        return len(pred)//2
-
-    def behavior_pred_corr(self, offset):
-        pred, true, err = self.get_behavior_last_half(offset)
-        assert np.all(np.isfinite(true))
-        return np.corrcoef(pred, true)[0,1]
-
-    def get_behavior_last_half(self, offset):
-        i = self._last_half_index()
-        pred = self.behavior_pred_history[offset][-i:]
-        err = self.behavior_error_history[offset][-i:]
-        true = pred - err
-        return pred, true, err
-
-    def log_pred_p_summary(self, offset):
-        i = self._last_half_index()
-        return self.prediction_history[offset][-i:].mean()
-
-    def entropy_summary(self, offset):
-        i = self._last_half_index()
-        return np.nanmean(self.entropy_history[offset][-i:])
-
 
     def __getstate__(self):
         d = self.__dict__
