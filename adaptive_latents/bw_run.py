@@ -10,7 +10,7 @@ from .input_sources.timed_data_source import NumpyTimedDataSource
 import warnings
 import time
 from .config import CONFIG
-from jax.lib import xla_bridge
+from types import SimpleNamespace
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -294,6 +294,11 @@ class BWRun:
             self.L_lower_grad_history = np.array(self.L_lower_grad_history)
 
             self.model_step_variable_history = convert_dict(self.model_step_variable_history)
+
+        self.h = SimpleNamespace(
+            **self.model_step_variable_history,
+            **self.model_offset_variable_history
+        )
 
 
         self.bw.freeze()
