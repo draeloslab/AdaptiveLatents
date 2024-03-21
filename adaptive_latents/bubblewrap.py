@@ -3,6 +3,7 @@ import jax.numpy as jnp
 from collections import deque
 from jax import jit, grad, vmap
 from jax import nn, random
+import jax
 
 # todo: make this a parameter?
 epsilon = 1e-10
@@ -133,7 +134,7 @@ class Bubblewrap():
         ## Set up gradients
         ## Change grad to value_and_grad if we want Q values
         self.grad_all = jit(
-            vmap(jit(grad(Q_j, argnums=(0, 1, 2, 3))), in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0, None, None, None, None, 0)))
+            vmap(jit(jax.value_and_grad(Q_j, argnums=(0, 1, 2, 3))), in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0, None, None, None, None, 0)))
 
         ## Other jitted functions
         self.logB_jax = jit(vmap(single_logB, in_axes=(None, 0, 0, 0)))
@@ -245,7 +246,7 @@ class Bubblewrap():
     def grad_Q(self):
         for _ in range(self.num_grad_q):
             divisor = 1 + self.sum_me(self.En)
-            (self.grad_mu, self.grad_L_lower, self.grad_L_diag, self.grad_A) = self.grad_all(self.mu, self.L_lower, self.L_diag, self.log_A, self.S1,
+            self.Q, (self.grad_mu, self.grad_L_lower, self.grad_L_diag, self.grad_A) = self.grad_all(self.mu, self.L_lower, self.L_diag, self.log_A, self.S1,
                                                                                              self.lam, self.S2, self.n_obs, self.En, self.nu,
                                                                                              self.sigma_orig, self.beta, self.d, self.mu_orig)
 
