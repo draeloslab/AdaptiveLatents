@@ -254,7 +254,7 @@ def show_A(ax, fig, bw, show_log=False):
 
 def show_alpha(ax, br, offset=0, show_log=False):
     ax.cla()
-    to_show = np.array(br.alpha_history[offset][-20:]).T
+    to_show = np.array(br.h.alpha_prediction[offset][-20:]).T
     if show_log:
         to_show = np.log(to_show)
 
@@ -274,7 +274,7 @@ def show_alpha(ax, br, offset=0, show_log=False):
 
 def show_B(ax, br, show_log=False):
     ax.cla()
-    to_show = np.array(br.B_history[-20:]).T
+    to_show = np.array(br.h.B[-20:]).T
     if show_log:
         to_show = np.log(to_show)
 
@@ -300,7 +300,7 @@ def show_behavior(ax, br):
     ax.cla()
     beh, beh_t = br.output_ds.get_history()
     ax.plot(beh_t[-20:], beh[-20:], linewidth=3, color='k')
-    ax.plot(beh_t[-20:], br.behavior_pred_history[0][-20:], linewidth=3, alpha=.5)
+    ax.plot(beh_t[-20:], br.h.beh_pred[0][-20:], linewidth=3, alpha=.5)
     ax.set_title("Behavior")
     ax.set_xticklabels([])
     use_bigger_lims(ax, old_lims, x=False)
@@ -443,7 +443,7 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
     for key in keep_keys:
         to_print.append(f"{key}: {[p.get(key) for p in ps]}")
 
-    beh_plot_raw_data = brs[0].behavior_error_history[offset]
+    beh_plot_raw_data = brs[0].h.beh_error[offset]
     if beh_plot_raw_data.size == 0 or np.all(np.isnan(beh_plot_raw_data)):
         include_behavior = False
 
@@ -454,10 +454,10 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
     n = 0
     for idx, br in enumerate(brs):
         br: adaptive_latents.bw_run.BWRun
-        n = max(n, br.entropy_history[offset].shape[0])
+        n = max(n, br.h.entropy[offset].shape[0])
 
 
-        predictions = br.prediction_history[offset]
+        predictions = br.h.log_pred_p[offset]
         smoothed_predictions = _one_sided_ewma(predictions, smoothing_scale)
         _, obs_t = br.input_ds.get_history()
         obs_t = obs_t[-predictions.size:]
@@ -485,7 +485,7 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
         ax[0,0].set_ylabel('prediction')
         to_write[0].append((idx, f"{predictions[n // 2:].mean():.3f}", dict(color=c)))
 
-        entropy = br.entropy_history[offset]
+        entropy = br.h.entropy[offset]
         smoothed_entropy = _one_sided_ewma(entropy, smoothing_scale)
 
         c = 'black'
@@ -502,7 +502,7 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
         to_write[1].append((idx, f"{entropy[n // 2:].mean():.3f}", dict(color=c)))
 
         if include_behavior:
-            beh_error = np.squeeze(br.behavior_error_history[offset] ** 2)
+            beh_error = np.squeeze(br.h.beh_error[offset] ** 2)
             c = 'black'
             if colors:
                 c = colors[idx]
