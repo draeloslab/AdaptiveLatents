@@ -24,8 +24,7 @@ egg_base = "dist"
 directory = "cov_html"
 
 [tool.pytest.ini_options]
-addopts = """--cov=./adaptive_latents \
---cov-report=html:./tests/reports/coverage-html \
+addopts = """--cov-report=html:./tests/reports/coverage-html \
 --cov-report=xml:./tests/reports/coverage.xml \
 """
 

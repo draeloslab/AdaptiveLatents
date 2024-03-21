@@ -89,8 +89,6 @@ def test_can_save_and_rerun(rng, outdir):
     br = BWRun(bw, obs_ds, show_tqdm=False, output_directory=outdir)
     br.run(limit=100,save=True, freeze=False)
 
-    br.run(limit=100, save=True, freeze=False)
-
     pickle_file = br.pickle_file
     del br
 
@@ -113,6 +111,15 @@ def test_if_new_method_equals_old(premade_br):
         assert np.array_equal(br.alpha_history[offset], br.model_offset_variable_history["alpha_prediction"][offset], equal_nan=True)
         assert np.array_equal(br.prediction_history[offset], br.model_offset_variable_history["log_pred_p"][offset], equal_nan=True)
         assert np.array_equal(br.entropy_history[offset], br.model_offset_variable_history["entropy"][offset], equal_nan=True)
+
+    # test the h variable
+    for variable in ['A', 'mu', 'L', 'B', 'L_lower', 'L_diag']:
+        assert np.array_equal(br.h.__dict__[variable], br.model_step_variable_history[variable], equal_nan=True)
+
+    for offset in br.input_ds.time_offsets:
+        assert np.array_equal(br.h.alpha_prediction[offset], br.model_offset_variable_history["alpha_prediction"][offset], equal_nan=True)
+        assert np.array_equal(br.h.log_pred_p[offset], br.model_offset_variable_history["log_pred_p"][offset], equal_nan=True)
+        assert np.array_equal(br.h.entropy[offset], br.model_offset_variable_history["entropy"][offset], equal_nan=True)
 
 def test_some_br_methods_run(premade_br):
     # todo: these might be deleted?
