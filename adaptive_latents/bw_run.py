@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from .input_sources.timed_data_source import NumpyTimedDataSource
 
 class BWRun:
-    def __init__(self, bw, in_ds, out_ds=None, behavior_regressor=None, animation_manager=None, save_A=False, show_tqdm=True,
+    def __init__(self, bw, in_ds,  out_ds=None, behavior_regressor=None, animation_manager=None, log_level=1, show_tqdm=True,
                  output_directory=CONFIG["output_path"]/"bubblewrap_runs", notes=()):
 
         self.bw: Bubblewrap = bw
@@ -39,7 +39,6 @@ class BWRun:
         self.output_directory = output_directory
         self.create_new_filenames()
 
-        self.save_A = save_A
         self.show_tqdm = show_tqdm
 
         self.bw_timepoint_history = []
@@ -50,6 +49,7 @@ class BWRun:
         self.hit_end_of_dataset = False
 
 
+        self.log_level = log_level
         self.add_lambda_functions()
         self.model_offset_variable_history = {key: {offset: [] for offset in in_ds.time_offsets} for key in self.model_offset_variables_to_track}
         self.output_offset_variable_history = {key: {offset: [] for offset in in_ds.time_offsets} for key in self.output_offset_variables_to_track}
@@ -66,40 +66,56 @@ class BWRun:
         # note that if there is no behavior, the behavior dimensions will be zero
 
     def add_lambda_functions(self):
-        self.model_offset_variables_to_track = {
-            "log_pred_p": lambda bw, o, offset, _: bw.pred_ahead(bw.logB_jax(o, bw.mu, bw.L, bw.L_diag), bw.A, bw.alpha, offset),
-            "entropy": lambda bw, o, offset, _: bw.get_entropy(bw.A, bw.alpha, offset),
-            "alpha_prediction": lambda bw, o, offset, _: bw.alpha @ np.linalg.matrix_power(bw.A, offset),
-            # "output_prediction": lambda bw, o, offset, _: ...,
-        }
-        # todo: make a good way to get behavior error without tracking it
-
-
-        self.model_step_variables_to_track = {
-            "alpha": lambda bw, _: bw.alpha,
-
-            "A": lambda bw, _: bw.A,
-            "B": lambda bw, _: bw.B,
-            "mu": lambda bw, _: bw.mu,
-            "L": lambda bw, _: bw.L,
-            "Q": lambda bw, _: bw.Q,
-
-            "L_lower": lambda bw, _: bw.L_lower,
-            "L_lower_m": lambda bw, _: bw.m_L_lower,
-            "L_lower_v": lambda bw, _: bw.v_L_lower,
-            "L_lower_grad": lambda bw, _: bw.grad_L_lower,
-
-            "L_diag": lambda bw, _: bw.L_diag,
-            "L_diag_m": lambda bw, _: bw.m_L_diag,
-            "L_diag_v": lambda bw, _: bw.v_L_diag,
-            "L_diag_grad": lambda bw, _: bw.grad_L_diag,
-
-            "pre_B": lambda bw, d: bw.logB_jax(d['offset_pairs'][1], bw.mu, bw.L, bw.L_diag),
-            "n_dead": lambda bw, d: len(bw.dead_nodes)
-        }
-
+        self.model_offset_variables_to_track = {}
+        self.model_step_variables_to_track = {}
         self.output_step_variables_to_track = {}
-        self.output_offset_variables_to_track = {"beh_pred": None, "beh_error": None} # todo: make these lambdas
+        self.output_offset_variables_to_track = {}
+
+        if self.log_level >=0:
+            self.model_offset_variables_to_track.update({
+                "log_pred_p": lambda bw, o, offset, _: bw.pred_ahead(bw.logB_jax(o, bw.mu, bw.L, bw.L_diag), bw.A, bw.alpha, offset),
+                "entropy": lambda bw, o, offset, _: bw.get_entropy(bw.A, bw.alpha, offset),
+                "alpha_prediction": lambda bw, o, offset, _: bw.alpha @ np.linalg.matrix_power(bw.A, offset),
+            })
+            self.model_step_variables_to_track.update({
+                "alpha": lambda bw, _: bw.alpha,
+            })
+
+        if self.log_level >= 1:
+            self.model_step_variables_to_track.update({
+                "A": lambda bw, _: bw.A,
+                "mu": lambda bw, _: bw.mu,
+                "L": lambda bw, _: bw.L,
+                "Q": lambda bw, _: bw.Q,
+                "n_obs": lambda bw, d: bw.n_obs,
+                "n_dead": lambda bw, d: len(bw.dead_nodes),
+            })
+
+            self.output_offset_variables_to_track.update({
+                "beh_pred": None,
+                "beh_error": None
+            })
+            # todo: make these lambdas
+            # todo: make a test to check we can get the error of the beh prediction
+
+
+        if self.log_level >= 2:
+            self.model_step_variables_to_track.update({
+                "B": lambda bw, _: bw.B,
+                "L_lower": lambda bw, _: bw.L_lower,
+                "L_lower_m": lambda bw, _: bw.m_L_lower,
+                "L_lower_v": lambda bw, _: bw.v_L_lower,
+                "L_lower_grad": lambda bw, _: bw.grad_L_lower,
+
+                "L_diag": lambda bw, _: bw.L_diag,
+                "L_diag_m": lambda bw, _: bw.m_L_diag,
+                "L_diag_v": lambda bw, _: bw.v_L_diag,
+                "L_diag_grad": lambda bw, _: bw.grad_L_diag,
+
+                "pre_B": lambda bw, d: bw.logB_jax(d['offset_pairs'][1], bw.mu, bw.L, bw.L_diag),
+            })
+
+
 
     def run(self, save=False, limit=None, freeze=True, initialize=True):
         start_time = time.time()
@@ -157,8 +173,8 @@ class BWRun:
                                 alpha_ahead = self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset)
                                 bp = self.output_regressor.predict(alpha_ahead)
 
-                                self.output_offset_variable_history["beh_pred"][offset].append(bp)
-                                self.output_offset_variable_history["beh_error"][offset].append(bp - b)
+                                self.output_offset_variable_history["beh_pred"][offset].append(np.array(bp))
+                                self.output_offset_variable_history["beh_error"][offset].append(np.array(bp - b))
 
 
         end_time = time.time()
@@ -178,11 +194,11 @@ class BWRun:
         for offset, o in offset_pairs.items():
             for key, f in self.model_offset_variables_to_track.items():
                 d = dict()
-                self.model_offset_variable_history[key][offset].append(f(self.bw, o, offset, d))
+                self.model_offset_variable_history[key][offset].append(np.array(f(self.bw, o, offset, d)))
 
-            for key, f in self.model_step_variables_to_track.items():
-                d = dict(offset_pairs=offset_pairs)
-                self.model_step_variable_history[key].append(f(self.bw, d))
+        for key, f in self.model_step_variables_to_track.items():
+            d = dict(offset_pairs=offset_pairs)
+            self.model_step_variable_history[key].append(np.array(f(self.bw, d)))
 
         if self.animation_manager and self.animation_manager.frame_draw_condition(step, self.bw):
             self.animation_manager.draw_frame(step, self.bw, self)

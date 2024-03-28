@@ -3,6 +3,9 @@ import numpy as np
 import adaptive_latents
 from adaptive_latents import Bubblewrap, BWRun, SymmetricNoisyRegressor, NumpyTimedDataSource
 
+import jax
+jax.config.update('jax_enable_x64', True)
+
 # https://stackoverflow.com/a/43938191
 def pytest_addoption(parser):
     parser.addoption('--longrun', action='store_true', dest="longrun",
@@ -21,7 +24,7 @@ def rng():
 
 
 def _make_br(rng):
-    def br_f(m=600, n_obs=2, bw_params=None, save_A=False):
+    def br_f(m=600, n_obs=2, bw_params=None, log_level=0):
         if bw_params is None:
             bw_params = dict()
         n_beh = 1
@@ -33,7 +36,7 @@ def _make_br(rng):
 
         bw = Bubblewrap(n_obs, **dict(adaptive_latents.default_parameters.default_clock_parameters, **bw_params))
         reg = SymmetricNoisyRegressor(bw.N, n_beh)
-        br = BWRun(bw, obs_ds, beh_ds, behavior_regressor=reg, show_tqdm=False, save_A=save_A)
+        br = BWRun(bw, obs_ds, beh_ds, behavior_regressor=reg, show_tqdm=False, log_level=log_level)
         br.run(save=False, freeze=True)
         return br
     return br_f
@@ -42,9 +45,9 @@ make_br = pytest.fixture(_make_br)
 
 @pytest.fixture(scope="session")
 def premade_br():
-    return _make_br(np.random.default_rng(0))(save_A=True)
+    return _make_br(np.random.default_rng(0))(log_level=1)
 
 @pytest.fixture(scope="session")
 def premade_big_br():
-     return _make_br(np.random.default_rng(0))(n_obs=20, m=3_000)
+     return _make_br(np.random.default_rng(0))(n_obs=20, m=3_000, log_level=0)
 #

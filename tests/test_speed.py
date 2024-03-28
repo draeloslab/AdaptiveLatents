@@ -3,6 +3,9 @@ import numpy as np
 import adaptive_latents.input_sources as ins
 from adaptive_latents import default_rwd_parameters, Bubblewrap, SymmetricNoisyRegressor
 from proSVD import proSVD
+import pytest
+
+longrun = pytest.mark.skipif("not config.getoption('longrun')")
 
 def get_speed_over_time(psvd_input, regression_output, prosvd_k=6, bw_params=None, max_steps=10_000):
     # todo: try transposing `obs`
@@ -65,7 +68,7 @@ def get_speed_over_time(psvd_input, regression_output, prosvd_k=6, bw_params=Non
 
     return times
 
-
+@longrun
 def test_fast_enough_for_resampled_buzaki_data():
     identifier = ins.datasets.individual_identifiers["buzaki"][0]
     bin_width = 0.03

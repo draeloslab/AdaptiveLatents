@@ -426,6 +426,7 @@ def _deduce_bw_parameters(bw):
                 copy_row_on_teleport=bw.copy_row_on_teleport,
                 num_grad_q=bw.num_grad_q,
                 backend=bw.backend_note,
+                precision=bw.precision_note,
                 sigma_orig_adjustment = bw.sigma_orig_adjust,
                 )
 

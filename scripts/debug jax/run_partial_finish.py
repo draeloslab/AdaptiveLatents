@@ -1,5 +1,7 @@
 import os
 import sys
+from jax.config import config
+config.update("jax_enable_x64", True)
 
 backend = sys.argv[1]
 match backend:
@@ -27,6 +29,10 @@ def main():
             brs.append(pickle.load(fhan))
     for br in brs:
         br.create_new_filenames()
+        # br.bw.m_L_diag = 0 * br.bw.m_L_diag
+        # br.bw.v_L_diag = 0 * br.bw.v_L_diag
+        # br.bw.m_L_lower = 0 * br.bw.m_L_lower
+        # br.bw.v_L_lower = 0 * br.bw.v_L_lower
         br.run(save=True, initialize=False)
 
 if __name__ == '__main__':
