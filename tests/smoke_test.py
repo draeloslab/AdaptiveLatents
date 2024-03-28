@@ -14,6 +14,24 @@ def test_can_use_cuda():
     from jax.lib import xla_bridge
     assert xla_bridge.get_backend().platform == 'gpu'
 
+def test_can_use_float64():
+    import jax
+    jax.config.update('jax_enable_x64', True)  # this line is mostly for documentation, the real line is in conftest
+    x = jax.random.uniform(jax.random.key(0), (1,), dtype=jax.numpy.float64)
+    assert x.dtype == jax.numpy.float64
+
+# def test_can_use_float32():
+#     import jax
+#     # jax.config.update('jax_enable_x64', False) # this should be the default
+#     x = jax.random.uniform(jax.random.key(0), (1,), dtype=jax.numpy.float64)
+#     assert x.dtype != jax.numpy.float64
+
+# def test_can_use_cpu():
+#     import jax
+#     jax.config.update('jax_platform_name', 'cpu')
+#     from jax.lib import xla_bridge
+#     assert xla_bridge.get_backend().platform == 'cpu'
+
 def test_can_run_with_beh(rng, outdir):
     m, n_obs, n_beh = 150, 3, 4
     obs = rng.normal(size=(m, n_obs))
@@ -66,7 +84,7 @@ def test_can_save_and_freeze(rng, outdir):
     obs = rng.normal(size=(m, n_obs))
     obs_ds = NumpyTimedDataSource(obs, None, (0,1))
     bw = Bubblewrap(3, **default_clock_parameters)
-    br = BWRun(bw, obs_ds, show_tqdm=False, output_directory=outdir, save_A=True)
+    br = BWRun(bw, obs_ds, show_tqdm=False, output_directory=outdir, log_level=2)
     br.run(limit=100, save=True, freeze=True)
 
     pickle_file = br.pickle_file

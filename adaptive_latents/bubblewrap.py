@@ -1,13 +1,15 @@
+from jax.config import config
+config.update("jax_enable_x64", True)
+
 import numpy
 import jax.numpy as jnp
 from collections import deque
-from jax import jit, grad, vmap
+from jax import jit, vmap
 from jax import nn, random
 import jax
 
 # todo: make this a parameter?
 epsilon = 1e-10
-# todo: is n_thresh a real parameter?
 
 
 class Bubblewrap():
@@ -32,9 +34,6 @@ class Bubblewrap():
         self.batch_size = batch_size
         if not self.batch: self.batch_size = 1
 
-        # todo: make this a parameter or remove
-        self.printing = False
-
         self.go_fast = go_fast
 
         self.key = random.PRNGKey(self.seed)
@@ -50,9 +49,15 @@ class Bubblewrap():
         self.frozen = False
 
         self.backend_note = None
+        self.precision_note = None
         if not self.go_fast:
             from jax.lib import xla_bridge
             self.backend_note = xla_bridge.get_backend().platform
+
+            x = jax.random.uniform(jax.random.key(0), (1,), dtype=jnp.float64)
+            self.precision_note = x.dtype
+            if self.precision_note != jnp.float64:
+                raise Exception("You should probably run jax with 64-bit floats.")
 
     def init_nodes(self):
         ### Based on observed data so far of length M
@@ -192,8 +197,6 @@ class Bubblewrap():
         if jnp.max(self.B) < self.B_thresh:
             if not (self.dead_nodes):
                 target = numpy.argmin(self.n_obs)
-                if self.printing:
-                    print('-------------- killing a node: ', target)
                 n_obs = numpy.array(self.n_obs)
                 n_obs[target] = 0
                 self.n_obs = n_obs
@@ -214,8 +217,6 @@ class Bubblewrap():
             actual_ind = int(ind2)
             self.dead_nodes.append(actual_ind)
             self.dead_nodes_ind[actual_ind] = self.n_thresh
-            if self.printing:
-                print('Removed dead node ', actual_ind, ' at time ', self.t)
 
     def teleport_node(self, x):
         node = self.dead_nodes.pop(0)
@@ -237,9 +238,6 @@ class Bubblewrap():
             A[node] = A[nearest_bubble]
             self.A = A
 
-        if self.printing:
-            print('Teleported node ', node, ' to current data location at time ', self.t)
-            self.teleported_times.append(self.t)
 
         return node
 
