@@ -101,6 +101,8 @@ class BWRun:
 
         if self.log_level >= 2:
             self.model_step_variables_to_track.update({
+                "Q_parts": lambda bw, _: bw.Q_parts,
+
                 "B": lambda bw, _: bw.B,
                 "L_lower": lambda bw, _: bw.L_lower,
                 "L_lower_m": lambda bw, _: bw.m_L_lower,
@@ -113,6 +115,7 @@ class BWRun:
                 "L_diag_grad": lambda bw, _: bw.grad_L_diag,
 
                 "pre_B": lambda bw, d: bw.logB_jax(d['offset_pairs'][1], bw.mu, bw.L, bw.L_diag),
+
             })
 
 

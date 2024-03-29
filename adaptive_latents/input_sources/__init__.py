@@ -7,7 +7,7 @@ from .utils import (
     prosvd_data,
     zscore,
     bwrap_alphas_ahead,
-    resample_timeseries
+    resample_matched_timeseries
 )
 from .datasets import (
     construct_buzaki_data,
