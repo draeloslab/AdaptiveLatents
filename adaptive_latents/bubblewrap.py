@@ -1,5 +1,5 @@
 from jax.config import config
-config.update("jax_enable_x64", True)
+# config.update("jax_enable_x64", True)
 
 import numpy
 import jax.numpy as jnp
@@ -7,6 +7,7 @@ from collections import deque
 from jax import jit, vmap
 from jax import nn, random
 import jax
+import warnings
 
 # todo: make this a parameter?
 epsilon = 1e-10
@@ -57,7 +58,8 @@ class Bubblewrap():
             x = jax.random.uniform(jax.random.key(0), (1,), dtype=jnp.float64)
             self.precision_note = x.dtype
             if self.precision_note != jnp.float64:
-                raise Exception("You should probably run jax with 64-bit floats.")
+                warnings.warn("You should probably run jax with 64-bit floats.")
+                # raise FloatingPointError("You should probably run jax with 64-bit floats.")
 
     def init_nodes(self):
         ### Based on observed data so far of length M
@@ -137,9 +139,8 @@ class Bubblewrap():
         self.get_mus0 = jit(vmap(get_mus, 0))
 
         ## Set up gradients
-        ## Change grad to value_and_grad if we want Q values
         self.grad_all = jit(
-            vmap(jit(jax.value_and_grad(Q_j, argnums=(0, 1, 2, 3))), in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0, None, None, None, None, 0)))
+            vmap(jit(jax.value_and_grad(Q_j, argnums=(0, 1, 2, 3), has_aux=True)), in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0, None, None, None, None, 0)))
 
         ## Other jitted functions
         self.logB_jax = jit(vmap(single_logB, in_axes=(None, 0, 0, 0)))
@@ -244,7 +245,7 @@ class Bubblewrap():
     def grad_Q(self):
         for _ in range(self.num_grad_q):
             divisor = 1 + self.sum_me(self.En)
-            self.Q, (self.grad_mu, self.grad_L_lower, self.grad_L_diag, self.grad_A) = self.grad_all(self.mu, self.L_lower, self.L_diag, self.log_A, self.S1,
+            (self.Q, self.Q_parts), (self.grad_mu, self.grad_L_lower, self.grad_L_diag, self.grad_A) = self.grad_all(self.mu, self.L_lower, self.L_diag, self.log_A, self.S1,
                                                                                              self.lam, self.S2, self.n_obs, self.En, self.nu,
                                                                                              self.sigma_orig, self.beta, self.d, self.mu_orig)
 
@@ -362,12 +363,14 @@ def Q_j(mu, L_lower, L_diag, log_A, S1, lam, S2, n_obs, En, nu, sigma_orig, beta
     mus_orig = jnp.outer(mu_orig, mu_orig)
     ld = -2 * jnp.sum(L_diag)
 
-    summed = 0
-    summed += (S1 + lam * mu_orig).dot(sig_inv).dot(mu)
-    summed += (-1 / 2) * jnp.trace((sigma_orig + S2 + lam * mus_orig + (lam + n_obs) * mus) @ sig_inv)
-    summed += (-1 / 2) * (nu + n_obs + d + 2) * ld
-    summed += jnp.sum((En + beta - 1) * nn.log_softmax(log_A))
-    return -jnp.sum(summed)
+    # todo: this could be optimized
+    to_sum = []
+    to_sum.append((S1 + lam * mu_orig).dot(sig_inv).dot(mu))
+    to_sum.append((-1 / 2) * jnp.trace((sigma_orig + S2 + lam * mus_orig + (lam + n_obs) * mus) @ sig_inv))
+    to_sum.append((-1 / 2) * (nu + n_obs + d + 2) * ld)
+    to_sum.append(jnp.sum((En + beta - 1) * nn.log_softmax(log_A)))
+    summed = to_sum[0] + to_sum[1] + to_sum[2] + to_sum[3]
+    return -jnp.sum(summed), to_sum
 
 
 @jit

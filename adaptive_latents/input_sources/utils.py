@@ -217,7 +217,7 @@ def clip(*args, maxlen=float("inf")):
     clipped_arrays = [a[m:] for a in args]
     return clipped_arrays
 
-def resample_timeseries(old_timeseries, new_sample_times, old_sample_times):
+def resample_matched_timeseries(old_timeseries, new_sample_times, old_sample_times):
     good_samples = ~np.any(np.isnan(old_timeseries), axis=1)
     resampled_behavior = np.zeros((new_sample_times.shape[0], old_timeseries.shape[1]))
     for c in range(resampled_behavior.shape[1]):
