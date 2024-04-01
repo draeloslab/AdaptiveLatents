@@ -1,5 +1,5 @@
 from jax.config import config
-# config.update("jax_enable_x64", True)
+config.update("jax_enable_x64", True)
 
 import numpy
 import jax.numpy as jnp
@@ -363,10 +363,19 @@ def Q_j(mu, L_lower, L_diag, log_A, S1, lam, S2, n_obs, En, nu, sigma_orig, beta
     mus_orig = jnp.outer(mu_orig, mu_orig)
     ld = -2 * jnp.sum(L_diag)
 
-    # todo: this could be optimized
+
+    # todo: this list structure could be optimized
     to_sum = []
     to_sum.append((S1 + lam * mu_orig).dot(sig_inv).dot(mu))
-    to_sum.append((-1 / 2) * jnp.trace((sigma_orig + S2 + lam * mus_orig + (lam + n_obs) * mus) @ sig_inv))
+    to_sum.append((-1 / 2) * jnp.trace(  ((sigma_orig + S2 + lam * mus_orig + (lam + n_obs) * mus)
+                                          .astype(jnp.float32)
+                                             @
+                                             sig_inv
+                                          .astype(jnp.float32)
+                                          )
+                                         # .astype(jnp.float32)
+                                         )
+                  )
     to_sum.append((-1 / 2) * (nu + n_obs + d + 2) * ld)
     to_sum.append(jnp.sum((En + beta - 1) * nn.log_softmax(log_A)))
     summed = to_sum[0] + to_sum[1] + to_sum[2] + to_sum[3]
