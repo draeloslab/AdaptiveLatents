@@ -249,6 +249,8 @@ class Bubblewrap():
                                                                                              self.lam, self.S2, self.n_obs, self.En, self.nu,
                                                                                              self.sigma_orig, self.beta, self.d, self.mu_orig)
 
+            _Q_j(self.mu[0], self.L_lower[0], self.L_diag[0], self.log_A[0], self.S1[0], self.lam[0], self.S2[0], self.n_obs[0], self.En[0], self.nu, self.sigma_orig, self.beta, self.d, self.mu_orig[0])
+
             # #todo: this is very dangerous and slow
             # self.grad_L_diag = numpy.array(self.grad_L_diag)
             # self.grad_L_diag[self.grad_L_diag > 10] = 10
@@ -355,8 +357,7 @@ def get_ld(L):
     return -2 * jnp.sum(L)
 
 
-@jit
-def Q_j(mu, L_lower, L_diag, log_A, S1, lam, S2, n_obs, En, nu, sigma_orig, beta, d, mu_orig):
+def _Q_j(mu, L_lower, L_diag, log_A, S1, lam, S2, n_obs, En, nu, sigma_orig, beta, d, mu_orig):
     L = jnp.tril(jnp.diag(jnp.exp(L_diag) + epsilon) + jnp.tril(L_lower, -1))
     sig_inv = L @ L.T
     mus = jnp.outer(mu, mu)
@@ -381,6 +382,8 @@ def Q_j(mu, L_lower, L_diag, log_A, S1, lam, S2, n_obs, En, nu, sigma_orig, beta
     summed = to_sum[0] + to_sum[1] + to_sum[2] + to_sum[3]
     return -jnp.sum(summed), to_sum
 
+
+Q_j = jit(_Q_j)
 
 @jit
 def single_logB(x, mu, L, L_diag):
