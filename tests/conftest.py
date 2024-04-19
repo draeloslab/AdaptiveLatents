@@ -45,9 +45,9 @@ make_br = pytest.fixture(_make_br)
 
 @pytest.fixture(scope="session")
 def premade_br():
-    return _make_br(np.random.default_rng(0))(log_level=1)
+    return _make_br(np.random.default_rng(0))(log_level=2)
 
 @pytest.fixture(scope="session")
 def premade_big_br():
-     return _make_br(np.random.default_rng(0))(n_obs=20, m=3_000, log_level=0)
+     return _make_br(np.random.default_rng(0))(n_obs=20, m=3_000, log_level=1)
 #
