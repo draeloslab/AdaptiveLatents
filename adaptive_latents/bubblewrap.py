@@ -136,6 +136,7 @@ class Bubblewrap():
         self.t = 1  # todo: what is this doing in ADAM?
 
     def _add_jited_functions(self):
+        # doing this here allows us to add the jax-specific functions back after an object has been pickled
         self.get_mus0 = jit(vmap(get_mus, 0))
 
         ## Set up gradients
@@ -144,10 +145,8 @@ class Bubblewrap():
 
         ## Other jitted functions
         self.logB_jax = jit(vmap(single_logB, in_axes=(None, 0, 0, 0)))
-        self.expB_jax = expB # todo: add back JAX
-        # self.update_internal_jax = jit(update_internal)
-        # TODO: make sure update_internal_jax is actually jax
-        self.update_internal_jax = update_internal
+        self.expB_jax = jit(expB)
+        self.update_internal_jax = jit(update_internal)
         self.kill_nodes = jit(kill_dead_nodes)
         self.pred_ahead = jit(pred_ahead, static_argnames=['steps_ahead'])
         self.sum_me = jit(sum_me)
@@ -249,17 +248,10 @@ class Bubblewrap():
                                                                                              self.lam, self.S2, self.n_obs, self.En, self.nu,
                                                                                              self.sigma_orig, self.beta, self.d, self.mu_orig)
 
-            _Q_j(self.mu[0], self.L_lower[0], self.L_diag[0], self.log_A[0], self.S1[0], self.lam[0], self.S2[0], self.n_obs[0], self.En[0], self.nu, self.sigma_orig, self.beta, self.d, self.mu_orig[0])
-
-            # #todo: this is very dangerous and slow
-            # self.grad_L_diag = numpy.array(self.grad_L_diag)
-            # self.grad_L_diag[self.grad_L_diag > 10] = 10
-            # self.grad_L_diag[self.grad_L_diag < -10] = -10
+            # this line is for debugging purposes; you can step through the inside of grad_all for a single bubble
+            # _Q_j(self.mu[0], self.L_lower[0], self.L_diag[0], self.log_A[0], self.S1[0], self.lam[0], self.S2[0], self.n_obs[0], self.En[0], self.nu, self.sigma_orig, self.beta, self.d, self.mu_orig[0])
 
             self.run_adam(self.grad_mu / divisor, self.grad_L_lower / divisor, self.grad_L_diag / divisor, self.grad_A / divisor)
-
-            # for bubble in bubbles:
-            #     make_bubble_aspect_ratio_smaller
 
             self.A = sm(self.log_A)
 
@@ -366,19 +358,16 @@ def _Q_j(mu, L_lower, L_diag, log_A, S1, lam, S2, n_obs, En, nu, sigma_orig, bet
 
 
     # todo: this list structure could be optimized
-    to_sum = []
-    to_sum.append((S1 + lam * mu_orig).dot(sig_inv).dot(mu))
-    to_sum.append((-1 / 2) * jnp.trace(  ((sigma_orig + S2 + lam * mus_orig + (lam + n_obs) * mus)
-                                          .astype(jnp.float32)
-                                             @
+    to_sum = [None, None, None, None]
+    to_sum[0] = ((S1 + lam * mu_orig).dot(sig_inv).dot(mu))
+    to_sum[1] = ((-1 / 2) * jnp.trace(  ((sigma_orig + S2 + lam * mus_orig + (lam + n_obs) * mus)
+                                             @ # NB: this is where a GPU numerical problem was cropping up at one point
                                              sig_inv
-                                          .astype(jnp.float32)
                                           )
-                                         # .astype(jnp.float32)
                                          )
                   )
-    to_sum.append((-1 / 2) * (nu + n_obs + d + 2) * ld)
-    to_sum.append(jnp.sum((En + beta - 1) * nn.log_softmax(log_A)))
+    to_sum[2] = ((-1 / 2) * (nu + n_obs + d + 2) * ld)
+    to_sum[3] = (jnp.sum((En + beta - 1) * nn.log_softmax(log_A)))
     summed = to_sum[0] + to_sum[1] + to_sum[2] + to_sum[3]
     return -jnp.sum(summed), to_sum
 

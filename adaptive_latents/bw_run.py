@@ -81,6 +81,14 @@ class BWRun:
                 "alpha": lambda bw, _: bw.alpha,
             })
 
+            self.output_offset_variables_to_track.update({
+                "beh_pred": None,
+                "beh_error": None
+            })
+
+            # todo: make these lambdas
+            # todo: make a test to check we can get the error of the beh prediction
+
         if self.log_level >= 1:
             self.model_step_variables_to_track.update({
                 "A": lambda bw, _: bw.A,
@@ -91,19 +99,13 @@ class BWRun:
                 "n_dead": lambda bw, d: len(bw.dead_nodes),
             })
 
-            self.output_offset_variables_to_track.update({
-                "beh_pred": None,
-                "beh_error": None
-            })
-            # todo: make these lambdas
-            # todo: make a test to check we can get the error of the beh prediction
 
 
         if self.log_level >= 2:
             self.model_step_variables_to_track.update({
                 "Q_parts": lambda bw, _: bw.Q_parts,
 
-                "B": lambda bw, _: bw.B,
+
                 "L_lower": lambda bw, _: bw.L_lower,
                 "L_lower_m": lambda bw, _: bw.m_L_lower,
                 "L_lower_v": lambda bw, _: bw.v_L_lower,
@@ -114,6 +116,7 @@ class BWRun:
                 "L_diag_v": lambda bw, _: bw.v_L_diag,
                 "L_diag_grad": lambda bw, _: bw.grad_L_diag,
 
+                "B": lambda bw, _: bw.B,
                 "pre_B": lambda bw, d: bw.logB_jax(d['offset_pairs'][1], bw.mu, bw.L, bw.L_diag),
 
             })
@@ -176,8 +179,11 @@ class BWRun:
                                 alpha_ahead = self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset)
                                 bp = self.output_regressor.predict(alpha_ahead)
 
-                                self.output_offset_variable_history["beh_pred"][offset].append(np.array(bp))
-                                self.output_offset_variable_history["beh_error"][offset].append(np.array(bp - b))
+                                if "beh_pred" in self.output_offset_variable_history:
+                                    self.output_offset_variable_history["beh_pred"][offset].append(np.array(bp))
+
+                                if "beh_error" in self.output_offset_variable_history:
+                                    self.output_offset_variable_history["beh_error"][offset].append(np.array(bp - b))
 
 
         end_time = time.time()
