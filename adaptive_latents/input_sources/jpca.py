@@ -82,7 +82,7 @@ def jpca_data(X):
         for j in range(n):
             x = rows[j]
             y = X_dot[i, j]
-            reg.safe_observe(x, y)
+            reg.observe(x, y)
         U = U_from_beta(reg.get_beta(), n, U)
         observations.append(X[i] @ U)
 

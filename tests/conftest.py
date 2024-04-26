@@ -1,3 +1,5 @@
+import copy
+
 import pytest
 import numpy as np
 import adaptive_latents
@@ -23,7 +25,7 @@ def rng():
     return np.random.default_rng(0)
 
 
-def _make_br(rng):
+def _make_br(rng, freeze=True):
     def br_f(m=600, n_obs=2, bw_params=None, log_level=0):
         if bw_params is None:
             bw_params = dict()
@@ -31,21 +33,30 @@ def _make_br(rng):
 
         hmm = adaptive_latents.input_sources.hmm_simulation.HMM.gaussian_clock_hmm(high_d_pad=n_obs-2)
         states, observations = hmm.simulate_with_states(m, rng)
-        obs_ds = NumpyTimedDataSource(observations, timepoints=np.arange(m), time_offsets=(-3,0,1,3))
-        beh_ds = NumpyTimedDataSource(states, timepoints=np.arange(m), time_offsets=(-3,0,3))
+
+        # remove these 1's sometimes; everything sould work for n-offsets, not just 1
+        obs_ds = NumpyTimedDataSource(observations, timepoints=np.arange(m), time_offsets=(-1, 0, 3))
+        beh_ds = NumpyTimedDataSource(states, timepoints=np.arange(m), time_offsets=(-1, 0, 3, 4))
 
         bw = Bubblewrap(n_obs, **dict(adaptive_latents.default_parameters.default_clock_parameters, **bw_params))
         reg = SymmetricNoisyRegressor(bw.N, n_beh)
         br = BWRun(bw, obs_ds, beh_ds, behavior_regressor=reg, show_tqdm=False, log_level=log_level)
-        br.run(save=False, freeze=True)
+        br.run(save=False, freeze=freeze)
         return br
     return br_f
 
 make_br = pytest.fixture(_make_br)
 
+
 @pytest.fixture(scope="session")
-def premade_br():
-    return _make_br(np.random.default_rng(0))(log_level=2)
+def premade_unfrozen_br():
+    return _make_br(np.random.default_rng(0), freeze=False)(log_level=2)
+
+# @pytest.fixture(scope="session")
+# def premade_br(premade_unfrozen_br):
+#     frozen_br = copy.deepcopy(premade_unfrozen_br)
+#     frozen_br.finish_and_remove_jax()
+#     return frozen_br
 
 @pytest.fixture(scope="session")
 def premade_big_br():
