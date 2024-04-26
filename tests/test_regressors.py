@@ -1,9 +1,9 @@
-from adaptive_latents.regressions import NearestNeighborRegressor, SymmetricNoisyRegressor, WindowRegressor, VanillaOnlineRegressor, AutoRegressor
+from adaptive_latents.regressions import NearestNeighborRegressor, SymmetricNoisyRegressor, WindowRegressor, VanillaOnlineRegressor, auto_regression_decorator
 import pytest
 import numpy as np
 
-@pytest.fixture(params=["nearest_n", "noisy", "window", "vanilla", "auto"])
-def reg_maker(request):
+@pytest.fixture(params=["nearest_n", "noisy", "window", "vanilla"])
+def base_reg_maker(request):
     match request.param:
         case "nearest_n":
             return NearestNeighborRegressor
@@ -13,8 +13,20 @@ def reg_maker(request):
             return WindowRegressor
         case "vanilla":
             return VanillaOnlineRegressor
-        case "auto":
-            return AutoRegressor
+        case _:
+            raise Exception()
+
+@pytest.fixture(params=["no autoregression", "autoregression 0", "autoregression 2"])
+def reg_maker(request, base_reg_maker):
+    match request.param:
+        case "no autoregression":
+            return base_reg_maker
+        case "autoregression 0":
+            return auto_regression_decorator(base_reg_maker, n_steps=0)
+        case "autoregression 2":
+            return auto_regression_decorator(base_reg_maker, n_steps=2)
+        # case "autoregression only":
+        #     return auto_regression_decorator(base_reg_maker, history_only=True)
         case _:
             raise Exception()
 
@@ -31,7 +43,7 @@ def test_can_run_1d(reg_maker, rng):
         pred = reg.predict(x)
         if not np.any(np.isnan(pred)):
             assert np.linalg.norm(pred - y) < 1e2
-        reg.safe_observe(x=x, y=y)
+        reg.observe(x=x, y=y)
 
 def test_can_run_nd(reg_maker, rng):
     m, n = 4, 3
@@ -47,7 +59,7 @@ def test_can_run_nd(reg_maker, rng):
         pred = reg.predict(x)
         if not np.any(np.isnan(pred)):
             assert np.linalg.norm(pred - y) < 1e2
-        reg.safe_observe(x=x, y=y)
+        reg.observe(x=x, y=y)
 
 def test_nan_at_right_time(reg_maker, rng):
     m, n = 4, 3
@@ -62,7 +74,7 @@ def test_nan_at_right_time(reg_maker, rng):
     for _ in range(1_000):
         x = rng.choice(space, size=n)
         y = f(x)
-        reg.safe_observe(x=x, y=y)
+        reg.observe(x=x, y=y)
 
     x = rng.choice(space, size=n)
     assert np.all(~np.isnan(reg.predict(x)))
@@ -77,7 +89,7 @@ def test_output_shapes_are_correct(reg_maker, rng):
         inputs = rng.normal(size=(n_samples, n))
         outputs = rng.normal(size=(n_samples, m))
         for i in range(n_samples):
-            reg.safe_observe(inputs[i], outputs[i])
+            reg.observe(inputs[i], outputs[i])
 
         assert reg.predict(np.zeros(n)).shape == (m,)
 
@@ -98,7 +110,12 @@ def test_will_ignore_nan_inputs(reg_maker, rng):
         outputs[mask] *= np.nan
 
         for i in range(n_samples):
-            reg.safe_observe(inputs[i], outputs[i])
+            reg.observe(inputs[i], outputs[i])
+
+        # make a clear history if we're testing an autoregressor
+        if hasattr(reg, "_y_history"):
+            for _ in range(reg._y_history.maxlen):
+                reg.observe(rng.normal(size=n), rng.normal(size=m))
 
         assert np.all(np.isfinite(reg.predict(np.zeros(n))))
 

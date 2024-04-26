@@ -52,9 +52,14 @@ class BWRun:
         self.log_level = log_level
         self.add_lambda_functions()
         self.model_offset_variable_history = {key: {offset: [] for offset in in_ds.time_offsets} for key in self.model_offset_variables_to_track}
-        self.output_offset_variable_history = {key: {offset: [] for offset in in_ds.time_offsets} for key in self.output_offset_variables_to_track}
         self.model_step_variable_history = {key:[] for key in self.model_step_variables_to_track}
-        self.output_step_variable_history = {key:[] for key in self.output_step_variables_to_track}
+
+        if out_ds is not None:
+            self.output_offset_variable_history = {key: {offset: [] for offset in out_ds.time_offsets} for key in self.output_offset_variables_to_track}
+            self.output_step_variable_history = {key:[] for key in self.output_step_variables_to_track}
+        else:
+            self.output_offset_variable_history = {}
+            self.output_step_variable_history = {}
 
         self.saved = False
         self.frozen = False
@@ -117,7 +122,7 @@ class BWRun:
                 "L_diag_grad": lambda bw, _: bw.grad_L_diag,
 
                 "B": lambda bw, _: bw.B,
-                "pre_B": lambda bw, d: bw.logB_jax(d['offset_pairs'][1], bw.mu, bw.L, bw.L_diag),
+                # "pre_B": lambda bw, d: bw.logB_jax(d['offset_pairs'][1], bw.mu, bw.L, bw.L_diag),
 
             })
 
@@ -173,7 +178,7 @@ class BWRun:
                     if hasattr(self.bw, 'alpha'):
                         if self.output_regressor:
                             self.reg_timepoint_history.append(self.output_ds.current_timepoint())
-                            self.output_regressor.safe_observe(self.bw.alpha, beh)
+                            self.output_regressor.observe(self.bw.alpha, beh)
                             for offset in self.output_ds.time_offsets:
                                 b = self.output_ds.get_atemporal_data_point(offset)
                                 alpha_ahead = self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset)

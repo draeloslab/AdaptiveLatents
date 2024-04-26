@@ -55,7 +55,7 @@ def get_speed_over_time(psvd_input, regression_output, prosvd_k=6, bw_params=Non
 
         # regression update
         start_time = timeit.default_timer()
-        reg.safe_observe(np.array(bw.alpha), regression_output[i])
+        reg.observe(np.array(bw.alpha), regression_output[i])
         end_time = timeit.default_timer()
         times["regression"].append(end_time-start_time)
 

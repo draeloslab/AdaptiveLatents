@@ -15,8 +15,8 @@ def test_if_defaults_cover_all_options():
         assert k1.difference(k2) == set()
         assert k2.difference(k1) == set()
 
-def test_if_parameter_extraction_misses_none(premade_br):
-    bw = premade_br.bw
+def test_if_parameter_extraction_misses_none(premade_unfrozen_br):
+    bw = premade_unfrozen_br.bw
     params = al.plotting_functions._deduce_bw_parameters(bw)
 
     signature = inspect.signature(Bubblewrap)

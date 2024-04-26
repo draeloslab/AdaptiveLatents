@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 def _ellipse_r(a,b,theta):
     return a*b / np.sqrt((np.cos(theta)*b)**2 + (np.sin(theta)*a)**2)
 
+
 def add_2d_bubble(ax, el, center, n_sds, facecolor='#ed6713', name=None, alpha=1., name_theta=45, show_name=True):
     el = np.linalg.inv(el)
 
@@ -33,6 +34,7 @@ def add_2d_bubble(ax, el, center, n_sds, facecolor='#ed6713', name=None, alpha=1
         theta1 = name_theta - angle
         r = _ellipse_r(width / 2, height / 2, theta1 / 180 * np.pi)
         ax.text(center[0] + r * np.cos(name_theta / 180 * np.pi), center[1] + r * np.sin(name_theta / 180 * np.pi), name, clip_on=True)
+
 
 def show_bubbles_2d(ax, data, bw, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45, show_names=True, tail_length=0, no_bubbles=False):
     A = bw.A
@@ -61,10 +63,12 @@ def show_bubbles_2d(ax, data, bw, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3
         ax.scatter(mu[mask, 0], mu[mask, 1], c='k', zorder=10)
         ax.scatter(data[0, 0], data[0, 1], color="#004cff", s=10)
 
+
 def _limits(data):
     low = min(data)
     high = max(data)
     return (high - low)/2, (high + low)/2
+
 
 def use_bigger_lims_from_data(ax, data, padding_proportion=0.05):
     x_span, x_center = _limits(data[:,0])
@@ -78,6 +82,7 @@ def use_bigger_lims_from_data(ax, data, padding_proportion=0.05):
     current_ylim = ax.get_ylim()
     ax.set_ylim([min(current_ylim[0], y_center - y_span), max(current_ylim[1], y_center + y_span)])
 
+
 def use_bigger_lims(ax, old_lims=None, y=True, x=True):
     new_lims = ax.axis()
     if old_lims is None:
@@ -90,6 +95,7 @@ def use_bigger_lims(ax, old_lims=None, y=True, x=True):
     if not x:
         future_lims[:2] = new_lims[:2]
     ax.axis(future_lims)
+
 
 def show_data_2d(ax, data, bw, n=10):
     ax.cla()
@@ -117,6 +123,7 @@ def show_active_bubbles_2d(ax, data, bw, name_theta=45, n_sds=3, history_length=
 
     for i, n in enumerate(to_draw):
         add_2d_bubble(ax, bw.L[n], bw.mu[n], n_sds, name=n, alpha=opacities[i], name_theta=name_theta)
+
 
 def show_active_bubbles_and_connections_2d(ax, data, bw, name_theta=45, n_sds=3, history_length=1):
     ax.cla()
@@ -148,81 +155,6 @@ def show_active_bubbles_and_connections_2d(ax, data, bw, name_theta=45, n_sds=3,
                     ax.plot(line[:,0], line[:,1], color='k', alpha=1)
 
 
-
-
-
-# def br_plot_3d(br):
-#     # TODO: make a plot_3d like above
-#     fig = plt.figure()
-#     ax = plt.axes(projection="3d")
-#
-#     # Set of all spherical angles to draw our ellipsoid
-#     n_points = 10
-#     theta = np.linspace(0, 2*np.pi, n_points)
-#     phi = np.linspace(0, np.pi, n_points)
-#
-#     # Get the xyz points for plotting
-#     # Cartesian coordinates that correspond to the spherical angles:
-#     X = np.outer(np.cos(theta), np.sin(phi))
-#     Y = np.outer(np.sin(theta), np.sin(phi)).flatten()
-#     Z = np.outer(np.ones_like(theta), np.cos(phi)).flatten()
-#     old_shape = X.shape
-#     X = X.flatten()
-#
-#
-#     s = np.load(br.file)
-#     data = s['y'][0]
-#
-#     A = br.A
-#     mu = br.mu
-#     L = br.L
-#     n_obs = br.n_obs
-#
-#     # TODO: make these not lists
-#     pred = br.pred_list[:,0]
-#     entropy = br.entropy_list[:,0]
-#
-#     ax.plot(data[:,0], data[:,1], data[:,2], color='gray', alpha=0.8)
-#     for n in np.arange(A.shape[0]):
-#         if n_obs[n] > 1e-4:
-#             el = np.linalg.inv(L[n]).T
-#             sig = el @ el.T
-#             # Find and sort eigenvalues to correspond to the covariance matrix
-#             eigvals, eigvecs = np.linalg.eigh(sig)
-#             idx = np.sum(sig,axis=0).argsort()
-#             eigvals_temp = eigvals[idx]
-#             idx = eigvals_temp.argsort()
-#             eigvals = eigvals[idx]
-#             eigvecs = eigvecs[:,idx]
-#
-#             # Width, height and depth of ellipsoid
-#             nstd = 3
-#             rx, ry, rz = nstd * np.sqrt(eigvals)
-#
-#             # Rotate ellipsoid for off axis alignment
-#             a,b,c = np.matmul(eigvecs, np.array([X*rx,Y*ry,Z*rz]))
-#             a,b,c = a.reshape(old_shape), b.reshape(old_shape), c.reshape(old_shape)
-#
-#             # Add in offsets for the mean
-#             a = a + mu[n,0]
-#             b = b + mu[n,1]
-#             c = c + mu[n,2]
-#
-#             ax.plot_surface(a, b, c, color='#ff4400', alpha=0.6)
-#
-#     ax.view_init(40,23)
-#
-#     mask = np.ones(mu.shape[0], dtype=bool)
-#     mask[n_obs<1e-4] = False
-#     ax.scatter(mu[mask,0], mu[mask,1], mu[mask,2], c='k' , zorder=10)
-#
-#     ax.set_xticks([200, 600, 1000, 1400])
-#     ax.set_yticks([-20, -10, 0, 10])
-#     ax.set_zticks([-1400, -1000, -600, -200])
-#     in1, in2 = 0, 1
-#     ax.text(in1, in2, 100, s='b', transform=ax.transAxes, fontsize=16, fontweight='bold', va='top', ha='right')
-#     plt.show()
-
 def show_A(ax, fig, bw, show_log=False):
     ax.cla()
 
@@ -252,9 +184,10 @@ def show_A(ax, fig, bw, show_log=False):
 #     ax.set_ylim([min(old_ylim[0], new_ylim[0]), max(old_ylim[1], new_ylim[1])])
 
 
-def show_alpha(ax, br, offset=0, show_log=False):
+def show_alpha(ax, br, show_log=False):
     ax.cla()
-    to_show = np.array(br.h.alpha_prediction[offset][-20:]).T
+    to_show = np.array(br.model_step_variable_history['alpha'][-20:]).T
+
     if show_log:
         to_show = np.log(to_show)
 
@@ -269,12 +202,11 @@ def show_alpha(ax, br, offset=0, show_log=False):
         ax.set_yticklabels([str(x) for x in live_nodes])
     ax.set_ylabel("bubble")
     ax.set_xlabel("steps (ago)")
-    # ax.set_xticks([0.5,5,10,15,20])
-    # ax.set_xticklabels([-20, -15, -10, -5, 0])
+
 
 def show_B(ax, br, show_log=False):
     ax.cla()
-    to_show = np.array(br.h.B[-20:]).T
+    to_show = np.array(br.model_step_variable_history['B'][-20:]).T
     if show_log:
         to_show = np.log(to_show)
 
@@ -293,14 +225,14 @@ def show_B(ax, br, show_log=False):
     # ax.set_xticklabels([-20, -15, -10, -5, 0])
 
 
-def show_behavior(ax, br):
+def show_behavior(ax, br, offset=1):
     old_lims = ax.axis()
     if len(ax.collections) + len(ax.lines) == 0:
         old_lims = None
     ax.cla()
     beh, beh_t = br.output_ds.get_history()
     ax.plot(beh_t[-20:], beh[-20:], linewidth=3, color='k')
-    ax.plot(beh_t[-20:], br.h.beh_pred[0][-20:], linewidth=3, alpha=.5)
+    ax.plot(beh_t[-20:], br.output_offset_variable_history['beh_pred'][offset][-20-offset:-offset], linewidth=3, alpha=.5)
     ax.set_title("Behavior")
     ax.set_xticklabels([])
     use_bigger_lims(ax, old_lims, x=False)
@@ -455,7 +387,7 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
     n = 0
     for idx, br in enumerate(brs):
         br: adaptive_latents.bw_run.BWRun
-        n = max(n, br.h.entropy[offset].shape[0])
+        n = max(n, br.h.entropy[offset].shape[0])  # todo: make this a time thing (possibly?)
 
 
         predictions = br.h.log_pred_p[offset]

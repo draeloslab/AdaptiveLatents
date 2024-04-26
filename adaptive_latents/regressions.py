@@ -18,21 +18,21 @@ class OnlineRegressor(ABC):
     def initialize(self, use_stored=True, x_history=None, y_history=None):
         """This is called when the algorithm has enough information to start making predictions; it initializes the
         regression. Usually use_stored will be true, and the algorithm will use previously observed data, but x and y
-        can also be passed in as the initialization data."""
-
-    @abstractmethod
-    def safe_observe(self, x, y):
-        """This function saves an observation and possibly updates initializes parameters if the regressor has seen
-        enough data."""
+        can also be passed in as the initialization data. This will often be called by safe_observe"""
 
     @abstractmethod
     def observe(self, x, y):
-        """This function observes a datapoint, but does not check if the regression is initialized; usually you want
-        safe_observe."""
+        """This function saves an observation and possibly updates initializes parameters if the regressor has seen
+        enough data."""
+
+    # @abstractmethod
+    # def _observe(self, x, y):
+    #     """This function observes a datapoint, but does not check if the regression is initialized; usually you want
+    #     safe_observe."""
 
     @abstractmethod
     def predict(self, x):
-        """This function returns the predicted y for some given x."""
+        """This function returns the predicted y for some given x. It might return nans if there aren't enough observations yet."""
 
 
 class VanillaOnlineRegressor(OnlineRegressor):
@@ -51,10 +51,10 @@ class VanillaOnlineRegressor(OnlineRegressor):
     def initialize(self, use_stored=True, x_history=None, y_history=None):
         if not use_stored:
             for i in np.arange(x_history.shape[0]):
-                self.observe(x=x_history[i], y=y_history[i], update_D=False)
+                self._observe(x=x_history[i], y=y_history[i], update_D=False)
         self.D = np.linalg.pinv(self.F)
 
-    def observe(self, x, y, update_D=False):
+    def _observe(self, x, y, update_D=False):
         x = x.reshape([-1, 1])
         y = np.squeeze(y)
 
@@ -66,14 +66,14 @@ class VanillaOnlineRegressor(OnlineRegressor):
 
         self.n_observed += 1
 
-    def safe_observe(self, x, y):
+    def observe(self, x, y):
         if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
             return
         x, y = np.array(x), np.array(y)
         if self.n_observed >= self.init_min_ratio * self.input_d or self.D is not None:
-            self.observe(x, y, update_D=True)
+            self._observe(x, y, update_D=True)
         else:
-            self.observe(x, y, update_D=False)
+            self._observe(x, y, update_D=False)
             if self.n_observed >= self.init_min_ratio * self.input_d:
                 self.initialize()
 
@@ -122,10 +122,10 @@ class SymmetricNoisyRegressor(OnlineRegressor):
     def initialize(self, use_stored=True, x_history=None, y_history=None):
         if not use_stored:
             for i in np.arange(x_history.shape[0]):
-                self.observe(x=x_history[i], y=y_history[i], update_D=False)
+                self._observe(x=x_history[i], y=y_history[i], update_D=False)
         self.D = np.linalg.pinv(self.F)
 
-    def observe(self, x, y, update_D=False):
+    def _observe(self, x, y, update_D=False):
         x = x.reshape([-1, 1])
         y = np.squeeze(y)
         if update_D:
@@ -147,14 +147,14 @@ class SymmetricNoisyRegressor(OnlineRegressor):
 
         self.n_observed += 1
 
-    def safe_observe(self, x, y):
+    def observe(self, x, y):
         if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
             return
         x, y = np.array(x), np.array(y)
         if self.n_observed >= self.init_min_ratio * self.input_d or self.D is not None:
-            self.observe(x, y, update_D=True)
+            self._observe(x, y, update_D=True)
         else:
-            self.observe(x, y, update_D=False)
+            self._observe(x, y, update_D=False)
             if self.n_observed >= self.init_min_ratio * self.input_d:
                 self.initialize()
 
@@ -189,11 +189,11 @@ class WindowRegressor(OnlineRegressor):
     def initialize(self, use_stored=True, x_history=None, y_history=None):
         if not use_stored:
             for i in np.arange(x_history.shape[0]):
-                self.observe(x=x_history[i], y=y_history[i], update_D=False)
+                self._observe(x=x_history[i], y=y_history[i], update_D=False)
 
         self.D = np.linalg.pinv(self.F)
 
-    def observe(self, x, y, update_D=False):
+    def _observe(self, x, y, update_D=False):
         # x and y should not be multiple time-steps big
         x = x.reshape([-1, 1])
         y = np.squeeze(y)
@@ -221,14 +221,14 @@ class WindowRegressor(OnlineRegressor):
 
         self.n_observed += 1
 
-    def safe_observe(self, x, y):
+    def observe(self, x, y):
         if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
             return
         x, y = np.array(x), np.array(y)
         if self.n_observed >= self.init_min_ratio * self.input_d or self.D is not None:
-            self.observe(x, y, update_D=True)
+            self._observe(x, y, update_D=True)
         else:
-            self.observe(x, y, update_D=False)
+            self._observe(x, y, update_D=False)
             if self.n_observed >= self.init_min_ratio * self.input_d:
                 self.initialize()
 
@@ -256,14 +256,14 @@ class NearestNeighborRegressor(OnlineRegressor):
             assert len(x_history) == len(y_history)
             # todo: this can be optimized
             for i in range(len(x_history)):
-                self.observe(x_history[i], y_history[i])
-
-    def safe_observe(self, x, y):
-        if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
-            return
-        self.observe(x, y)
+                self._observe(x_history[i], y_history[i])
 
     def observe(self, x, y):
+        if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
+            return
+        self._observe(x, y)
+
+    def _observe(self, x, y):
         self.history[self.index, :self.input_d] = x
         self.history[self.index, self.input_d:] = y
         self.index += 1
@@ -279,31 +279,24 @@ class NearestNeighborRegressor(OnlineRegressor):
         return self.history[idx, self.input_d:]
 
 
-class AutoRegressor(OnlineRegressor):
-    def __init__(self, input_d, output_d):
-        super().__init__(input_d, output_d)
-        self.history = None
+def auto_regression_decorator(regressor_class: OnlineRegressor, n_steps=1, ):
+    class AutoRegressor(regressor_class):
+        def __init__(self, input_d, output_d):
+            super().__init__(input_d+output_d*n_steps, output_d)
+            self._y_history = deque(maxlen=n_steps)
 
-    def safe_observe(self, x, y):
-        if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
-            return
-        self.observe(x,y)
+        def observe(self, x, y):
+            self._y_history.append(y)
+            if len(self._y_history) == self._y_history.maxlen:
+                super().observe(np.hstack([np.array(self._y_history).flatten(), x]), y)
 
-    def observe(self, x, y):
-        self.history = y
+        def predict(self, x):
+            if len(self._y_history) == self._y_history.maxlen:
+                return super().predict(np.hstack([np.array(self._y_history).flatten(), x]))
+            else:
+                return np.nan * np.empty(shape=(self.output_d,))
 
-    def predict(self, x):
-        if self.history is None:
-            return np.nan * np.empty(shape=(self.output_d,))
-
-        return self.history
-
-    def initialize(self, use_stored=True, x_history=None, y_history=None):
-        if use_stored:
-            pass
-        else:
-            self.history = y_history[-1]
-
+    return AutoRegressor
 
 """
 ideas:
