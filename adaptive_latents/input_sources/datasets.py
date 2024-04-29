@@ -3,7 +3,7 @@ import h5py
 import os
 from scipy.io import loadmat
 from tqdm import tqdm
-from .utils import save_to_cache, clip, prosvd_data, center_from_first_n
+from adaptive_latents.transforms.utils import save_to_cache, clip, prosvd_data, center_from_first_n
 from skimage.transform import resize
 from pynwb import NWBHDF5IO
 from adaptive_latents.config import CONFIG

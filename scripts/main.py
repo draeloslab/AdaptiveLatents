@@ -1,5 +1,5 @@
 from adaptive_latents import Bubblewrap, BWRun, AnimationManager, SymmetricNoisyRegressor, NumpyTimedDataSource, default_rwd_parameters
-from adaptive_latents.input_sources.utils import get_from_saved_npz
+from adaptive_latents.transforms.utils import get_from_saved_npz
 import adaptive_latents.plotting_functions as pfs
 from adaptive_latents import CONFIG
 

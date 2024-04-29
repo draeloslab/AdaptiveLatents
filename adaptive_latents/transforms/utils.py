@@ -2,11 +2,11 @@ import numpy as np
 import os
 import pickle
 import json
-from proSVD import proSVD
-import adaptive_latents
+from adaptive_latents.transforms import proSVD
 from tqdm import tqdm
 import hashlib
 from adaptive_latents.config import CONFIG
+import adaptive_latents
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):

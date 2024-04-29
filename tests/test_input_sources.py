@@ -2,6 +2,7 @@ import numpy as np
 import adaptive_latents.input_sources as ins
 import pytest
 import adaptive_latents as al
+import adaptive_latents
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
 
@@ -10,15 +11,15 @@ def test_utils_run(rng):
     A = rng.normal(size=(1000, 10))
     t = np.arange(A.shape[0])
 
-    A = ins.utils.center_from_first_n(A)
-    A = ins.utils.zscore(A)
-    A = ins.utils.prosvd_data(input_arr=A, output_d=2, init_size=10, _recalculate_cache_value=True)
-    A, t = ins.utils.clip(A,t)
+    A = adaptive_latents.transforms.utils.center_from_first_n(A)
+    A = adaptive_latents.transforms.utils.zscore(A)
+    A = adaptive_latents.transforms.utils.prosvd_data(input_arr=A, output_d=2, init_size=10, _recalculate_cache_value=True)
+    A, t = adaptive_latents.transforms.utils.clip(A, t)
 
-    A, Qs = ins.utils.prosvd_data_with_Qs(input_arr=A, output_d=2, init_size=10)
+    A, Qs = adaptive_latents.transforms.utils.prosvd_data_with_Qs(input_arr=A, output_d=2, init_size=10)
 
-    ins.utils.bwrap_alphas(input_arr=A, bw_params=al.default_parameters.default_rwd_parameters, _recalculate_cache_value=True)
-    ins.utils.bwrap_alphas_ahead(input_arr=A, bw_params=al.default_parameters.default_rwd_parameters, _recalculate_cache_value=True)
+    adaptive_latents.transforms.utils.bwrap_alphas(input_arr=A, bw_params=al.default_parameters.default_rwd_parameters, _recalculate_cache_value=True)
+    adaptive_latents.transforms.utils.bwrap_alphas_ahead(input_arr=A, bw_params=al.default_parameters.default_rwd_parameters, _recalculate_cache_value=True)
 
 
 def test_hmm_runs(rng):
@@ -39,7 +40,7 @@ def test_hmm_runs(rng):
 
 
 def test_can_load_file():
-    obs, beh = ins.utils.get_from_saved_npz("jpca_reduced_sc.npz")
+    obs, beh = adaptive_latents.transforms.utils.get_from_saved_npz("jpca_reduced_sc.npz")
 
 @longrun
 def test_can_load_fly():
