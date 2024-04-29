@@ -117,6 +117,35 @@ def test_can_save_and_rerun(rng, outdir):
 
     br.run()
 
+
+def test_post_hoc_regression_is_correct(rng, outdir):
+    m, n_obs, n_beh = 150, 3, 4
+    obs = rng.normal(size=(m, n_obs))
+    beh = rng.normal(size=(m, n_beh)) # TODO: refactor these names to input and output
+
+    br1 = BWRun(
+        Bubblewrap(3, **default_clock_parameters),
+        NumpyTimedDataSource(obs, None, (0,1)),
+        NumpyTimedDataSource(beh, None, (0,1)),
+        SymmetricNoisyRegressor(default_clock_parameters['num'], n_beh),
+        show_tqdm=False,
+        output_directory=outdir
+    )
+    br1.run()
+
+    br2 = BWRun(
+        Bubblewrap(3, **default_clock_parameters),
+        NumpyTimedDataSource(obs, None, (0,1)),
+        show_tqdm=False,
+        output_directory=outdir
+    )
+    br2.run()
+    reg = SymmetricNoisyRegressor(br2.bw.N, n_beh)
+    br2.add_regression_post_hoc(reg, NumpyTimedDataSource(beh, None, (0,1)))
+
+    assert np.allclose(br1.h.beh_error[1], br2.h.beh_error[1], equal_nan=True)
+    # TODO: the times seem to be 1 out of sync with the expected bubblewrap step times (even accounting for delay)
+
 # TODO:
 #  test different regressors work together
 #  test_can_save_and_reload

@@ -159,6 +159,8 @@ class SymmetricNoisyRegressor(OnlineRegressor):
                 self.initialize()
 
     def get_beta(self):
+        if self.D is None:
+            return np.zeros((self.input_d, self.output_d)) * np.nan
         return self.D @ self.c
 
     def predict(self, x):
@@ -279,7 +281,7 @@ class NearestNeighborRegressor(OnlineRegressor):
         return self.history[idx, self.input_d:]
 
 
-def auto_regression_decorator(regressor_class: OnlineRegressor, n_steps=1, ):
+def auto_regression_decorator(regressor_class: OnlineRegressor, n_steps=1, autoregress_only=False):
     class AutoRegressor(regressor_class):
         def __init__(self, input_d, output_d):
             super().__init__(input_d+output_d*n_steps, output_d)
@@ -287,10 +289,17 @@ def auto_regression_decorator(regressor_class: OnlineRegressor, n_steps=1, ):
 
         def observe(self, x, y):
             self._y_history.append(y)
+
+            if autoregress_only:
+                x = 0*x
+
             if len(self._y_history) == self._y_history.maxlen:
                 super().observe(np.hstack([np.array(self._y_history).flatten(), x]), y)
 
         def predict(self, x):
+            if autoregress_only:
+                x = 0*x
+
             if len(self._y_history) == self._y_history.maxlen:
                 return super().predict(np.hstack([np.array(self._y_history).flatten(), x]))
             else:

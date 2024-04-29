@@ -363,7 +363,7 @@ def _deduce_bw_parameters(bw):
                 )
 
 
-def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=True, show_title=True, red_lines=(), minutes=False, include_behavior=True):
+def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=True, show_title=True, red_lines=(), minutes=False, include_behavior=True, include_trendlines=True):
     colors = ["black"] + [f"C{i}" for i in range(len(brs) - 1)]
     ps = [_deduce_bw_parameters(br.bw) for br in brs]
     keys = set([leaf for tree in ps for leaf in tree.keys()])
@@ -376,8 +376,11 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
     for key in keep_keys:
         to_print.append(f"{key}: {[p.get(key) for p in ps]}")
 
-    beh_plot_raw_data = brs[0].h.beh_error[offset]
-    if beh_plot_raw_data.size == 0 or np.all(np.isnan(beh_plot_raw_data)):
+    if hasattr(brs[0].h, 'beh_error'):
+        beh_plot_raw_data = brs[0].h.beh_error[offset]
+        if beh_plot_raw_data.size == 0 or np.all(np.isnan(beh_plot_raw_data)):
+            include_behavior = False
+    else:
         include_behavior = False
 
     fig, ax = plt.subplots(figsize=(14, 5), nrows=2+include_behavior, ncols=2, sharex='col', layout='tight', gridspec_kw={'width_ratios': [7, 1]})
@@ -413,7 +416,8 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
         warnings.warn("check these timepoints actually line up, I'm just clipping here")
 
         ax[0,0].plot(obs_t, predictions, alpha=0.25, color=c)
-        ax[0,0].plot(obs_t, smoothed_predictions, color=c, label=br.pickle_file.split("/")[-1].split(".")[0].split("_")[-1])
+        if include_trendlines:
+            ax[0,0].plot(obs_t, smoothed_predictions, color=c, label=br.pickle_file.split("/")[-1].split(".")[0].split("_")[-1])
         ax[0,0].tick_params(axis='y')
         ax[0,0].set_ylabel('prediction')
         to_write[0].append((idx, f"{predictions[n // 2:].mean():.3f}", dict(color=c)))
@@ -426,7 +430,8 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
             c = colors[idx]
         ax[1,0].plot(obs_t, entropy, color=c, alpha=0.25)
 
-        ax[1,0].plot(obs_t, smoothed_entropy, color=c)
+        if include_trendlines:
+            ax[1,0].plot(obs_t, smoothed_entropy, color=c)
         max_entropy = np.log2(br.bw.N)
         ax[1,0].plot([0, entropy.shape[0]], [max_entropy, ] * 2, 'k--')
 
@@ -440,7 +445,7 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
             if colors:
                 c = colors[idx]
 
-            ax[-1,0].plot(br.reg_timepoint_history,beh_error, color=c)
+            ax[-1,0].plot(br.h.reg_offset_t[offset],beh_error, color=c)
             ax[-1,0].set_ylabel('behavior sq.e.')
             ax[-1,0].tick_params(axis='y')
             to_write[2].append((idx, f"{beh_error[n // 2:].mean():.3f}", dict(color=c)))
