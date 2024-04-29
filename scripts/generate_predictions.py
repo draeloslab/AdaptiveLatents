@@ -1,9 +1,7 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import adaptive_latents as bw
-import adaptive_latents.input_sources.utils as fin
-import tqdm as tqdm
-from adaptive_latents.input_sources.timed_data_source import NumpyTimedDataSource
+import adaptive_latents.transforms.utils as fin
+
 
 def main():
     ca, vid, t_ca, t_vid = fin.generate_musal_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_init_size=100)

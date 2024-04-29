@@ -2,7 +2,7 @@ import timeit
 import numpy as np
 import adaptive_latents.input_sources as ins
 from adaptive_latents import default_rwd_parameters, Bubblewrap, SymmetricNoisyRegressor
-from proSVD import proSVD
+from adaptive_latents import proSVD
 import pytest
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
@@ -74,7 +74,7 @@ def test_fast_enough_for_resampled_buzaki_data():
     bin_width = 0.03
     obs, position_data, obs_t, position_data_t = ins.datasets.construct_buzaki_data(individual_identifier=identifier, bin_width=bin_width)
 
-    position_data = ins.utils.resample_matched_timeseries(old_timeseries=position_data, new_sample_times=obs_t, old_sample_times=position_data_t)
+    position_data = adaptive_latents.transforms.utils.resample_matched_timeseries(old_timeseries=position_data, new_sample_times=obs_t, old_sample_times=position_data_t)
     position_data = position_data[:,:2]
 
     times = get_speed_over_time(psvd_input=obs, regression_output=position_data)

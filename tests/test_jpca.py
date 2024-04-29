@@ -1,4 +1,4 @@
-import adaptive_latents.input_sources.jpca as jpca
+import adaptive_latents.transforms.jpca as jpca
 import numpy as np
 
 def test_make_H(rng, dd=10):
@@ -18,5 +18,5 @@ def test_works_on_circular_data(rng):
     X_realigned, U = jpca.jpca_data(X)
     assert not np.allclose(U[:,:2], true_variables['C'])
 
-    aligned_U, aligned_C = jpca.align_column_spaces(U[:,:2], true_variables['C'])
+    aligned_U, aligned_C = jpca.align_column_spaces(U[:, :2], true_variables['C'])
     assert np.allclose(aligned_U, aligned_C, atol=1e-4)
