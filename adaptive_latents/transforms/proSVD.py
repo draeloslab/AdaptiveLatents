@@ -81,13 +81,13 @@ class proSVD:
             self.updateSVD(dat, ref_basis)
             self.postupdate()
 
-        return
+    def add_new_input_channels(self, n):
+        self.Q = np.vstack([self.Q, np.zeros(shape=(n,self.Q.shape[1]))])
+
 
     # internal func to do a single iter of basis update given some data A
     def updateSVD(self, A, ref_basis=None):
-        ## Update our basis vectors based on a chunk of new data
-        ## Currently assume we get chunks as specificed in self.l
-        ## QR decomposition of new data
+
         C = self.Q.T @ A
         A_perp = A - self.Q @ C
         Q_perp, B_perp = np.linalg.qr(A_perp, mode='reduced')
@@ -142,7 +142,7 @@ class proSVD:
                 self.U = self.Q @ U
                 self.S = S
 
-        return
+
 
     # preupdate
     def preupdate(self):
