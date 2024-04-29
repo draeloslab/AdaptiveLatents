@@ -41,12 +41,10 @@ class BWRun:
 
         self.show_tqdm = show_tqdm
 
-        self.bw_timepoint_history = []
-        self.reg_timepoint_history = []
-
         self.runtime = None
         self.runtime_since_init = None
         self.hit_end_of_dataset = False
+        self.bw_init_time = None
 
 
         self.log_level = log_level
@@ -81,18 +79,25 @@ class BWRun:
                 "log_pred_p": lambda bw, o, offset, _: bw.pred_ahead(bw.logB_jax(o, bw.mu, bw.L, bw.L_diag), bw.A, bw.alpha, offset),
                 "entropy": lambda bw, o, offset, _: bw.get_entropy(bw.A, bw.alpha, offset),
                 "alpha_prediction": lambda bw, o, offset, _: bw.alpha @ np.linalg.matrix_power(bw.A, offset),
+                "bw_offset_t": lambda bw, o, offset, d: d["t"],
             })
             self.model_step_variables_to_track.update({
                 "alpha": lambda bw, _: bw.alpha,
+                "bw_t": lambda bw, d: d["t"],
             })
 
+
+            self.output_step_variables_to_track.update({
+                "last_alpha": None,
+                "beta": None,
+            })
             self.output_offset_variables_to_track.update({
                 "beh_pred": None,
-                "beh_error": None
+                "beh_error": None,
+                "reg_offset_t": None
             })
-
-            # todo: make these lambdas
-            # todo: make a test to check we can get the error of the beh prediction
+            # TODO: make these lambdas
+            # TODO: make a test to check we can get the error of the beh prediction
 
         if self.log_level >= 1:
             self.model_step_variables_to_track.update({
@@ -128,9 +133,9 @@ class BWRun:
 
 
 
-    def run(self, save=False, limit=None, freeze=True, initialize=True):
+
+    def run(self, save=False, limit=None, freeze=True):
         start_time = time.time()
-        time_since_init = None
 
         if len(self.input_ds) < self.bw.M:
             warnings.warn("Data length shorter than initialization.")
@@ -150,49 +155,27 @@ class BWRun:
             while not (obs_done and beh_done) and bw_step <= limit:
                 if beh_done or obs_next_t < beh_next_t:
                     obs = next(self.input_ds)
-                    self.bw.observe(obs)
-                    obs_next_t, obs_done = self.input_ds.preview_next_timepoint()
 
-                    if initialize and bw_step < self.bw.M:
-                        bw_step += 1
-                        pbar.update(1)
-                        continue
-                    elif initialize and bw_step == self.bw.M:
-                        self.bw.init_nodes()
-                        self.bw.e_step()  # todo: is this OK?
-                        self.bw.grad_Q()
-                        time_since_init = time.time()
-                    else:
-                        self.bw.e_step()
-                        self.bw.grad_Q()
+                    self.next_bubblewrap_step(obs)
+                    self.log_for_bw_step(bw_step)
 
-                    pairs = {}
-                    for offset in self.input_ds.time_offsets:
-                        pairs[offset] = self.input_ds.get_atemporal_data_point(offset)
-                    self.bw_log_for_step(bw_step, pairs)
                     bw_step += 1
+                    # assert bw_step == self.bw.obs.n_obs
                     pbar.update(1)
+
+                    obs_next_t, obs_done = self.input_ds.preview_next_timepoint()
                 else:
                     beh = next(self.output_ds)
                     beh_next_t, beh_done = self.output_ds.preview_next_timepoint()
-                    if hasattr(self.bw, 'alpha'):
-                        if self.output_regressor:
-                            self.reg_timepoint_history.append(self.output_ds.current_timepoint())
-                            self.output_regressor.observe(self.bw.alpha, beh)
-                            for offset in self.output_ds.time_offsets:
-                                b = self.output_ds.get_atemporal_data_point(offset)
-                                alpha_ahead = self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset)
-                                bp = self.output_regressor.predict(alpha_ahead)
+                    if self.output_regressor and self.bw.is_initialized:
+                        self.output_regressor.observe(self.bw.alpha, beh) # todo: this should be historical?
+                        self.log_for_regression_step()
 
-                                if "beh_pred" in self.output_offset_variable_history:
-                                    self.output_offset_variable_history["beh_pred"][offset].append(np.array(bp))
 
-                                if "beh_error" in self.output_offset_variable_history:
-                                    self.output_offset_variable_history["beh_error"][offset].append(np.array(bp - b))
 
 
         end_time = time.time()
-        self.runtime_since_init = (end_time - time_since_init) if time_since_init is not None else np.nan
+        self.runtime_since_init = (end_time - self.bw_init_time) if self.bw_init_time is not None else np.nan
         self.runtime = end_time - start_time
         self.hit_end_of_dataset = obs_done and beh_done
 
@@ -203,21 +186,104 @@ class BWRun:
             with open(self.pickle_file, "wb") as fhan:
                 pickle.dump(self, fhan)
 
-    def bw_log_for_step(self, step, offset_pairs):
-        # TODO: allow skipping of (e.g. entropy) steps?
-        for offset, o in offset_pairs.items():
-            for key, f in self.model_offset_variables_to_track.items():
-                d = dict()
-                self.model_offset_variable_history[key][offset].append(np.array(f(self.bw, o, offset, d)))
+    def next_bubblewrap_step(self, obs):
+        self.bw.observe(obs)
 
-        for key, f in self.model_step_variables_to_track.items():
-            d = dict(offset_pairs=offset_pairs)
-            self.model_step_variable_history[key].append(np.array(f(self.bw, d)))
+        if self.bw.obs.n_obs < self.bw.M:
+            ...
+        elif self.bw.obs.n_obs == self.bw.M:
+            self.bw.init_nodes()
+            self.bw.e_step()
+            self.bw.grad_Q()
+            self.bw_init_time = time.time()
+        else:
+            self.bw.e_step()
+            self.bw.grad_Q()
 
-        if self.animation_manager and self.animation_manager.frame_draw_condition(step, self.bw):
-            self.animation_manager.draw_frame(step, self.bw, self)
 
-        self.bw_timepoint_history.append(self.input_ds.current_timepoint())
+    def log_for_regression_step(self, at_timepoint=None):
+        alpha = self.bw.alpha
+        A = self.bw.A
+        if at_timepoint is not None:
+            idx = np.nonzero(at_timepoint > self.model_step_variable_history['bw_t'])[0]
+            if not len(idx):
+                raise Exception("An impossible time was requested for a log, possibly in a post-hoc regression.")
+
+            idx = idx[-1]
+            alpha = self.model_step_variable_history['alpha'][idx]
+            A = self.model_step_variable_history['A'][idx]
+
+        if "last_alpha" in self.output_step_variables_to_track:
+            self.output_step_variable_history["last_alpha"].append(alpha)
+
+        if "beta" in self.output_step_variables_to_track and hasattr(self.output_regressor, "get_beta"):
+            beta = self.output_regressor.get_beta()
+            self.output_step_variable_history["beta"].append(beta)
+
+        for offset in self.output_ds.time_offsets:
+            b = self.output_ds.get_atemporal_data_point(offset)
+            alpha_ahead = alpha @ np.linalg.matrix_power(A, offset)
+            bp = self.output_regressor.predict(alpha_ahead)
+
+            if "beh_pred" in self.output_offset_variables_to_track:
+                self.output_offset_variable_history["beh_pred"][offset].append(np.array(bp))
+
+            if "beh_error" in self.output_offset_variables_to_track:
+                self.output_offset_variable_history["beh_error"][offset].append(np.array(bp - b))
+
+            if "reg_offset_t" in self.output_offset_variables_to_track:
+                t, _ = self.output_ds.preview_next_timepoint(offset=offset)
+                self.output_offset_variable_history["reg_offset_t"][offset].append(t)
+
+    def log_for_bw_step(self, step):
+        if self.bw.is_initialized:
+            offset_pairs = {}
+            for offset in self.input_ds.time_offsets:
+                offset_pairs[offset] = self.input_ds.get_atemporal_data_point(offset)
+
+            for offset, o in offset_pairs.items():
+                for key, f in self.model_offset_variables_to_track.items():
+                    t, _ = self.input_ds.preview_next_timepoint(offset=offset)
+                    d = dict(t=t)
+                    self.model_offset_variable_history[key][offset].append(np.array(f(self.bw, o, offset, d)))
+
+            for key, f in self.model_step_variables_to_track.items():
+                d = dict(offset_pairs=offset_pairs, t=self.input_ds.current_timepoint())
+                self.model_step_variable_history[key].append(np.array(f(self.bw, d)))
+
+            if self.animation_manager and self.animation_manager.frame_draw_condition(step, self.bw):
+                self.animation_manager.draw_frame(step, self.bw, self)
+
+
+    def add_regression_post_hoc(self, regressor, output_ds):
+        assert "alpha" in self.model_step_variable_history
+        assert self.output_ds is None
+        # assert not self.frozen
+
+        self.output_ds = output_ds
+        self.output_regressor = regressor
+
+        self.output_offset_variable_history = {key: {offset: [] for offset in self.output_ds.time_offsets} for key in
+                                               self.output_offset_variables_to_track}
+        self.output_step_variable_history = {key: [] for key in self.output_step_variables_to_track}
+
+        beh_next_t, beh_done = self.output_ds.preview_next_timepoint()
+
+        while not beh_done and beh_next_t <= self.input_ds.current_timepoint():
+            beh = next(self.output_ds)
+
+            idx = np.nonzero(self.output_ds.current_timepoint() > self.model_step_variable_history['bw_t'] )[0]
+            if len(idx):
+                idx = idx[-1]
+                alpha = self.model_step_variable_history['alpha'][idx]
+                self.output_regressor.observe(alpha, beh)
+                self.log_for_regression_step(at_timepoint=self.output_ds.current_timepoint())
+
+            beh_next_t, beh_done = self.output_ds.preview_next_timepoint()
+
+        if self.frozen:
+            self.make_h()
+
 
     def create_new_filenames(self):
         time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
@@ -233,12 +299,14 @@ class BWRun:
             self.animation_manager.finish()
             del self.animation_manager
 
+        self.make_h()
+
+        self.bw.freeze()
+
+    def make_h(self):
         def convert_dict(d):
             return {k: np.array(v) for k, v in d.items()}
 
-
-        self.bw_timepoint_history = np.array(self.bw_timepoint_history)
-        self.reg_timepoint_history = np.array(self.reg_timepoint_history)
 
         self.model_offset_variable_history = {k: convert_dict(v) for k, v in self.model_offset_variable_history.items()}
         self.output_offset_variable_history = {k: convert_dict(v) for k, v in self.output_offset_variable_history.items()}
@@ -253,8 +321,6 @@ class BWRun:
             **self.output_offset_variable_history,
         )
 
-
-        self.bw.freeze()
 
     def __getstate__(self):
         d = self.__dict__

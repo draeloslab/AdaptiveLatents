@@ -43,10 +43,9 @@ class NumpyTimedDataSource:
     def current_timepoint(self):
         return self.t[self.index]
 
-    def preview_next_timepoint(self):
-        return self.t[self.index + 1], self.index + 1 >= len(self)
+    def preview_next_timepoint(self, offset = 1):
+        return self.t[self.index + offset], self.index + offset >= len(self)
 
-    #
     def get_atemporal_data_point(self, offset=0):
         """gets a data pair relative to the present pair"""
         return self._get_item(item=self.index - 1, offset=offset)

@@ -47,6 +47,7 @@ class Bubblewrap():
         self._add_jited_functions()
         self.mu_orig = None
 
+        self.is_initialized = False
         self.frozen = False
 
         self.backend_note = None
@@ -134,6 +135,7 @@ class Bubblewrap():
         self.current_node = 0
 
         self.t = 1  # todo: what is this doing in ADAM?
+        self.is_initialized = True
 
     def _add_jited_functions(self):
         # doing this here allows us to add the jax-specific functions back after an object has been pickled
