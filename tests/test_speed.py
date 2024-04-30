@@ -3,6 +3,7 @@ import numpy as np
 import adaptive_latents.input_sources as ins
 from adaptive_latents import default_rwd_parameters, Bubblewrap, SymmetricNoisyRegressor
 from adaptive_latents import proSVD
+import adaptive_latents
 import pytest
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")

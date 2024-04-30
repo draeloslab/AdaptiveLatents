@@ -42,7 +42,7 @@ def test_axis_plots(premade_unfrozen_br, premade_big_br):
     bpf.show_nstep_pdf(axs[1], br, axs[0], fig=fig, offset=neural_offset, method="hmm", hmm=hmm)
 
 def test_comparison_plots(make_br):
-    brs = [make_br(bw_params=dict(B_thresh=-15+i)) for i in range(3)]
+    brs = [make_br(bw_params=dict(B_thresh=-15+i, M=100+10*i)) for i in range(3)]
     bpf.compare_metrics(brs, offset=0, include_behavior=True)
     bpf.compare_metrics(brs, offset=3, minutes=True, red_lines=(50,))
 

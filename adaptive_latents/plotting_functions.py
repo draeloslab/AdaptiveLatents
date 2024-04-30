@@ -363,7 +363,7 @@ def _deduce_bw_parameters(bw):
                 )
 
 
-def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=True, show_title=True, red_lines=(), minutes=False, include_behavior=True, include_trendlines=True):
+def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing_scale=50, show_legend=True, show_title=True, red_lines=(), minutes=False, include_behavior=True, include_trendlines=True):
     colors = ["black"] + [f"C{i}" for i in range(len(brs) - 1)]
     ps = [_deduce_bw_parameters(br.bw) for br in brs]
     keys = set([leaf for tree in ps for leaf in tree.keys()])
@@ -386,41 +386,34 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
     fig, ax = plt.subplots(figsize=(14, 5), nrows=2+include_behavior, ncols=2, sharex='col', layout='tight', gridspec_kw={'width_ratios': [7, 1]})
     fig: plt.Figure
     to_write = [[] for _ in range(ax.shape[0])]
+    last_half_times = []
 
-    n = 0
     for idx, br in enumerate(brs):
         br: adaptive_latents.bw_run.BWRun
-        n = max(n, br.h.entropy[offset].shape[0])  # todo: make this a time thing (possibly?)
-
 
         predictions = br.h.log_pred_p[offset]
+        if show_target_times:
+            bw_offset_t = br.h.bw_offset_t[offset]
+        else:
+            bw_offset_t = br.h.bw_offset_origin_t[offset]
         smoothed_predictions = _one_sided_ewma(predictions, smoothing_scale)
-        _, obs_t = br.input_ds.get_history()
-        obs_t = obs_t[-predictions.size:]
 
         if minutes:
-            obs_t = np.array(obs_t) / 60
-
-        # xlim = (max(obs_t) - min(obs_t)) * np.array([-0.01, 1.07]) + (max(obs_t) + min(obs_t))/2
-        xrange = max(obs_t) - min(obs_t)
-        xlim = (
-            min(obs_t) - 0.01 * xrange,
-            max(obs_t) + 0.07 * xrange,
-        )
+            bw_offset_t = bw_offset_t/60
 
         c = 'black'
         if colors:
             c = colors[idx]
 
-        import warnings
-        warnings.warn("check these timepoints actually line up, I'm just clipping here")
+        last_half_times.append(br.get_last_half_time(offset))
+        metrics = br.get_last_half_metrics(offset)
 
-        ax[0,0].plot(obs_t, predictions, alpha=0.25, color=c)
+        ax[0,0].plot(bw_offset_t, predictions, alpha=0.25, color=c)
         if include_trendlines:
-            ax[0,0].plot(obs_t, smoothed_predictions, color=c, label=br.pickle_file.split("/")[-1].split(".")[0].split("_")[-1])
+            ax[0,0].plot(bw_offset_t, smoothed_predictions, color=c, label=br.pickle_file.split("/")[-1].split(".")[0].split("_")[-1])
         ax[0,0].tick_params(axis='y')
         ax[0,0].set_ylabel('prediction')
-        to_write[0].append((idx, f"{predictions[n // 2:].mean():.3f}", dict(color=c)))
+        to_write[0].append((idx, f"{metrics['log_pred_p']:.3f}", dict(color=c)))
 
         entropy = br.h.entropy[offset]
         smoothed_entropy = _one_sided_ewma(entropy, smoothing_scale)
@@ -428,46 +421,60 @@ def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=Tr
         c = 'black'
         if colors:
             c = colors[idx]
-        ax[1,0].plot(obs_t, entropy, color=c, alpha=0.25)
+        ax[1,0].plot(bw_offset_t, entropy, color=c, alpha=0.25)
 
         if include_trendlines:
-            ax[1,0].plot(obs_t, smoothed_entropy, color=c)
+            ax[1,0].plot(bw_offset_t, smoothed_entropy, color=c)
         max_entropy = np.log2(br.bw.N)
-        ax[1,0].plot([0, entropy.shape[0]], [max_entropy, ] * 2, 'k--')
+        ax[1,0].axhline(max_entropy, color='k', linestyle='--')
 
         ax[1,0].tick_params(axis='y')
         ax[1,0].set_ylabel('entropy')
-        to_write[1].append((idx, f"{entropy[n // 2:].mean():.3f}", dict(color=c)))
+        to_write[1].append((idx, f"{metrics['entropy']:.3f}", dict(color=c)))
 
         if include_behavior:
             beh_error = np.squeeze(br.h.beh_error[offset] ** 2)
             c = 'black'
             if colors:
                 c = colors[idx]
+            if show_target_times:
+                beh_t = br.h.reg_offset_t[offset]
+            else:
+                beh_t = br.h.reg_offset_origin_t[offset]
 
-            ax[-1,0].plot(br.h.reg_offset_t[offset],beh_error, color=c)
+            ax[-1,0].plot(beh_t, beh_error, color=c)
             ax[-1,0].set_ylabel('behavior sq.e.')
             ax[-1,0].tick_params(axis='y')
-            to_write[2].append((idx, f"{beh_error[n // 2:].mean():.3f}", dict(color=c)))
+
+            to_write[2].append((idx, " ".join([f"{x :.3f}" for x in metrics['beh_sq_error']]), dict(color=c)))
+
+    for axis in ax[:,0]:
+        data_lim = np.array(axis.dataLim).T.flatten()
+        bounds = data_lim
+        bounds[:2] = (bounds[:2] - bounds[:2].mean()) * np.array([1.02, 1.2]) + bounds[:2].mean()
+        bounds[2:] = (bounds[2:] - bounds[2:].mean()) * np.array([1.05, 1.05]) + bounds[2:].mean()
+
+        axis.axis(bounds)
 
     for i, l in enumerate(to_write):
-        ylim = ax[i,0].get_ylim()
-        yrange = ylim[1] - ylim[0]
         for idx, text, kw in l:
-            ax[i,0].text(max(obs_t) + xrange * 0.01, ylim[1] - (idx + 1) * yrange / 7, text, clip_on=True, **kw)
+            x, y = .93, .93-.1*idx
+            x, y = ax[i, 0].transLimits.inverted().transform([x, y])
+            ax[i,0].text(x, y, text, clip_on=True, verticalalignment='top', **kw)
 
-    # todo:check this line and bring it back
-    # xticks = list(ax[-1,0].get_xticks())
-    # xticks.append(obs_t[n // 2])
-    # ax[-1,0].set_xticks(xticks)
-    # ax[-1,0].set_xticklabels(list(map(lambda x: str(round(x)), xticks[:-1]))+ [""])
+    xlim = ax[-1,0].get_xlim()
+    xticks = list(ax[-1,0].get_xticks())
+    xtick_labels = list(ax[-1,0].get_xticklabels())
+    ax[-1,0].set_xticks(xticks + list(set(last_half_times)))
+    ax[-1,0].set_xticklabels(xtick_labels + [""]*len(set(last_half_times)))
+    ax[-1,0].set_xlim(xlim)
 
     if minutes:
         ax[-1,0].set_xlabel("time (min)")
     else:
         ax[-1,0].set_xlabel("time (s)")
 
-    ax[0,0].set_xlim(xlim)
+    # ax[0,0].set_xlim(xlim)
 
     for axis in ax[:,0]:
         axis.format_coord = lambda x, y: 'x={:g}, y={:g}'.format(x, y)
