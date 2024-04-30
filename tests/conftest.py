@@ -34,7 +34,6 @@ def _make_br(rng, freeze=True):
         hmm = adaptive_latents.input_sources.hmm_simulation.HMM.gaussian_clock_hmm(high_d_pad=n_obs-2)
         states, observations = hmm.simulate_with_states(m, rng)
 
-        # remove these 1's sometimes; everything sould work for n-offsets, not just 1
         obs_ds = NumpyTimedDataSource(observations, timepoints=np.arange(m), time_offsets=(-1, 0, 3))
         beh_ds = NumpyTimedDataSource(states, timepoints=np.arange(m), time_offsets=(-1, 0, 3, 4))
 

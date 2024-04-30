@@ -80,6 +80,7 @@ class BWRun:
                 "entropy": lambda bw, o, offset, _: bw.get_entropy(bw.A, bw.alpha, offset),
                 "alpha_prediction": lambda bw, o, offset, _: bw.alpha @ np.linalg.matrix_power(bw.A, offset),
                 "bw_offset_t": lambda bw, o, offset, d: d["t"],
+                "bw_offset_origin_t": lambda bw, o, offset, d: d["origin_t"],
             })
             self.model_step_variables_to_track.update({
                 "alpha": lambda bw, _: bw.alpha,
@@ -94,7 +95,8 @@ class BWRun:
             self.output_offset_variables_to_track.update({
                 "beh_pred": None,
                 "beh_error": None,
-                "reg_offset_t": None
+                "reg_offset_t": None,
+                "reg_offset_origin_t": None,
             })
             # TODO: make these lambdas
             # TODO: make a test to check we can get the error of the beh prediction
@@ -234,6 +236,7 @@ class BWRun:
             if "reg_offset_t" in self.output_offset_variables_to_track:
                 t, _ = self.output_ds.preview_next_timepoint(offset=offset)
                 self.output_offset_variable_history["reg_offset_t"][offset].append(t)
+                self.output_offset_variable_history["reg_offset_origin_t"][offset].append(self.output_ds.current_timepoint())
 
     def log_for_bw_step(self, step):
         if self.bw.is_initialized:
@@ -243,8 +246,9 @@ class BWRun:
 
             for offset, o in offset_pairs.items():
                 for key, f in self.model_offset_variables_to_track.items():
+                    origin_t = self.input_ds.current_timepoint()
                     t, _ = self.input_ds.preview_next_timepoint(offset=offset)
-                    d = dict(t=t)
+                    d = dict(t=t, origin_t=origin_t)
                     self.model_offset_variable_history[key][offset].append(np.array(f(self.bw, o, offset, d)))
 
             for key, f in self.model_step_variables_to_track.items():
@@ -253,7 +257,6 @@ class BWRun:
 
             if self.animation_manager and self.animation_manager.frame_draw_condition(step, self.bw):
                 self.animation_manager.draw_frame(step, self.bw, self)
-
 
     def add_regression_post_hoc(self, regressor, output_ds):
         assert "alpha" in self.model_step_variable_history
@@ -283,6 +286,37 @@ class BWRun:
 
         if self.frozen:
             self.make_h()
+
+    def get_last_half_time(self, offset):
+        bw_t = self.model_step_variable_history['bw_t']
+        last_half_time = bw_t[len(bw_t)//2]
+        if self.output_regressor:
+            err = self.output_offset_variable_history['beh_error'][offset]
+            err = np.array(err)
+            idx = np.nonzero(~np.all(np.isnan(err), axis=1))[0][0]
+            idx = (err.shape[0] - idx) // 2
+            lht = self.output_offset_variable_history['reg_offset_origin_t'][offset][err.shape[0] - idx]
+            last_half_time = max(last_half_time, lht)
+
+        return last_half_time
+
+    def get_last_half_metrics(self, offset):
+        metrics = {}
+
+        halfway_time = self.get_last_half_time(offset)
+        if self.output_regressor:
+            s = self.output_offset_variable_history['reg_offset_origin_t'][offset] > halfway_time
+            metrics['beh_sq_error'] = list(np.mean(self.output_offset_variable_history['beh_error'][offset][s]**2,0))
+            beh_error = self.output_offset_variable_history['beh_error'][offset][s]
+            beh_pred = self.output_offset_variable_history['beh_pred'][offset][s]
+            beh_true = beh_pred - beh_error
+            metrics['beh_corr'] = [np.corrcoef(beh_true[:,j], beh_pred[:,j])[0,1] for j in range(beh_true.shape[1])]
+
+        s = self.model_offset_variable_history['bw_offset_origin_t'][offset] > halfway_time
+        metrics['log_pred_p'] = np.mean(self.model_offset_variable_history['log_pred_p'][offset])
+        metrics['entropy'] = np.mean(self.model_offset_variable_history['entropy'][offset])
+
+        return metrics
 
 
     def create_new_filenames(self):
