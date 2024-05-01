@@ -51,3 +51,20 @@ def probabilistically_check_adding_channels_works(rng, n_samples=50, n1=4,n2=10,
 
 def test_adding_colums_doesnt_hurt(rng):
     assert probabilistically_check_adding_channels_works(rng)[0] > .5
+
+def test_centering_works(rng):
+    d = np.ones(10)
+    d[0] = 2
+    X = np.diag(d) @ rng.normal(size=(10,500)) + 500
+    psvd1 = proSVD(k=2, centering=False)
+    psvd2 = proSVD(k=2, centering=True)
+
+    psvd1.run_on(X)
+    psvd2.run_on(X)
+
+    _, s1, _ = np.linalg.svd(psvd1.B)
+    _, s2, _ = np.linalg.svd(psvd2.B)
+
+    assert abs(max(s1) / min(s1) - 2)  > .5
+    assert abs(max(s2) / min(s2) - 2)  < .5
+
