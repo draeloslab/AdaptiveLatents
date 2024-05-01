@@ -356,18 +356,18 @@ def construct_unpublished24_data(include_position=True, include_velocity=False, 
 
 
     mode = 'valid'
-    pre_prosvd_A = np.column_stack([np.convolve(kernel, column, mode) for column in pre_smooth_A.T])
-    pre_prosvd_t = np.convolve(np.hstack([[1],kernel[:-1]*0]), pre_smooth_t, mode)
-    pre_prosvd_beh = pre_smooth_beh
+    A = np.column_stack([np.convolve(kernel, column, mode) for column in pre_smooth_A.T])
+    t = np.convolve(np.hstack([[1],kernel[:-1]*0]), pre_smooth_t, mode)
+    beh = pre_smooth_beh
 
 
-    pre_prosvd_A = center_from_first_n(pre_prosvd_A, 100)
-    pre_prosvd_A, pre_prosvd_beh, pre_prosvd_t = clip(pre_prosvd_A, pre_prosvd_beh, pre_prosvd_t)
-
-    pre_jpca_A = prosvd_data(input_arr=pre_prosvd_A, output_d=4, init_size=50)
-    pre_jpca_A, pre_jpca_t, pre_jpca_beh = clip(pre_jpca_A, pre_prosvd_t, pre_prosvd_beh)
-
-    A, beh, t = pre_jpca_A, pre_jpca_beh, pre_jpca_t
+    # pre_prosvd_A = center_from_first_n(pre_center_A, 100)
+    # pre_prosvd_A, pre_prosvd_beh, pre_prosvd_t = clip(pre_prosvd_A, pre_prosvd_beh, pre_prosvd_t)
+    #
+    # pre_jpca_A = prosvd_data(input_arr=pre_prosvd_A, output_d=4, init_size=50)
+    # pre_jpca_A, pre_jpca_t, pre_jpca_beh = clip(pre_jpca_A, pre_prosvd_t, pre_prosvd_beh)
+    #
+    # A, beh, t = pre_jpca_A, pre_jpca_beh, pre_jpca_t
     return A, beh, t, t
 
 

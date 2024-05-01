@@ -1,11 +1,11 @@
 import numpy as np
 from abc import ABC, abstractmethod
 from collections import deque
+import jax
 
 
-def rank_one_update_formula1(D, x1, x2=None):
-    if x2 is None:
-        x2 = x1
+@jax.jit
+def rank_one_update_formula1(D, x1, x2):
     return D - (D @ x1 @ x2.T @ D) / (1 + x2.T @ D @ x1)
 
 
@@ -15,24 +15,24 @@ class OnlineRegressor(ABC):
         self.output_d = output_d
 
     @abstractmethod
-    def initialize(self, use_stored=True, x_history=None, y_history=None):
-        """This is called when the algorithm has enough information to start making predictions; it initializes the
-        regression. Usually use_stored will be true, and the algorithm will use previously observed data, but x and y
-        can also be passed in as the initialization data. This will often be called by safe_observe"""
-
-    @abstractmethod
     def observe(self, x, y):
         """This function saves an observation and possibly updates initializes parameters if the regressor has seen
         enough data."""
+
+    @abstractmethod
+    def predict(self, x):
+        """This function returns the predicted y for some given x. It might return nans if there aren't enough observations yet."""
 
     # @abstractmethod
     # def _observe(self, x, y):
     #     """This function observes a datapoint, but does not check if the regression is initialized; usually you want
     #     safe_observe."""
 
-    @abstractmethod
-    def predict(self, x):
-        """This function returns the predicted y for some given x. It might return nans if there aren't enough observations yet."""
+    # @abstractmethod
+    # def initialize(self, use_stored=True, x_history=None, y_history=None):
+    #     """This is called when the algorithm has enough information to start making predictions; it initializes the
+    #     regression. Usually use_stored will be true, and the algorithm will use previously observed data, but x and y
+    #     can also be passed in as the initialization data. This will often be called by safe_observe"""
 
 
 class VanillaOnlineRegressor(OnlineRegressor):
@@ -59,7 +59,7 @@ class VanillaOnlineRegressor(OnlineRegressor):
         y = np.squeeze(y)
 
         if update_D:
-            self.D = rank_one_update_formula1(self.D, x)
+            self.D = rank_one_update_formula1(self.D, x, x)
         else:
             self.F = self.F + x @ x.T
         self.c = self.c + x * y
@@ -90,6 +90,39 @@ class VanillaOnlineRegressor(OnlineRegressor):
 
         return x.T @ w
 
+
+class SemiRegularizedRegressor(OnlineRegressor):
+    def __init__(self, input_d, output_d, regularization_factor=0.01):
+        super().__init__(input_d, output_d)
+
+        # core stuff
+        self.D = np.eye(self.input_d)/regularization_factor
+        self.c = np.zeros([self.input_d, self.output_d])
+
+        self.n_observed = 0
+
+    def _observe(self, x, y):
+        x = x.reshape([-1, 1])
+        y = np.squeeze(y)
+
+        self.D = rank_one_update_formula1(self.D, x, x)
+        self.c = self.c + x * y
+
+        self.n_observed += 1
+
+    def observe(self, x, y):
+        if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
+            return
+        x, y = np.array(x), np.array(y)
+
+        self._observe(x, y)
+
+    def get_beta(self):
+        return self.D @ self.c
+
+    def predict(self, x):
+        w = self.D @ self.c
+        return x.T @ w
 
 
 class SymmetricNoisyRegressor(OnlineRegressor):
@@ -140,7 +173,7 @@ class SymmetricNoisyRegressor(OnlineRegressor):
             for c in [-1, 1]:
                 new_x = x + dx * c
                 if update_D:
-                    self.D = rank_one_update_formula1(self.D, new_x)
+                    self.D = rank_one_update_formula1(self.D, new_x, new_x)
                 else:
                     self.F = self.F + new_x @ new_x.T
                 self.c = self.c + new_x * y
@@ -216,7 +249,7 @@ class WindowRegressor(OnlineRegressor):
 
         # update c and D
         if update_D:
-            self.D = rank_one_update_formula1(self.D, x)
+            self.D = rank_one_update_formula1(self.D, x, x)
         else:
             self.F += x @ x.T
         self.c += x @ y.reshape([-1, self.output_d])
@@ -283,8 +316,8 @@ class NearestNeighborRegressor(OnlineRegressor):
 
 def auto_regression_decorator(regressor_class: OnlineRegressor, n_steps=1, autoregress_only=False):
     class AutoRegressor(regressor_class):
-        def __init__(self, input_d, output_d):
-            super().__init__(input_d+output_d*n_steps, output_d)
+        def __init__(self, input_d, output_d, **kwargs):
+            super().__init__(input_d+output_d*n_steps, output_d, **kwargs)
             self._y_history = deque(maxlen=n_steps)
 
         def observe(self, x, y):
