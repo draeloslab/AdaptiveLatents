@@ -84,16 +84,8 @@ def prosvd_data(input_arr, output_d, init_size):
     output = []
     for i in tqdm(range(init_size, len(input_arr))):
         obs = input_arr[i:i + 1, :]
-        if np.any(np.isnan(obs)):
-            output.append(obs @ pro.Q)
-            continue
-        pro.preupdate()
-        pro.updateSVD(obs.T)
-        pro.postupdate()
 
-        obs = obs @ pro.Q
-
-        output.append(obs)
+        output.append(pro.update_and_project(obs.T))
     return np.array(output).reshape((-1, output_d))
 
 def prosvd_data_with_Qs(input_arr, output_d, init_size):
@@ -105,17 +97,8 @@ def prosvd_data_with_Qs(input_arr, output_d, init_size):
     old_Qs = []
     for i in range(init_size, len(input_arr)):
         obs = input_arr[i:i + 1, :]
-        if np.any(np.isnan(obs)):
-            output.append(np.zeros(output_d) * np.nan)
-            continue
         old_Qs.append(np.array(pro.Q))
-        pro.preupdate()
-        pro.updateSVD(obs.T)
-        pro.postupdate()
-
-        obs = obs @ pro.Q
-
-        output.append(obs)
+        output.append(pro.update_and_project(obs.T))
     return np.array(output).reshape((-1, output_d)), np.array(old_Qs)
 
 
