@@ -1,7 +1,8 @@
 import numpy as np
 from scipy.linalg import block_diag
 from adaptive_latents.regressions import VanillaOnlineRegressor
-import warnings
+from .utils import save_to_cache, prosvd_data
+import tqdm
 from scipy.stats import special_ortho_group
 
 
@@ -11,7 +12,7 @@ class sjPCA:
         assert input_d % 2 == 0
         self.input_d = input_d
         self.H = self.make_H(self.input_d)
-        self.reg = VanillaOnlineRegressor(input_d=self.H.shape[1], output_d=1)
+        self.reg = VanillaOnlineRegressor(input_d=self.H.shape[1], output_d=1, add_intercept=False)
         self.last_x = None
         self.last_U = None
 
@@ -44,7 +45,7 @@ class sjPCA:
             v1 = evecs[:,i*2]
             v2 = evecs[:,i*2+1]
             if np.sign(np.real(v1[0])) != np.sign(np.real(v2[0])):
-                v2 *= -1
+                v2 = -v2
             # assert np.allclose(np.real(v1), np.real(v2))
             u1 = v1 + v2
             u2 = 1j * (v1 - v2)
@@ -87,18 +88,31 @@ class sjPCA:
 
         return X_tilde
 
-    @staticmethod
-    def apply_to_data(X):
-        sjpca = sjPCA(X.shape[1])
+    def observe_and_project(self, x):
+        self.observe(x)
+        U = self.get_U()
+        return x @ U
+
+    def apply_to_data(self, X, show_tqdm=True):
         observations = []
-        for i in range(X.shape[0]):
-            sjpca.observe(X[i])
-            U = sjpca.get_U()
-            observations.append(X[i] @ U)
+        for i in tqdm.tqdm(range(X.shape[0]), disable=not show_tqdm):
+            observations.append(self.observe_and_project(X[i]))
 
-        return np.array(observations), U
+        return np.array(observations)
 
+@save_to_cache("apply_sjpca_and_cache")
+def apply_sjpca_and_cache(input_arr):
+    jp = sjPCA(input_d=input_arr.shape[1])
+    return jp.apply_to_data(input_arr)
 
+@save_to_cache("apply_prosvd_and_sjpca_and_cache")
+def _apply_prosvd_and_sjpca_and_cache(input_arr, intermediate_d):
+    input_arr = prosvd_data(input_arr=input_arr, output_d=intermediate_d, init_size=intermediate_d, centering=True)
+    jp = sjPCA(input_d=input_arr.shape[1])
+    return jp.apply_to_data(input_arr)
+
+def apply_prosvd_and_sjpca_and_cache(input_arr, intermediate_d, output_d):
+    return _apply_prosvd_and_sjpca_and_cache(input_arr=input_arr, intermediate_d=intermediate_d)[:,:output_d]
 def X_and_X_dot_from_data(X_all):
     """note: this is technically off-by-one for the way I normally think about it, but it's causal"""
     # todo: is this necessarily off-by-one?

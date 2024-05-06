@@ -147,6 +147,7 @@ def test_post_hoc_regression_is_correct(rng, outdir):
     # TODO: the times seem to be 1 out of sync with the expected bubblewrap step times (even accounting for delay)
 
 # TODO:
+#  array shapes are correct for 1d output
 #  test different regressors work together
 #  test_can_save_and_reload
 #  test_nsteps_inbwrun_works_correctly

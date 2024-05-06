@@ -6,6 +6,7 @@ import jax
 
 @jax.jit
 def rank_one_update_formula1(D, x1, x2):
+    # TODO: maybe this is only faster if we put it on the GPU? maybe move the data?
     return D - (D @ x1 @ x2.T @ D) / (1 + x2.T @ D @ x1)
 
 
@@ -36,8 +37,9 @@ class OnlineRegressor(ABC):
 
 
 class VanillaOnlineRegressor(OnlineRegressor):
-    def __init__(self, input_d, output_d, init_min_ratio=3):
-        super().__init__(input_d, output_d)
+    def __init__(self, input_d, output_d, init_min_ratio=3, add_intercept=True):
+        super().__init__(input_d + add_intercept, output_d)
+        self.add_intercept = add_intercept
 
         # core stuff
         self.D = None
@@ -56,6 +58,8 @@ class VanillaOnlineRegressor(OnlineRegressor):
 
     def _observe(self, x, y, update_D=False):
         x = x.reshape([-1, 1])
+        if self.add_intercept:
+            x = np.vstack([x,[1]])
         y = np.squeeze(y)
 
         if update_D:
@@ -86,14 +90,19 @@ class VanillaOnlineRegressor(OnlineRegressor):
         if self.D is None:
             return np.nan * np.ones(shape=[self.output_d, ])
 
+        x = x.reshape([-1,1])
+        if self.add_intercept:
+            x = np.vstack([x,[1]])
+
         w = self.D @ self.c
 
         return x.T @ w
 
 
 class SemiRegularizedRegressor(OnlineRegressor):
-    def __init__(self, input_d, output_d, regularization_factor=0.01):
-        super().__init__(input_d, output_d)
+    def __init__(self, input_d, output_d, regularization_factor=0.01, add_intercept=True):
+        super().__init__(input_d + add_intercept, output_d)
+        self.add_intercept = add_intercept
 
         # core stuff
         self.D = np.eye(self.input_d)/regularization_factor
@@ -103,6 +112,8 @@ class SemiRegularizedRegressor(OnlineRegressor):
 
     def _observe(self, x, y):
         x = x.reshape([-1, 1])
+        if self.add_intercept:
+            x = np.vstack([x,[1]])
         y = np.squeeze(y)
 
         self.D = rank_one_update_formula1(self.D, x, x)
@@ -117,19 +128,26 @@ class SemiRegularizedRegressor(OnlineRegressor):
 
         self._observe(x, y)
 
-    def get_beta(self):
-        return self.D @ self.c
+    def get_beta(self, exclude_intercept=False):
+        if not exclude_intercept:
+            beta = self.D @ self.c
+        else:
+            beta = (self.D @ self.c)[:-1, :]
+        return beta
 
     def predict(self, x):
-        w = self.D @ self.c
-        return x.T @ w
+        x = x.reshape([-1,1])
+        if self.add_intercept:
+            x = np.vstack([x,[1]])
+        return np.squeeze(x.T @ self.get_beta())
 
 
 class SymmetricNoisyRegressor(OnlineRegressor):
     def __init__(self, input_d, output_d, forgetting_factor=1e-4, noise_scale=1e-3, n_perturbations=3, seed=24,
-                 init_min_ratio=3):
-        super().__init__(input_d, output_d)
+                 init_min_ratio=3, add_intercept=True):
+        super().__init__(input_d + add_intercept, output_d)
         # todo: set a max init len
+        self.add_intercept = add_intercept
 
         forgetting_factor = 1-forgetting_factor
 
@@ -160,6 +178,8 @@ class SymmetricNoisyRegressor(OnlineRegressor):
 
     def _observe(self, x, y, update_D=False):
         x = x.reshape([-1, 1])
+        if self.add_intercept:
+            x = np.vstack([x,[1]])
         y = np.squeeze(y)
         if update_D:
             self.D /= self.forgetting_factor
@@ -191,88 +211,94 @@ class SymmetricNoisyRegressor(OnlineRegressor):
             if self.n_observed >= self.init_min_ratio * self.input_d:
                 self.initialize()
 
-    def get_beta(self):
+
+    def get_beta(self, exclude_intercept=False):
         if self.D is None:
             return np.zeros((self.input_d, self.output_d)) * np.nan
-        return self.D @ self.c
+        if not exclude_intercept:
+            beta = self.D @ self.c
+        else:
+            beta = (self.D @ self.c)[:-1, :]
+        return beta
 
     def predict(self, x):
         if self.D is None:
             return np.nan * np.ones(shape=[self.output_d, ])
+        if self.add_intercept:
+            x = np.vstack([x.reshape((-1,1)), [1]])
+        return x.T @ self.get_beta()
 
-        w = self.D @ self.c
 
-        return x.T @ w
-
-class WindowRegressor(OnlineRegressor):
-    def __init__(self, input_d, output_d, window_size=1_000, init_min_ratio=3):
-        super().__init__(input_d, output_d)
-
-        # core stuff
-        self.window_size = window_size
-
-        self.x_window = []
-        self.y_window = []
-        self.D = None
-        self.F = np.zeros([self.input_d, self.input_d])
-        self.c = np.zeros([self.input_d, self.output_d])
-
-        # initializations
-        self.init_min_ratio = init_min_ratio
-        self.n_observed = 0
-
-    def initialize(self, use_stored=True, x_history=None, y_history=None):
-        if not use_stored:
-            for i in np.arange(x_history.shape[0]):
-                self._observe(x=x_history[i], y=y_history[i], update_D=False)
-
-        self.D = np.linalg.pinv(self.F)
-
-    def _observe(self, x, y, update_D=False):
-        # x and y should not be multiple time-steps big
-        x = x.reshape([-1, 1])
-        y = np.squeeze(y)
-
-        # trim windows
-        assert len(self.x_window) == len(self.y_window)
-        while len(self.x_window) > self.window_size:
-            removed_x = self.x_window.pop(0)
-            removed_y = self.y_window.pop(0)
-            if update_D:
-                self.D = rank_one_update_formula1(self.D, removed_x, -removed_x)
-            else:
-                self.F -= removed_x @ removed_x.T
-            self.c -= removed_x @ removed_y.reshape([-1, self.output_d])
-
-        self.x_window.append(x)
-        self.y_window.append(y)
-
-        # update c and D
-        if update_D:
-            self.D = rank_one_update_formula1(self.D, x, x)
-        else:
-            self.F += x @ x.T
-        self.c += x @ y.reshape([-1, self.output_d])
-
-        self.n_observed += 1
-
-    def observe(self, x, y):
-        if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
-            return
-        x, y = np.array(x), np.array(y)
-        if self.n_observed >= self.init_min_ratio * self.input_d or self.D is not None:
-            self._observe(x, y, update_D=True)
-        else:
-            self._observe(x, y, update_D=False)
-            if self.n_observed >= self.init_min_ratio * self.input_d:
-                self.initialize()
-
-    def predict(self, x):
-        if self.D is None:
-            return np.nan * np.ones(shape=[self.output_d, ])
-
-        w = self.D @ self.c
-        return x.T @ w
+# class WindowRegressor(OnlineRegressor):
+#     def __init__(self, input_d, output_d, window_size=1_000, init_min_ratio=3):
+#         super().__init__(input_d, output_d)
+#         assert False, "add an add_intercept"
+#
+#         # core stuff
+#         self.window_size = window_size
+#
+#         self.x_window = []
+#         self.y_window = []
+#         self.D = None
+#         self.F = np.zeros([self.input_d, self.input_d])
+#         self.c = np.zeros([self.input_d, self.output_d])
+#
+#         # initializations
+#         self.init_min_ratio = init_min_ratio
+#         self.n_observed = 0
+#
+#     def initialize(self, use_stored=True, x_history=None, y_history=None):
+#         if not use_stored:
+#             for i in np.arange(x_history.shape[0]):
+#                 self._observe(x=x_history[i], y=y_history[i], update_D=False)
+#
+#         self.D = np.linalg.pinv(self.F)
+#
+#     def _observe(self, x, y, update_D=False):
+#         # x and y should not be multiple time-steps big
+#         x = x.reshape([-1, 1])
+#         y = np.squeeze(y)
+#
+#         # trim windows
+#         assert len(self.x_window) == len(self.y_window)
+#         while len(self.x_window) > self.window_size:
+#             removed_x = self.x_window.pop(0)
+#             removed_y = self.y_window.pop(0)
+#             if update_D:
+#                 self.D = rank_one_update_formula1(self.D, removed_x, -removed_x)
+#             else:
+#                 self.F -= removed_x @ removed_x.T
+#             self.c -= removed_x @ removed_y.reshape([-1, self.output_d])
+#
+#         self.x_window.append(x)
+#         self.y_window.append(y)
+#
+#         # update c and D
+#         if update_D:
+#             self.D = rank_one_update_formula1(self.D, x, x)
+#         else:
+#             self.F += x @ x.T
+#         self.c += x @ y.reshape([-1, self.output_d])
+#
+#         self.n_observed += 1
+#
+#     def observe(self, x, y):
+#         if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
+#             return
+#         x, y = np.array(x), np.array(y)
+#         if self.n_observed >= self.init_min_ratio * self.input_d or self.D is not None:
+#             self._observe(x, y, update_D=True)
+#         else:
+#             self._observe(x, y, update_D=False)
+#             if self.n_observed >= self.init_min_ratio * self.input_d:
+#                 self.initialize()
+#
+#     def predict(self, x):
+#         if self.D is None:
+#             return np.nan * np.ones(shape=[self.output_d, ])
+#
+#         w = self.D @ self.c
+#         return x.T @ w
 
 
 class NearestNeighborRegressor(OnlineRegressor):

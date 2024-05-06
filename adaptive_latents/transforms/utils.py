@@ -77,16 +77,22 @@ def get_from_saved_npz(filename):
     return obs, beh.reshape([obs.shape[0], -1])
 
 @save_to_cache("prosvd_data")
-def prosvd_data(input_arr, output_d, init_size):
-    pro = proSVD(k=output_d)
+def prosvd_data(input_arr, output_d, init_size, centering):
+    # todo: rename this and the sjPCA version to apply_and_cache?
+    pro = proSVD(k=output_d, centering=centering)
     pro.initialize(input_arr[:init_size].T)
 
     output = []
     for i in tqdm(range(init_size, len(input_arr))):
         obs = input_arr[i:i + 1, :]
+        if not np.all(~np.isnan(obs)):
+            output.append(np.nan * output[-1])
+            continue
 
         output.append(pro.update_and_project(obs.T))
     return np.array(output).reshape((-1, output_d))
+
+
 
 def prosvd_data_with_Qs(input_arr, output_d, init_size):
     # todo: combine this with prosvd_data
