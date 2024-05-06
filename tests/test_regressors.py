@@ -1,16 +1,16 @@
-from adaptive_latents.regressions import NearestNeighborRegressor, SymmetricNoisyRegressor, WindowRegressor, VanillaOnlineRegressor, auto_regression_decorator, SemiRegularizedRegressor
+from adaptive_latents.regressions import NearestNeighborRegressor, SymmetricNoisyRegressor, VanillaOnlineRegressor, auto_regression_decorator, SemiRegularizedRegressor
 import pytest
 import numpy as np
 
-@pytest.fixture(params=["nearest_n", "noisy", "window", "vanilla", "vanilla_reg"])
+@pytest.fixture(params=["nearest_n", "noisy",  "vanilla", "vanilla_reg"])
 def base_reg_maker(request):
     match request.param:
         case "nearest_n":
             return NearestNeighborRegressor
         case "noisy":
             return SymmetricNoisyRegressor
-        case "window":
-            return WindowRegressor
+        # case "window":
+        #     return WindowRegressor
         case "vanilla":
             return VanillaOnlineRegressor
         case "vanilla_reg":

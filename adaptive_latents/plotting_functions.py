@@ -446,7 +446,7 @@ def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing
             ax[-1,0].set_ylabel('behavior sq.e.')
             ax[-1,0].tick_params(axis='y')
 
-            to_write[2].append((idx, " ".join([f"{x :.3f}" for x in metrics['beh_sq_error']]), dict(color=c)))
+            to_write[2].append((idx, " ".join([f"{x :.2f}" for x in metrics['beh_sq_error']]), dict(color=c)))
 
     for axis in ax[:,0]:
         data_lim = np.array(axis.dataLim).T.flatten()

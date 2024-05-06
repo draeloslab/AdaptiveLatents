@@ -2,6 +2,7 @@ generated/datasets/*
 htmlcov/*
 
 *.mp4
+*.db
 *.json
 *.gif
 *.tsv

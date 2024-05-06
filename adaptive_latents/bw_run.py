@@ -228,10 +228,10 @@ class BWRun:
             bp = self.output_regressor.predict(alpha_ahead)
 
             if "beh_pred" in self.output_offset_variables_to_track:
-                self.output_offset_variable_history["beh_pred"][offset].append(np.array(bp))
+                self.output_offset_variable_history["beh_pred"][offset].append(np.atleast_1d(bp))
 
             if "beh_error" in self.output_offset_variables_to_track:
-                self.output_offset_variable_history["beh_error"][offset].append(np.array(bp - b))
+                self.output_offset_variable_history["beh_error"][offset].append(np.atleast_1d(bp - b))
 
             if "reg_offset_t" in self.output_offset_variables_to_track:
                 t, _ = self.output_ds.preview_next_timepoint(offset=offset)
@@ -306,10 +306,14 @@ class BWRun:
         halfway_time = self.get_last_half_time(offset)
         if self.output_regressor:
             s = self.output_offset_variable_history['reg_offset_origin_t'][offset] > halfway_time
-            metrics['beh_sq_error'] = list(np.mean(self.output_offset_variable_history['beh_error'][offset][s]**2,0))
-            beh_error = self.output_offset_variable_history['beh_error'][offset][s]
-            beh_pred = self.output_offset_variable_history['beh_pred'][offset][s]
+            metrics['beh_sq_error'] = list(np.mean(np.array(self.output_offset_variable_history['beh_error'][offset])[s]**2,0))
+            beh_error = np.array(self.output_offset_variable_history['beh_error'][offset])[s]
+            beh_pred = np.array(self.output_offset_variable_history['beh_pred'][offset])[s]
             beh_true = beh_pred - beh_error
+            if len(beh_true.shape) == 1:
+                # TODO: make this unecessary
+                beh_true = beh_true.reshape([-1, 1])
+                beh_pred = beh_pred.reshape([-1, 1])
             metrics['beh_corr'] = [np.corrcoef(beh_true[:,j], beh_pred[:,j])[0,1] for j in range(beh_true.shape[1])]
 
         s = self.model_offset_variable_history['bw_offset_origin_t'][offset] > halfway_time

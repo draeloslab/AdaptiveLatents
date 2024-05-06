@@ -15,7 +15,8 @@ def test_make_H(rng, dd=10):
 def test_works_on_circular_data(rng):
     X, X_dot, true_variables = jpca.generate_circle_embedded_in_high_d(rng, m=10_000, stddev=.01)
 
-    X_realigned, U = jpca.sjPCA.apply_to_data(X)
+    X_realigned, jp = jpca.sjPCA.apply_to_data(X)
+    U = jp.last_U
     assert not np.allclose(U[:,:2], true_variables['C'])
 
     aligned_U, aligned_C = jpca.align_column_spaces(U[:, :2], true_variables['C'])
