@@ -9,10 +9,14 @@ cd AdaptiveLatents
 # install dependencies
 conda env create --file=environment.yml
 conda activate adaptive_latents
+
+# run this line for the CPU-only version of jax
+pip install -U "jax[cpu]"
+
 # run the following line if you want to use the GPU version of jax
 pip install --upgrade "jax[cuda11_local]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
-# install the repo locally (this is optional)
+# install the repo locally
 mkdir dist
 pip install -e .
 
