@@ -14,7 +14,9 @@ conda activate adaptive_latents
 pip install -U "jax[cpu]"
 
 # run the following line if you want to use the GPU version of jax
-pip install --upgrade "jax[cuda11_local]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+pip install -U "jax[cuda12]"
+
+# note: if using apple silicon, you may need to build jax from source
 
 # install the repo locally
 mkdir dist
