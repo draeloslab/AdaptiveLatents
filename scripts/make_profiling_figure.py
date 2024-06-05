@@ -1,16 +1,8 @@
 import adaptive_latents as al
 def make_data():
-    import sys
-    from adaptive_latents.profiling_functions import get_speed_by_time, get_speed_per_step
-
-    import adaptive_latents as al
     import adaptive_latents.transforms.utils as fin
     import adaptive_latents
-    from scipy.io import loadmat
-    import matplotlib.pyplot as plt
     import numpy as np
-    import h5py
-    from adaptive_latents.transforms.jpca import apply_prosvd_and_sjpca_and_cache
 
     def smooth_columns(X, t, kernel_length=5, kernel_end=-3):
         kernel = np.exp(np.linspace(0, kernel_end, kernel_length))

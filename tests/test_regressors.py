@@ -1,22 +1,20 @@
-from adaptive_latents.regressions import NearestNeighborRegressor, SymmetricNoisyRegressor, VanillaOnlineRegressor, auto_regression_decorator, SemiRegularizedRegressor
+from adaptive_latents.regressions import NearestNeighborRegressor,  VanillaOnlineRegressor, auto_regression_decorator, SemiRegularizedRegressor
 import pytest
 import numpy as np
 
-@pytest.fixture(params=["nearest_n", "noisy",  "vanilla", "vanilla_reg"])
+
+@pytest.fixture(params=["nearest_n",  "vanilla", "vanilla_regularized"])
 def base_reg_maker(request):
     match request.param:
         case "nearest_n":
             return NearestNeighborRegressor
-        case "noisy":
-            return SymmetricNoisyRegressor
-        # case "window":
-        #     return WindowRegressor
         case "vanilla":
             return VanillaOnlineRegressor
-        case "vanilla_reg":
+        case "vanilla_regularized":
             return SemiRegularizedRegressor
         case _:
             raise Exception()
+
 
 @pytest.fixture(params=["no autoregression", "autoregression 0", "autoregression 2"])
 def reg_maker(request, base_reg_maker):
@@ -31,6 +29,7 @@ def reg_maker(request, base_reg_maker):
         #     return auto_regression_decorator(base_reg_maker, history_only=True)
         case _:
             raise Exception()
+
 
 def test_can_run_nd(reg_maker, rng):
     m, n = 4, 3

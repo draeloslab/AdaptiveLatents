@@ -13,7 +13,8 @@ def test_utils_run(rng):
 
     A = adaptive_latents.transforms.utils.center_from_first_n(A)
     A = adaptive_latents.transforms.utils.zscore(A)
-    A = adaptive_latents.transforms.utils.prosvd_data(input_arr=A, output_d=2, init_size=10, _recalculate_cache_value=True)
+    A = adaptive_latents.transforms.utils.prosvd_data(input_arr=A, output_d=2, init_size=10, centering=True, _recalculate_cache_value=True)
+    A = adaptive_latents.transforms.utils.prosvd_data(input_arr=A, output_d=2, init_size=10, centering=False, _recalculate_cache_value=True)
     A, t = adaptive_latents.transforms.utils.clip(A, t)
 
     A, Qs = adaptive_latents.transforms.utils.prosvd_data_with_Qs(input_arr=A, output_d=2, init_size=10)

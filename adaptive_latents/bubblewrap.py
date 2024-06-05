@@ -319,28 +319,6 @@ def amax(A):
 def get_L(x, y):
     return jnp.tril(jnp.diag(jnp.exp(x) + epsilon) + jnp.tril(y, -1))
 
-
-@jit
-def get_L_inv(L):
-    return jnp.linalg.inv(L)
-
-
-@jit
-def get_sig_inv(L):
-    return L @ L.T
-
-
-@jit
-def get_fullSigma(L):
-    inv = jnp.linalg.inv(L)
-    return inv.T @ inv
-
-
-@jit
-def get_sub_l(L):
-    return L.flatten() / jnp.linalg.norm(L.flatten())
-
-
 @jit
 def get_mus(mu):
     return jnp.outer(mu, mu)
