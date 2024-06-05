@@ -8,11 +8,16 @@ version = "0.0.1"
 description = "Methods for real-time prediction of latent neural dynamics"
 authors = [{name = "Jonathan Gould", email = "jngould@umich.edu"},
            {name = "Anne Draelos", email = "adraelos@umich.edu"}]
+            #TODO: Pato
 readme = "README.md"
 requires-python = ">=3.7"
 keywords = ["neuroscience", "prediction", "dynamics"]
 dependencies = [] # todo: might be able to migrate pyproject.toml to requirements.txt and then use dynamic metadata?
 
+[tool.pytest.ini_options]
+pythonpath = [
+  "scripts"
+]
 
 [tool.setuptools]
 packages = ["adaptive_latents"]
@@ -21,13 +26,7 @@ packages = ["adaptive_latents"]
 egg_base = "dist"
 
 [tool.coverage.html]
-directory = "cov_html"
+directory = "./tests/reports/coverage-html"
 
-[tool.pytest.ini_options]
-addopts = """--cov-report=html:./tests/reports/coverage-html \
---cov-report=xml:./tests/reports/coverage.xml \
-"""
-
-testpaths = [
-    "tests",
-]
+[tool.coverage.xml]
+output = "./tests/reports/coverage.xml"

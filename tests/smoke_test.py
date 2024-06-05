@@ -1,12 +1,8 @@
 import pytest
 
-from adaptive_latents import Bubblewrap
+from adaptive_latents import Bubblewrap, SemiRegularizedRegressor, NumpyTimedDataSource, BWRun, AnimationManager
 from adaptive_latents.default_parameters import default_clock_parameters
-from adaptive_latents.input_sources.timed_data_source import NumpyTimedDataSource
-from adaptive_latents.bw_run import BWRun, AnimationManager
 import adaptive_latents.plotting_functions as bpf
-from adaptive_latents.regressions import SymmetricNoisyRegressor
-from scripts.main import main # todo: remove this?
 import pickle
 import numpy as np
 
@@ -40,7 +36,7 @@ def test_can_run_with_beh(rng, outdir):
     beh_ds = NumpyTimedDataSource(beh, None, (0,1))
 
     bw = Bubblewrap(n_obs, **default_clock_parameters)
-    reg = SymmetricNoisyRegressor(bw.N, n_beh)
+    reg = SemiRegularizedRegressor(bw.N, n_beh)
     br = BWRun(bw, in_ds=obs_ds, out_ds=beh_ds, behavior_regressor=reg, show_tqdm=False, output_directory=outdir)
     br.run()
 
@@ -70,12 +66,9 @@ def test_can_make_video(rng, outdir):
     ca = CustomAnimation()
 
     bw = Bubblewrap(3, **default_clock_parameters)
-    reg = SymmetricNoisyRegressor(bw.N, n_beh)
+    reg = SemiRegularizedRegressor(bw.N, n_beh)
     br = BWRun(bw, obs_ds, beh_ds, behavior_regressor=reg, animation_manager=ca, show_tqdm=False, output_directory=outdir)
     br.run()
-
-def test_run_main(outdir):
-    main(output_directory=outdir, steps_to_run=100)
 
 
 def test_can_save_and_freeze(rng, outdir):
@@ -127,7 +120,7 @@ def test_post_hoc_regression_is_correct(rng, outdir):
         Bubblewrap(3, **default_clock_parameters),
         NumpyTimedDataSource(obs, None, (0,1)),
         NumpyTimedDataSource(beh, None, (0,1)),
-        SymmetricNoisyRegressor(default_clock_parameters['num'], n_beh),
+        SemiRegularizedRegressor(default_clock_parameters['num'], n_beh),
         show_tqdm=False,
         output_directory=outdir
     )
@@ -140,7 +133,7 @@ def test_post_hoc_regression_is_correct(rng, outdir):
         output_directory=outdir
     )
     br2.run()
-    reg = SymmetricNoisyRegressor(br2.bw.N, n_beh)
+    reg = SemiRegularizedRegressor(br2.bw.N, n_beh)
     br2.add_regression_post_hoc(reg, NumpyTimedDataSource(beh, None, (0,1)))
 
     assert np.allclose(br1.h.beh_error[1], br2.h.beh_error[1], equal_nan=True)

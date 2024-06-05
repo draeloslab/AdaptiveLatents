@@ -3,7 +3,7 @@ import copy
 import pytest
 import numpy as np
 import adaptive_latents
-from adaptive_latents import Bubblewrap, BWRun, SymmetricNoisyRegressor, NumpyTimedDataSource
+from adaptive_latents import Bubblewrap, BWRun, NumpyTimedDataSource, VanillaOnlineRegressor
 
 import jax
 jax.config.update('jax_enable_x64', True)
@@ -38,7 +38,7 @@ def _make_br(rng, freeze=True):
         beh_ds = NumpyTimedDataSource(states, timepoints=np.arange(m), time_offsets=(-1, 0, 3, 4))
 
         bw = Bubblewrap(n_obs, **dict(adaptive_latents.default_parameters.default_clock_parameters, **bw_params))
-        reg = SymmetricNoisyRegressor(bw.N, n_beh)
+        reg = VanillaOnlineRegressor(bw.N, n_beh)
         br = BWRun(bw, obs_ds, beh_ds, behavior_regressor=reg, show_tqdm=False, log_level=log_level)
         br.run(save=False, freeze=freeze)
         return br

@@ -3,7 +3,7 @@ import adaptive_latents.default_parameters as dp
 from adaptive_latents import Bubblewrap
 import adaptive_latents as al
 
-# sometimes I add options to BW; this file ensures I do the downstream stuff too later
+# sometimes we add arguments to the Bubblewrap class; this file ensures those arguments are tracked downstream
 
 def test_if_defaults_cover_all_options():
     signature = inspect.signature(Bubblewrap)

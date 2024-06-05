@@ -22,12 +22,12 @@ pip install -U "jax[cuda12]"
 mkdir dist
 pip install -e .
 
-# edit the adaptive_latents_config.yaml file
+# edit the adaptive_latents_config.yaml file if you need
 
 # test if everything is working
-pytest
 python scripts/main.py
-pytest --longrun # (optional)
+pytest .
+coverage run -m pytest --longrun && coverage html # (optional)
 ```
 
 

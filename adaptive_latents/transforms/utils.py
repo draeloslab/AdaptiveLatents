@@ -27,7 +27,7 @@ def make_hashable_and_hash(x):
 
 def save_to_cache(file, location=adaptive_latents.config.CONFIG["data_path"] / "cache"):
     if not os.path.exists(location):
-        os.mkdir(location)
+        os.makedirs(location)
     cache_index_file = os.path.join(location, f"{file}_index.pickle")
     try:
         with open(cache_index_file, 'rb') as fhan:
@@ -91,7 +91,6 @@ def prosvd_data(input_arr, output_d, init_size, centering):
 
         output.append(pro.update_and_project(obs.T))
     return np.array(output).reshape((-1, output_d))
-
 
 
 def prosvd_data_with_Qs(input_arr, output_d, init_size):
