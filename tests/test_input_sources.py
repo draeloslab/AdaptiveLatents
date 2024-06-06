@@ -33,7 +33,7 @@ def test_hmm_runs(rng):
         ins.hmm_simulation.HMM.inverting_gaussian_clock_hmm(n_states=10),
         ins.hmm_simulation.HMM.discrete_clock_hmm(n_states=10),
         ins.hmm_simulation.HMM.wave_clock_hmm(n_states=11),
-        ins.hmm_simulation.HMM.infinity_pool_hmm(n_states=11),
+        ins.hmm_simulation.HMM.infinity_shape_hmm(n_states=11),
     ):
         hmm.simulate(50, rng)
         states, observations = hmm.simulate_with_states(10, rng)

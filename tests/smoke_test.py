@@ -32,8 +32,9 @@ def test_can_run_with_beh(rng, outdir):
     m, n_obs, n_beh = 150, 3, 4
     obs = rng.normal(size=(m, n_obs))
     beh = rng.normal(size=(m, n_beh))
-    obs_ds = NumpyTimedDataSource(obs, None, (0,1))
-    beh_ds = NumpyTimedDataSource(beh, None, (0,1))
+    t = np.arange(m)
+    obs_ds = NumpyTimedDataSource(obs, t, (0,1))
+    beh_ds = NumpyTimedDataSource(beh, t, (0,1))
 
     bw = Bubblewrap(n_obs, **default_clock_parameters)
     reg = SemiRegularizedRegressor(bw.N, n_beh)
@@ -43,7 +44,8 @@ def test_can_run_with_beh(rng, outdir):
 def test_can_run_without_beh(rng, outdir):
     m, n_obs, n_beh = 150, 3, 4
     obs = rng.normal(size=(m, n_obs))
-    obs_ds = NumpyTimedDataSource(obs, None, (0,1))
+    t = np.arange(m)
+    obs_ds = NumpyTimedDataSource(obs, t, (0,1))
 
     bw = Bubblewrap(3, **default_clock_parameters)
     br = BWRun(bw, obs_ds, show_tqdm=False, output_directory=outdir)
@@ -53,8 +55,9 @@ def test_can_make_video(rng, outdir):
     m, n_obs, n_beh = 150, 3, 4
     obs = rng.normal(size=(m, n_obs))
     beh = rng.normal(size=(m, n_beh))
-    obs_ds = NumpyTimedDataSource(obs, None, (0,1))
-    beh_ds = NumpyTimedDataSource(beh, None, (0,1))
+    t = np.arange(m)
+    obs_ds = NumpyTimedDataSource(obs, t, (0,1))
+    beh_ds = NumpyTimedDataSource(beh, t, (0,1))
 
     class CustomAnimation(AnimationManager):
         n_rows = 1
@@ -74,9 +77,10 @@ def test_can_make_video(rng, outdir):
 def test_can_save_and_freeze(rng, outdir):
     # note I'm also passing save_A
     m, n_obs, n_beh = 300, 3, 4
+    t = np.arange(m)
     obs = rng.normal(size=(m, n_obs))
-    obs_ds = NumpyTimedDataSource(obs, None, (0,1))
-    bw = Bubblewrap(3, **default_clock_parameters)
+    obs_ds = NumpyTimedDataSource(obs, t, (0,1))
+    bw = Bubblewrap(n_obs, **default_clock_parameters)
     br = BWRun(bw, obs_ds, show_tqdm=False, output_directory=outdir, log_level=2)
     br.run(limit=100, save=True, freeze=True)
 
@@ -94,7 +98,8 @@ def test_can_save_and_freeze(rng, outdir):
 def test_can_save_and_rerun(rng, outdir):
     m, n_obs, n_beh = 300, 3, 4
     obs = rng.normal(size=(m, n_obs))
-    obs_ds = NumpyTimedDataSource(obs, None, (0, 1))
+    t = np.arange(m)
+    obs_ds = NumpyTimedDataSource(obs, t, (0, 1))
 
     bw = Bubblewrap(3, **default_clock_parameters)
     br = BWRun(bw, obs_ds, show_tqdm=False, output_directory=outdir)
@@ -115,11 +120,12 @@ def test_post_hoc_regression_is_correct(rng, outdir):
     m, n_obs, n_beh = 150, 3, 4
     obs = rng.normal(size=(m, n_obs))
     beh = rng.normal(size=(m, n_beh)) # TODO: refactor these names to input and output
+    t = np.arange(m)
 
     br1 = BWRun(
         Bubblewrap(3, **default_clock_parameters),
-        NumpyTimedDataSource(obs, None, (0,1)),
-        NumpyTimedDataSource(beh, None, (0,1)),
+        NumpyTimedDataSource(obs, t, (0,1)),
+        NumpyTimedDataSource(beh, t, (0,1)),
         SemiRegularizedRegressor(default_clock_parameters['num'], n_beh),
         show_tqdm=False,
         output_directory=outdir
@@ -128,13 +134,13 @@ def test_post_hoc_regression_is_correct(rng, outdir):
 
     br2 = BWRun(
         Bubblewrap(3, **default_clock_parameters),
-        NumpyTimedDataSource(obs, None, (0,1)),
+        NumpyTimedDataSource(obs, t, (0,1)),
         show_tqdm=False,
         output_directory=outdir
     )
     br2.run()
     reg = SemiRegularizedRegressor(br2.bw.N, n_beh)
-    br2.add_regression_post_hoc(reg, NumpyTimedDataSource(beh, None, (0,1)))
+    br2.add_regression_post_hoc(reg, NumpyTimedDataSource(beh, t, (0,1)))
 
     assert np.allclose(br1.h.beh_error[1], br2.h.beh_error[1], equal_nan=True)
     # TODO: the times seem to be 1 out of sync with the expected bubblewrap step times (even accounting for delay)
