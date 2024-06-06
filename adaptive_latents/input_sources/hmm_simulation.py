@@ -218,7 +218,7 @@ class HMM:
         return HMM(transition_matrix, GaussianEmissionModel(means, variances), initial_distribution)
 
     @staticmethod
-    def infinity_pool_hmm(n_states=21, displacement_center=3, displacement_spread=.3, variance_scale=1., a=10, angle=0):
+    def infinity_shape_hmm(n_states=21, displacement_center=3, displacement_spread=.3, variance_scale=1., a=10, angle=0):
         assert n_states % 2 == 1  # this just makes things easier with the center of the hill
 
         p = np.exp(-1/2 * (np.linspace(-1,1,n_states)/displacement_spread)**2)
