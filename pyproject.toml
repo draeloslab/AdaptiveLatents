@@ -16,7 +16,7 @@ dependencies = [] # todo: might be able to migrate pyproject.toml to requirement
 
 [tool.pytest.ini_options]
 pythonpath = [
-  "scripts"
+  "." # so we can import from the scripts in the tests; you should still install adaptive_latents as a package
 ]
 
 [tool.setuptools]
