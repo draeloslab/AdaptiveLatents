@@ -58,6 +58,8 @@ def save_to_cache(file, location=adaptive_latents.config.CONFIG["data_path"] / "
 
             with open(os.path.join(location, cache_index[kwargs_as_key]), 'rb') as fhan:
                 if CONFIG["show_cache_files"]:
+                    # TODO: also log here
+                    # TODO: have tests globally disable caching; you can recalculate, but that doesn't get inner caching
                     print(f"retreiving cache from: {cache_index[kwargs_as_key]}")
                 return pickle.load(fhan)
 

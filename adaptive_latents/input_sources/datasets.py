@@ -284,7 +284,7 @@ def generate_musal_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_
     t = np.arange(Data.shape[0])/video_sampling_rate
     d = np.array(Data.reshape(Data.shape[0],-1))
     del Data
-    d = prosvd_data(input_arr=d, output_d=video_target_dim, init_size=prosvd_init_size)
+    d = prosvd_data(input_arr=d, output_d=video_target_dim, init_size=prosvd_init_size, centering=False)
     t, d = clip(t, d)
 
     #### define times
@@ -296,7 +296,7 @@ def generate_musal_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_
 
 def construct_nason20_data(bin_width=0.15):
     bin_width_in_ms = int(bin_width*1000)
-    file = '/home/jgould/Documents/Bubblewrap/generated/datasets/sbp/OnlineTrainingData.mat'
+    file = CONFIG["data_path"] / 'sbp'/ 'OnlineTrainingData.mat'
     mat = loadmat(file, squeeze_me=True, simplify_cells=True)
     data = mat['OnlineTrainingData']
     n_channels = data[0]['SpikingBandPower'].shape[1]
