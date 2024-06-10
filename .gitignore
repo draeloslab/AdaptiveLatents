@@ -1,6 +1,7 @@
 generated/*
 htmlcov/*
 
+!generated/simulation
 *.mp4
 *.db
 *.json
