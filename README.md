@@ -41,3 +41,15 @@ We provide an environment file for use with conda to create a new environment wi
 
 ## Refrence
 The core Bubblewrap algorithm was initially described here: ['Bubblewrap: Online tiling and real-time flow prediction on neural manifolds'](https://proceedings.neurips.cc/paper/2021/hash/307eb8ee16198da891c521eca21464c1-Abstract.html).
+
+## Refactor plan
+* BWRun should take arrays (new users don't need to know about `NumpyTimedDataSource`)
+* the bubblewrap class should have a static run method in addition to BWRun
+* defalut_parameters and the default adaptive_latents_config.yaml should be united (with a default?)
+* I should move the filesystem-dependent files to a new repo or at least the scripts folder
+* move the `dataset_plots` notebook to a function
+* general pipeline component interface so we can share a logger?
+  * learn from sklearn?
+* log caching (and make it local)
+* make Indy dataset not have trailing zeros
+* src/ structure

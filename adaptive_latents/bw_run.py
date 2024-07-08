@@ -22,7 +22,7 @@ class BWRun:
 
         self.bw: Bubblewrap = bw
         self.animation_manager: AnimationManager = animation_manager
-        self.input_ds:NumpyTimedDataSource = in_ds
+        self.input_ds: NumpyTimedDataSource = in_ds
         self.output_ds = out_ds
         # todo: check for beh and obs remnants
 
