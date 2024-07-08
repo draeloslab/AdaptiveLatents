@@ -145,9 +145,6 @@ def test_post_hoc_regression_is_correct(rng, outdir):
     assert np.allclose(br1.h.beh_error[1], br2.h.beh_error[1], equal_nan=True)
     # TODO: the times seem to be 1 out of sync with the expected bubblewrap step times (even accounting for delay)
 
-def test_config():
-    # TODO: make sure the config in-file defaults equal the repo defaults
-    assert False
 
 # TODO:
 #  array shapes are correct for 1d output
@@ -158,3 +155,4 @@ def test_config():
 #  also should make the timing of logs more clear
 #  test_can_save_A_and_other_logs
 #  can make all this faster
+#  make sure the config in-file defaults equal the repo defaults

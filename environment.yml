@@ -3,8 +3,6 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - jax
-  - jaxlib
   - numpy
   - matplotlib
   - scikit-learn
@@ -18,3 +16,5 @@ dependencies:
   - h5py
   - pynwb
   - scikit-image
+#  - jax
+#  - jaxlib
