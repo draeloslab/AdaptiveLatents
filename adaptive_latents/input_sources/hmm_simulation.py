@@ -278,7 +278,7 @@ class HMM:
         return self.simulate_with_states(n_steps, rng)[1]
 
 
-def simulate_example_data():
+def simulate_example_data(n=500):
     rng = np.random.default_rng()
-    states, observations = HMM.gaussian_clock_hmm().simulate_with_states(500, rng)
+    states, observations = HMM.gaussian_clock_hmm().simulate_with_states(n, rng)
     return observations, states
