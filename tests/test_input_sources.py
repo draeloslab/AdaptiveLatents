@@ -43,6 +43,14 @@ def test_hmm_runs(rng):
 def test_can_load_file():
     obs, beh = adaptive_latents.transforms.utils.get_from_saved_npz("jpca_reduced_sc.npz")
 
+
+def test_caches_log():
+    # TODO: make sure the config in-file defaults equal the repo defaults
+    assert False
+
+def indy_doesnt_have_trailing_zeros():
+    assert False
+
 @longrun
 def test_can_load_fly():
     for identifier in ins.datasets.individual_identifiers["fly"]:
