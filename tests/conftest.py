@@ -1,12 +1,7 @@
-import copy
-
 import pytest
 import numpy as np
 import adaptive_latents
 from adaptive_latents import Bubblewrap, BWRun, NumpyTimedDataSource, VanillaOnlineRegressor
-
-import jax
-jax.config.update('jax_enable_x64', True)
 
 # https://stackoverflow.com/a/43938191
 def pytest_addoption(parser):

@@ -8,35 +8,27 @@ from adaptive_latents import Bubblewrap, SemiRegularizedRegressor, NumpyTimedDat
 from adaptive_latents.default_parameters import default_clock_parameters
 import adaptive_latents.plotting_functions as bpf
 from scripts.main import main
+import jax
 
 class TestEnvironment:
     @staticmethod
-    def test_can_use_cuda():
+    def test_can_use_configured_backend():
+        # note that this does not check that both backends are possible
         from jax.lib import xla_bridge
-        assert xla_bridge.get_backend().platform == 'gpu'
+        assert xla_bridge.get_backend().platform == adaptive_latents.CONFIG["jax_platform_name"]
 
     @staticmethod
     def test_can_use_float64():
-        import jax
         jax.config.update('jax_enable_x64', True)  # this line is mostly for documentation, the real line is in conftest
         x = jax.random.uniform(jax.random.key(0), (1,), dtype=jax.numpy.float64)
         assert x.dtype == jax.numpy.float64
 
     # @staticmethod
-    # @pytest.mark.skip(reason="the environment can only be configured to have one backend")
     # def test_can_use_float32():
     #     import jax
     #     # jax.config.update('jax_enable_x64', False) # this should be the default
     #     x = jax.random.uniform(jax.random.key(0), (1,), dtype=jax.numpy.float64)
     #     assert x.dtype != jax.numpy.float64
-    #
-    # @staticmethod
-    # @pytest.mark.skip(reason="the environment can only be configured to have one backend")
-    # def test_can_use_cpu():
-    #     import jax
-    #     jax.config.update('jax_platform_name', 'cpu')
-    #     from jax.lib import xla_bridge
-    #     assert xla_bridge.get_backend().platform == 'cpu'
 
 class TestBWRun:
     @staticmethod

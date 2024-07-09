@@ -1,0 +1,10 @@
+# todo: this has lots of state I don't account for in tests
+
+jax_enable_x64: True
+jax_platform_name: 'cpu'
+
+attempt_to_cache: True
+verbose: True
+
+data_path: ./generated/datasets
+output_path: ./generated
