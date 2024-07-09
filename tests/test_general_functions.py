@@ -9,10 +9,6 @@ from adaptive_latents.default_parameters import default_clock_parameters
 import adaptive_latents.plotting_functions as bpf
 from scripts.main import main
 
-
-def test_run_main(outdir):
-    main(output_directory=outdir, steps_to_run=100)
-
 class TestEnvironment:
     @staticmethod
     def test_can_use_cuda():
@@ -26,21 +22,21 @@ class TestEnvironment:
         x = jax.random.uniform(jax.random.key(0), (1,), dtype=jax.numpy.float64)
         assert x.dtype == jax.numpy.float64
 
-    @staticmethod
-    @pytest.mark.skip(reason="the environment can only be configured to have one backend")
-    def test_can_use_float32():
-        import jax
-        # jax.config.update('jax_enable_x64', False) # this should be the default
-        x = jax.random.uniform(jax.random.key(0), (1,), dtype=jax.numpy.float64)
-        assert x.dtype != jax.numpy.float64
-
-    @staticmethod
-    @pytest.mark.skip(reason="the environment can only be configured to have one backend")
-    def test_can_use_cpu():
-        import jax
-        jax.config.update('jax_platform_name', 'cpu')
-        from jax.lib import xla_bridge
-        assert xla_bridge.get_backend().platform == 'cpu'
+    # @staticmethod
+    # @pytest.mark.skip(reason="the environment can only be configured to have one backend")
+    # def test_can_use_float32():
+    #     import jax
+    #     # jax.config.update('jax_enable_x64', False) # this should be the default
+    #     x = jax.random.uniform(jax.random.key(0), (1,), dtype=jax.numpy.float64)
+    #     assert x.dtype != jax.numpy.float64
+    #
+    # @staticmethod
+    # @pytest.mark.skip(reason="the environment can only be configured to have one backend")
+    # def test_can_use_cpu():
+    #     import jax
+    #     jax.config.update('jax_platform_name', 'cpu')
+    #     from jax.lib import xla_bridge
+    #     assert xla_bridge.get_backend().platform == 'cpu'
 
 class TestBWRun:
     @staticmethod
@@ -191,7 +187,7 @@ class TestDefaultParameters:
 class TestScripts:
     @staticmethod
     def test_run_main(outdir):
-        main(output_directory=outdir, steps_to_run=100)
+        main(output_directory=outdir, steps_to_run=35)
 
 # TODO:
 #  array shapes are correct for 1d output

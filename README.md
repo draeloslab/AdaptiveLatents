@@ -8,19 +8,14 @@ cd AdaptiveLatents
 
 # install dependencies
 conda env create --file=environment.yml
-conda activate adaptive_latents
 
-# run this line for the CPU-only version of jax
-pip install -U "jax[cpu]"
+# install the repo locally
+conda activate adaptive_latents
+pip install -e .
 
 # run the following line if you want to use the GPU version of jax
 pip install -U "jax[cuda12]"
-
 # note: if using apple silicon, you may need to build jax from source
-
-# install the repo locally
-mkdir dist
-pip install -e .
 
 # edit the adaptive_latents_config.yaml file if you need
 

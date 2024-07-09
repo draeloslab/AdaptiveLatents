@@ -9,17 +9,18 @@ dependencies:
   - tqdm
   - pyyaml
   - pytest
-  - pytest-cov
   - pandas
   - ffmpeg
   - jupyter
   - h5py
   - pynwb
   - scikit-image
+  # mmica dependencies
   - numba
+  # end mmica dependencies
   - pip
   - pip:
-     - jax[cuda12]
+     - jax
      - "git+https://github.com/Jonathan-Gould/mmica"
 #  - jax
 #  - jaxlib

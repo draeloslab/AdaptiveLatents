@@ -9,7 +9,7 @@ def main(output_directory=CONFIG["output_path"]/"bubblewrap_runs", steps_to_run=
     out_ds = NumpyTimedDataSource(beh, None, time_offsets=(1,))
 
     # define the adaptive_latents object
-    bw = Bubblewrap(dim=in_ds.output_shape,  **dict(default_rwd_parameters, B_thresh=-15, copy_row_on_teleport=False))
+    bw = Bubblewrap(dim=in_ds.output_shape,  **default_rwd_parameters)
 
     # define the (optional) method to regress the HMM state from `bw.alpha`
     reg = SemiRegularizedRegressor(input_d=bw.N, output_d=1)
