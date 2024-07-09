@@ -1,8 +1,13 @@
+from .config import CONFIG
+
+import jax
+jax.config.update('jax_enable_x64', CONFIG['jax_enable_x64'])
+jax.config.update('jax_platform_name', CONFIG['jax_platform_name'])
+
 from .bubblewrap import Bubblewrap
 from .bw_run import BWRun, AnimationManager
 from .default_parameters import default_rwd_parameters
 from .regressions import VanillaOnlineRegressor, SemiRegularizedRegressor
-from .config import CONFIG
 from .input_sources import NumpyTimedDataSource, construct_indy_data, construct_buzaki_data
 from . import plotting_functions
 from .transforms import proSVD, sjPCA

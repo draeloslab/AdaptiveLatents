@@ -22,6 +22,8 @@ pythonpath = [
 [tool.setuptools]
 packages = ["adaptive_latents"]
 
+[tool.setuptools.package-data]
+adaptive_latents = ["adaptive_latents_config.yaml"]
 
 [tool.coverage.run]
 include = [

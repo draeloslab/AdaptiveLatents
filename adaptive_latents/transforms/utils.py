@@ -25,7 +25,7 @@ def make_hashable_and_hash(x):
     return int(hashlib.sha1(make_hashable(x)).hexdigest(), 16)
 
 
-def save_to_cache(file, location=adaptive_latents.config.CONFIG["data_path"] / "cache"):
+def save_to_cache(file, location=CONFIG["data_path"] / "cache"):
     if not os.path.exists(location):
         os.makedirs(location)
     cache_index_file = os.path.join(location, f"{file}_index.pickle")
@@ -36,8 +36,11 @@ def save_to_cache(file, location=adaptive_latents.config.CONFIG["data_path"] / "
         cache_index = {}
 
     def decorator(original_function):
-        if not adaptive_latents.config.CONFIG["attempt_to_cache"]:
-            return original_function
+        if not CONFIG["attempt_to_cache"]:
+            def new_function(_recalculate_cache_value=True, **kwargs):
+                assert _recalculate_cache_value==True
+                original_function(**kwargs)
+            return new_function
 
         def new_function(_recalculate_cache_value=False, **kwargs):
             kwargs_as_key = make_hashable_and_hash(kwargs)
@@ -47,7 +50,7 @@ def save_to_cache(file, location=adaptive_latents.config.CONFIG["data_path"] / "
 
                 hstring = str(kwargs_as_key)[-15:]
                 cache_file = os.path.join(location,f"{file}_{hstring}.pickle")
-                if CONFIG["show_cache_files"]:
+                if CONFIG["verbose"]:
                     print(f"caching value in: {cache_file}")
                 with open(cache_file, "wb") as fhan:
                     pickle.dump(result, fhan)
@@ -57,7 +60,7 @@ def save_to_cache(file, location=adaptive_latents.config.CONFIG["data_path"] / "
                     pickle.dump(cache_index, fhan)
 
             with open(os.path.join(location, cache_index[kwargs_as_key]), 'rb') as fhan:
-                if CONFIG["show_cache_files"]:
+                if CONFIG["verbose"]:
                     # TODO: also log here
                     # TODO: have tests globally disable caching; you can recalculate, but that doesn't get inner caching
                     print(f"retreiving cache from: {cache_index[kwargs_as_key]}")

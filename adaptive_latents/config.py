@@ -1,31 +1,33 @@
 import yaml
-import os
 import pathlib
+from importlib.resources import files
 
-config_file_name = "adaptive_latents_config.yaml"
+CONFIG_FILE_NAME = "adaptive_latents_config.yaml"
 
-def get_raw_config():
-    pwd = pathlib.Path(os.curdir).resolve()
-    for path in [pwd] + list(pwd.parents):
-        file_candidate = path / config_file_name
-        if os.path.exists(file_candidate) and os.path.isfile(file_candidate):
-            with open(file_candidate, 'r') as fhan:
-                return yaml.safe_load(fhan), path
-    raise Exception("No config file found.")
+def load_config(path):
+    file = path / CONFIG_FILE_NAME
+    config = {}
+    if file.is_file():
+        with open(file, 'r') as fhan:
+            config = yaml.safe_load(fhan)
 
 
-def make_paths_absolute(config, path):
-    # todo: this is hacky, but it works for now
-    new_config = {}
-    for key, value in config.items():
-        if type(value) == str:
-            p = pathlib.Path(value)
-            if not p.is_absolute():
-                p = path/p
+    return config
 
-            new_config[key] = p
-        else:
-            new_config[key] = value
-    return new_config
+def get_config():
+    config = load_config(pathlib.Path(files('adaptive_latents')))
+    local_config = load_config(pathlib.Path.cwd())
 
-CONFIG=make_paths_absolute(*get_raw_config())
+    # get_config assumes there's no hierarchy when we merge
+    assert all(map(lambda x: not isinstance(x, dict), [*config.values(), *local_config.values()] ))
+
+    config.update(local_config)
+
+
+    config['output_path'] = pathlib.Path(config['output_path']).resolve()
+    config['data_path'] = pathlib.Path(config['data_path']).resolve()
+
+
+    return config
+
+CONFIG=get_config()
