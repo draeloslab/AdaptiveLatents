@@ -16,5 +16,10 @@ dependencies:
   - h5py
   - pynwb
   - scikit-image
+  - numba
+  - pip
+  - pip:
+     - jax[cuda12]
+     - "git+https://github.com/Jonathan-Gould/mmica"
 #  - jax
 #  - jaxlib

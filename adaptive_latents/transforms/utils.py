@@ -216,3 +216,16 @@ def resample_matched_timeseries(old_timeseries, new_sample_times, old_sample_tim
 
 def center_from_first_n(A, n=100):
     return A[n:] - A[:n].mean(axis=0)
+
+
+def align_column_spaces(A, B):
+    # R = argmin(lambda omega: norm(omega @ A - B))
+    A, B = A.T, B.T
+    C = A @ B.T
+    u, s, vh = np.linalg.svd(C)
+    R = vh.T @ u.T
+    return (R @ A).T, (B).T
+
+def column_space_distance(Q1, Q2):
+    Q1_rotated, Q2 = align_column_spaces(Q1, Q2)
+    return np.linalg.norm(Q1_rotated - Q2)
