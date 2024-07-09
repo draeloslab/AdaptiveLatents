@@ -22,9 +22,6 @@ pythonpath = [
 [tool.setuptools]
 packages = ["adaptive_latents"]
 
-[tool.distutils.egg_info]
-egg_base = "dist"
-
 
 [tool.coverage.run]
 include = [
