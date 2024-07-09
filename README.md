@@ -53,3 +53,4 @@ The core Bubblewrap algorithm was initially described here: ['Bubblewrap: Online
 * log caching (and make it local)
 * make Indy dataset not have trailing zeros
 * src/ structure
+* hashable TimedDataSource?

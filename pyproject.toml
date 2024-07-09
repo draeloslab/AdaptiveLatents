@@ -25,6 +25,12 @@ packages = ["adaptive_latents"]
 [tool.distutils.egg_info]
 egg_base = "dist"
 
+
+[tool.coverage.run]
+include = [
+    "adaptive_latents/**/*.py",
+    ]
+
 [tool.coverage.html]
 directory = "./tests/reports/coverage-html"
 
