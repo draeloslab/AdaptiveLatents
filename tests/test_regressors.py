@@ -12,8 +12,6 @@ def base_reg_maker(request):
             return VanillaOnlineRegressor
         case "vanilla_regularized":
             return SemiRegularizedRegressor
-        case _:
-            raise Exception()
 
 
 @pytest.fixture(params=["no autoregression", "autoregression 0", "autoregression 2"])
@@ -25,10 +23,6 @@ def reg_maker(request, base_reg_maker):
             return auto_regression_decorator(base_reg_maker, n_steps=0)
         case "autoregression 2":
             return auto_regression_decorator(base_reg_maker, n_steps=2)
-        # case "autoregression only":
-        #     return auto_regression_decorator(base_reg_maker, history_only=True)
-        case _:
-            raise Exception()
 
 
 def test_can_run_nd(reg_maker, rng):

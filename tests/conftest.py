@@ -60,4 +60,3 @@ def premade_unfrozen_br():
 @pytest.fixture(scope="session")
 def premade_big_br():
      return _make_br(np.random.default_rng(0))(n_obs=20, m=3_000, log_level=1)
-#

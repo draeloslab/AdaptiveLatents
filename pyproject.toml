@@ -8,7 +8,7 @@ version = "0.0.1"
 description = "Methods for real-time prediction of latent neural dynamics"
 authors = [{name = "Jonathan Gould", email = "jngould@umich.edu"},
            {name = "Anne Draelos", email = "adraelos@umich.edu"}]
-            #TODO: Pato
+            #TODO: Pato?
 readme = "README.md"
 requires-python = ">=3.7"
 keywords = ["neuroscience", "prediction", "dynamics"]
@@ -29,6 +29,7 @@ egg_base = "dist"
 [tool.coverage.run]
 include = [
     "adaptive_latents/**/*.py",
+    "tests/**/*.py",
     ]
 
 [tool.coverage.html]

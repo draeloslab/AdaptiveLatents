@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.linalg import block_diag
 from adaptive_latents.regressions import VanillaOnlineRegressor
-from .utils import save_to_cache, prosvd_data
+from .utils import save_to_cache, prosvd_data, align_column_spaces
 import tqdm
 from scipy.stats import special_ortho_group
 
@@ -120,14 +120,6 @@ def X_and_X_dot_from_data(X_all):
     X = X_all[1:]
     return X, X_dot
 
-def align_column_spaces(A, B):
-    # TODO: move this
-    # R = argmin(lambda omega: norm(omega @ A - B))
-    A, B = A.T, B.T
-    C = A @ B.T
-    u, s, vh = np.linalg.svd(C)
-    R = vh.T @ u.T
-    return (R @ A).T, (B).T
 
 def generate_circle_embedded_in_high_d(rng, m=1000, n=4, stddev=1, shape=(10,10)):
     t = np.linspace(0, m/50*np.pi*2, m+1)
