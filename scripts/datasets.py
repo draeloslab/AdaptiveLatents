@@ -8,12 +8,21 @@ from skimage.transform import resize
 from pynwb import NWBHDF5IO
 import pathlib
 
-DATA_BASE_PATH = pathlib.Path('/home/jgould/Documents/AdaptiveLatents/scripts/datasets')
+import fsspec
+from fsspec.implementations.cached import CachingFileSystem
+from dandi.dandiapi import DandiAPIClient
+
+import datahugger
+
+import bs4
+import urllib.request
+
+DATA_BASE_PATH = pathlib.Path(__file__).parent.resolve() / 'datasets'
 
 individual_identifiers = {
     "indy": ['indy_20160407_02.mat'],
-    "buzaki": ["Mouse12-120806", "Mouse12-120807", "Mouse24-131216"],
-    'fly': ['2019_06_28_fly2.nwb',
+    "peyrache15": ["Mouse12-120806", "Mouse12-120807", "Mouse24-131216"],
+    'schaffer23': ['2019_06_28_fly2.nwb',
             '2019_07_01_fly2.nwb',
             '2019_08_07_fly2.nwb',
             '2019_08_14_fly1.nwb',
@@ -35,14 +44,32 @@ individual_identifiers = {
     'nason20': [],
 }
 
+def construct_low21_data():
+    dataset_base_path = DATA_BASE_PATH / 'low21'
+    if len(list(dataset_base_path.glob("*.npy"))) == 0:
+        datahugger.get("https://doi.org/10.17632/hntn6m2pgk.1", dataset_base_path)
+    # TODO
 
 
-def construct_indy_data(individual_identifier, bin_width):
+def _download_odoherty21(dataset_base_path, filename="indy_20160407_02.mat"):
+    try:
+        file_url = f"https://zenodo.org/records/3854034/files/{filename}?download=1"""
+        dataset_base_path.mkdir(exist_ok=True)
+        urllib.request.urlretrieve(url=file_url, filename=dataset_base_path / filename)
+    except:
+        datahugger.get("https://doi.org/10.5281/zenodo.3854034", dataset_base_path) # this is usually very slow
+
+
+def construct_odoherty21_data(individual_identifier='indy_20160407_02.mat', bin_width=0.03):
     """
     bin_width is in seconds; a sensible default is 0.03
     """
 
-    fhan = h5py.File(DATA_BASE_PATH / individual_identifier, 'r')
+    dataset_base_path = DATA_BASE_PATH / "odoherty21"
+    if not (dataset_base_path / individual_identifier).is_file():
+        _download_odoherty21(dataset_base_path, individual_identifier)
+
+    fhan = h5py.File(dataset_base_path / individual_identifier, 'r')
 
     # this is a first pass I'm using to find the first and last spikes
     l = []
@@ -89,10 +116,131 @@ def construct_indy_data(individual_identifier, bin_width):
     return A, raw_behavior, bin_centers, t
 
 
-@save_to_cache("buzaki_data")
-def construct_buzaki_data(individual_identifier, bin_width):
+
+def construct_schaffer23_data(individual_identifier):
+    # https://doi.org/10.6084/m9.figshare.23749074
+
+    dataset_base_path = DATA_BASE_PATH / 'schaffer23'
+
+    if len(list(dataset_base_path.glob("*.nwb"))) == 0:
+        datahugger.get("https://doi.org/10.6084/m9.figshare.23749074", dataset_base_path)
+
+    with NWBHDF5IO(dataset_base_path / individual_identifier, mode="r", load_namespaces=True) as fhan:
+        file = fhan.read()
+        A = file.processing["ophys"].data_interfaces["DfOverF"].roi_response_series['RoiResponseSeries'].data[:]
+        beh = file.processing['behavioral state'].data_interfaces['behavioral state'].data[:]
+        t = file.processing['behavioral state'].data_interfaces['behavioral state'].timestamps[:]
+        # t = file.processing["behavior"].data_interfaces["ball_motion"].timestamps[:]
+    return A, beh, t, t
+
+def construct_churchland22_data(bin_width):
+    # https://pynwb.readthedocs.io/en/latest/tutorials/advanced_io/streaming.html
+    dandiset_id = '000128'
+    filepath = 'sub-Jenkins/sub-Jenkins_ses-full_desc-train_behavior+ecephys.nwb'
+    with DandiAPIClient() as client:
+        asset = client.get_dandiset(dandiset_id, version_id='0.220113.0400').get_asset_by_path(filepath)
+        s3_url = asset.get_content_url(follow_redirects=1, strip_query=True)
+
+    fs = fsspec.filesystem("http")
+
+    # create a cache to save downloaded data to disk (optional)
+    fs = CachingFileSystem(
+        fs=fs,
+        cache_storage=[DATA_BASE_PATH/"nwb_cache"],
+    )
+
+    with fs.open(s3_url, "rb") as f:
+        with h5py.File(f) as file:
+            with NWBHDF5IO(file=file) as fhan:
+                nwb_in = fhan.read()
+                units = nwb_in.units.to_dataframe()
+                hand_pos = np.array(nwb_in.processing['behavior'].data_interfaces['hand_pos'].data)
+                hand_t = np.array(nwb_in.processing['behavior'].data_interfaces['hand_pos'].timestamps)
+
+    bin_edges = np.arange(units.iloc[0, 2][0, 0], units.iloc[0, 2][-1, -1] + bin_width, bin_width)
+
+    A = np.zeros((len(bin_edges) - 1, units.shape[0]))
+
+    for i in range(units.shape[0]):
+        A[:, i], _ = np.histogram(units.iloc[i, 1], bin_edges)
+
+    recorded_intervals = units.iloc[0, 2]
+
+    interval_to_start_from = 0
+
+    def intersection(start1, stop1, start2, stop2):
+        return max(min(stop1, stop2) - max(start1, start2), 0)
+
+    for i in range(len(bin_edges) - 1):
+        bin_start = bin_edges[i]
+        bin_stop = bin_edges[i + 1]
+        covered = 0
+        for j in range(interval_to_start_from, recorded_intervals.shape[0]):
+            interval_start, interval_stop = recorded_intervals[j]
+            if bin_start > interval_stop:
+                interval_to_start_from += 1
+                continue
+            if interval_start > bin_stop:
+                break
+            covered += intersection(bin_start, bin_stop, interval_start, interval_stop)
+
+        if covered / bin_width < .9:
+            A[i, :] = np.nan
+
+    bin_centers = np.convolve(bin_edges, [.5, .5], 'valid')
+
+    return A, hand_pos, bin_centers, hand_t
+
+
+def construct_nason20_data(bin_width=0.15):
+    "https://doi.org/10.7302/wwya-5q86"
+    bin_width_in_ms = int(bin_width*1000)
+    file = DATA_BASE_PATH / 'nason20'/ 'OnlineTrainingData.mat'
+    mat = loadmat(file, squeeze_me=True, simplify_cells=True)
+    data = mat['OnlineTrainingData']
+    n_channels = data[0]['SpikingBandPower'].shape[1]
+
+    for i in range(len(data) - 1):
+        assert data[i + 1]['ExperimentTime'][0] - data[i]['ExperimentTime'][-1] == 3
+
+    A = []
+    t = []
+    beh = []
+    for i, trial in enumerate(data):
+        A_spacer = np.nan * np.zeros((3,n_channels))
+        t_spacer = np.arange(1,4) + trial['ExperimentTime'][-1]
+        beh_spacer = t_spacer * np.nan
+        if i == len(data)-1:
+            A_spacer = np.zeros((0,n_channels))
+            t_spacer = []
+            beh_spacer = []
+        sub_A_spaced = np.vstack([trial['SpikingBandPower'], A_spacer])
+        sub_t_spaced = np.hstack([trial['ExperimentTime'], t_spacer])
+        sub_beh_spaced = np.hstack([trial['FingerAngle'], beh_spacer])
+        A.append(sub_A_spaced)
+        t.append(sub_t_spaced)
+        beh.append(sub_beh_spaced)
+    A = np.vstack(A)
+    t = np.hstack(t) / 1000 # converts to seconds
+    beh = np.hstack(beh)
+
+    s = t > 1.260 # there's an early dead zone
+    A, beh, t = A[s], beh[s], t[s]
+
+
+    aug = np.column_stack([t,beh, A])
+    binned_aug = aug[aug.shape[0] % bin_width_in_ms:,:].reshape(( -1, bin_width_in_ms, aug.shape[1]))
+    t = binned_aug[:,:,0].max(axis=1)
+    beh = np.nanmean(binned_aug[:,:,1], axis=1)
+    A = np.nanmean(binned_aug[:,:,2:], axis=1)
+
+    return A, beh, t, t
+
+@save_to_cache("peyrache15_data")
+def construct_peyrache15_data(individual_identifier, bin_width):
     """"bin_width is in seconds; a sensible default is 0.03"""
-    parent_folder = DATA_BASE_PATH / 'buzaki'
+    # http://dx.doi.org/10.6080/K0G15XS1
+    parent_folder = DATA_BASE_PATH / 'peyrache15'
     def read_int_file(fname):
         with open(fname) as fhan:
             ret = []
@@ -177,62 +325,46 @@ def construct_buzaki_data(individual_identifier, bin_width):
     raw_behavior[raw_behavior == -1] = np.nan
 
     return A, raw_behavior, bin_centers, t
+def construct_unpublished24_data(include_position=True, include_velocity=False, include_acceleration=False):
+    mat = loadmat(DATA_BASE_PATH / 'Chestek' / 'jgould_first_extraction.mat', squeeze_me=True, simplify_cells=True)
+    pre_smooth_beh = mat["feats"][1]
+    pre_smooth_A = mat["feats"][0]
+    pre_smooth_t = mat["feats"][2] / 1000
 
-def construct_fly_data(individual_identifier):
-    with NWBHDF5IO(DATA_BASE_PATH / 'fly' / individual_identifier, mode="r", load_namespaces=True) as fhan:
-        file = fhan.read()
-        A = file.processing["ophys"].data_interfaces["DfOverF"].roi_response_series['RoiResponseSeries'].data[:]
-        beh = file.processing['behavioral state'].data_interfaces['behavioral state'].data[:]
-        t = file.processing['behavioral state'].data_interfaces['behavioral state'].timestamps[:]
-        # t = file.processing["behavior"].data_interfaces["ball_motion"].timestamps[:]
+    pre_smooth_beh = pre_smooth_beh.reshape((pre_smooth_beh.shape[0], 3, 5))
+
+    nonzero_columns = pre_smooth_beh.std(axis=0) > 0
+    assert np.all(~(nonzero_columns[0, :] ^ nonzero_columns))  # checks that fingers always have the same values
+    pre_smooth_beh = pre_smooth_beh[:, :,
+                     nonzero_columns[0, :]]  # the booleans select for position, velocity, and acceleration
+    pre_smooth_beh = pre_smooth_beh[:, [include_position, include_velocity, include_acceleration], :].reshape(pre_smooth_beh.shape[0],
+                                                                        -1)  # the three booleans select for position, velocity, and acceleration
+    kernel = np.exp(np.linspace(0, -1, 5))
+    kernel /= kernel.sum()
+
+
+    mode = 'valid'
+    A = np.column_stack([np.convolve(kernel, column, mode) for column in pre_smooth_A.T])
+    t = np.convolve(np.hstack([[1],kernel[:-1]*0]), pre_smooth_t, mode)
+    beh = pre_smooth_beh
+
+
+    # pre_prosvd_A = center_from_first_n(pre_center_A, 100)
+    # pre_prosvd_A, pre_prosvd_beh, pre_prosvd_t = clip(pre_prosvd_A, pre_prosvd_beh, pre_prosvd_t)
+    #
+    # pre_jpca_A = prosvd_data(input_arr=pre_prosvd_A, output_d=4, init_size=50)
+    # pre_jpca_A, pre_jpca_t, pre_jpca_beh = clip(pre_jpca_A, pre_prosvd_t, pre_prosvd_beh)
+    #
+    # A, beh, t = pre_jpca_A, pre_jpca_beh, pre_jpca_t
     return A, beh, t, t
 
-def construct_jenkins_data(bin_width):
-    fpath = DATA_BASE_PATH / '000128' / 'sub-Jenkins' / 'sub-Jenkins_ses-full_desc-train_behavior+ecephys.nwb'
-    with NWBHDF5IO(fpath, "r") as fhan:
-        nwb_in = fhan.read()
-        units = nwb_in.units.to_dataframe()
-        hand_pos = np.array(nwb_in.processing['behavior'].data_interfaces['hand_pos'].data)
-        hand_t = np.array(nwb_in.processing['behavior'].data_interfaces['hand_pos'].timestamps)
+@save_to_cache("generate_musall19_dataset")
+def generate_musall19_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_init_size=100):
+    """
+    https://doi.org/10.1038/s41593-019-0502-4
+    cam ∈ {1,2}
+    """
 
-    bin_edges = np.arange(units.iloc[0, 2][0, 0], units.iloc[0, 2][-1, -1] + bin_width, bin_width)
-
-    A = np.zeros((len(bin_edges) - 1, units.shape[0]))
-
-    for i in range(units.shape[0]):
-        A[:, i], _ = np.histogram(units.iloc[i, 1], bin_edges)
-
-    recorded_intervals = units.iloc[0, 2]
-
-    interval_to_start_from = 0
-
-    def intersection(start1, stop1, start2, stop2):
-        return max(min(stop1, stop2) - max(start1, start2), 0)
-
-    for i in range(len(bin_edges) - 1):
-        bin_start = bin_edges[i]
-        bin_stop = bin_edges[i + 1]
-        covered = 0
-        for j in range(interval_to_start_from, recorded_intervals.shape[0]):
-            interval_start, interval_stop = recorded_intervals[j]
-            if bin_start > interval_stop:
-                interval_to_start_from += 1
-                continue
-            if interval_start > bin_stop:
-                break
-            covered += intersection(bin_start, bin_stop, interval_start, interval_stop)
-
-        if covered / bin_width < .9:
-            A[i, :] = np.nan
-
-    bin_centers = np.convolve(bin_edges, [.5, .5], 'valid')
-
-    return A, hand_pos, bin_centers, hand_t
-
-
-@save_to_cache("generate_musal_dataset")
-def generate_musal_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_init_size=100):
-    """cam ∈ {1,2}"""
     ca_sampling_rate = 31
     video_sampling_rate = 30
 
@@ -294,93 +426,16 @@ def generate_musal_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_
 
     return A, d, ca_times, t
 
+if __name__ == '__main__':
+    construct_schaffer23_data(individual_identifier=individual_identifiers['schaffer23'][0])
 
-def construct_nason20_data(bin_width=0.15):
-    bin_width_in_ms = int(bin_width*1000)
-    file = DATA_BASE_PATH / 'sbp'/ 'OnlineTrainingData.mat'
-    mat = loadmat(file, squeeze_me=True, simplify_cells=True)
-    data = mat['OnlineTrainingData']
-    n_channels = data[0]['SpikingBandPower'].shape[1]
+"""
+low21
+indy
+fly
+jenkins
 
-    for i in range(len(data) - 1):
-        assert data[i + 1]['ExperimentTime'][0] - data[i]['ExperimentTime'][-1] == 3
-
-    A = []
-    t = []
-    beh = []
-    for i, trial in enumerate(data):
-        A_spacer = np.nan * np.zeros((3,n_channels))
-        t_spacer = np.arange(1,4) + trial['ExperimentTime'][-1]
-        beh_spacer = t_spacer * np.nan
-        if i == len(data)-1:
-            A_spacer = np.zeros((0,n_channels))
-            t_spacer = []
-            beh_spacer = []
-        sub_A_spaced = np.vstack([trial['SpikingBandPower'], A_spacer])
-        sub_t_spaced = np.hstack([trial['ExperimentTime'], t_spacer])
-        sub_beh_spaced = np.hstack([trial['FingerAngle'], beh_spacer])
-        A.append(sub_A_spaced)
-        t.append(sub_t_spaced)
-        beh.append(sub_beh_spaced)
-    A = np.vstack(A)
-    t = np.hstack(t) / 1000 # converts to seconds
-    beh = np.hstack(beh)
-
-    s = t > 1.260 # there's an early dead zone
-    A, beh, t = A[s], beh[s], t[s]
-
-
-    aug = np.column_stack([t,beh, A])
-    binned_aug = aug[aug.shape[0] % bin_width_in_ms:,:].reshape(( -1, bin_width_in_ms, aug.shape[1]))
-    t = binned_aug[:,:,0].max(axis=1)
-    beh = np.nanmean(binned_aug[:,:,1], axis=1)
-    A = np.nanmean(binned_aug[:,:,2:], axis=1)
-
-    return A, beh, t, t
-
-def construct_unpublished24_data(include_position=True, include_velocity=False, include_acceleration=False):
-    mat = loadmat(DATA_BASE_PATH / 'Chestek' / 'jgould_first_extraction.mat', squeeze_me=True, simplify_cells=True)
-    pre_smooth_beh = mat["feats"][1]
-    pre_smooth_A = mat["feats"][0]
-    pre_smooth_t = mat["feats"][2] / 1000
-
-    pre_smooth_beh = pre_smooth_beh.reshape((pre_smooth_beh.shape[0], 3, 5))
-
-    nonzero_columns = pre_smooth_beh.std(axis=0) > 0
-    assert np.all(~(nonzero_columns[0, :] ^ nonzero_columns))  # checks that fingers always have the same values
-    pre_smooth_beh = pre_smooth_beh[:, :,
-                     nonzero_columns[0, :]]  # the booleans select for position, velocity, and acceleration
-    pre_smooth_beh = pre_smooth_beh[:, [include_position, include_velocity, include_acceleration], :].reshape(pre_smooth_beh.shape[0],
-                                                                        -1)  # the three booleans select for position, velocity, and acceleration
-    kernel = np.exp(np.linspace(0, -1, 5))
-    kernel /= kernel.sum()
-
-
-    mode = 'valid'
-    A = np.column_stack([np.convolve(kernel, column, mode) for column in pre_smooth_A.T])
-    t = np.convolve(np.hstack([[1],kernel[:-1]*0]), pre_smooth_t, mode)
-    beh = pre_smooth_beh
-
-
-    # pre_prosvd_A = center_from_first_n(pre_center_A, 100)
-    # pre_prosvd_A, pre_prosvd_beh, pre_prosvd_t = clip(pre_prosvd_A, pre_prosvd_beh, pre_prosvd_t)
-    #
-    # pre_jpca_A = prosvd_data(input_arr=pre_prosvd_A, output_d=4, init_size=50)
-    # pre_jpca_A, pre_jpca_t, pre_jpca_beh = clip(pre_jpca_A, pre_prosvd_t, pre_prosvd_beh)
-    #
-    # A, beh, t = pre_jpca_A, pre_jpca_beh, pre_jpca_t
-    return A, beh, t, t
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+buzsaki
+musal
+unpublished24
+"""

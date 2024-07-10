@@ -16,12 +16,16 @@ dependencies:
   - pynwb
   - scikit-image
   - coverage
-# mmica dependencies
-  - numba
-  # end mmica dependencies
+  - dandi
+  - fsspec
+  - requests
+  - aiohttp
+  - datahugger
+  - numba # todo: this is for mmica, do I really need it?
   - pip
   - pip:
      - jax
+     - datahugger
      - "git+https://github.com/Jonathan-Gould/mmica"
 #  - jax
 #  - jaxlib
