@@ -1,6 +1,6 @@
 import timeit
 import numpy as np
-from adaptive_latents import default_rwd_parameters, Bubblewrap, VanillaOnlineRegressor, proSVD, sjPCA
+from adaptive_latents import Bubblewrap, VanillaOnlineRegressor, proSVD, sjPCA
 from adaptive_latents.regressions import SemiRegularizedRegressor
 
 
@@ -8,7 +8,11 @@ def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None
     # todo: try transposing `obs`
     psvd = proSVD(prosvd_k, centering=True)
     jpca = sjPCA(input_d=prosvd_k)
-    bw = Bubblewrap(prosvd_k, **dict(default_rwd_parameters, go_fast=True, **(bw_params if bw_params is not None else {})))
+
+    bw_params = bw_params if bw_params is not None else {}
+    bw_params['go_fast'] = True
+    bw = Bubblewrap(prosvd_k, **bw_params)
+
     reg = SemiRegularizedRegressor(input_d=bw.N, output_d=regression_output.shape[1])
 
     prosvd_init = 20
@@ -80,7 +84,11 @@ def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None
 def get_speed_by_time(psvd_input, regression_output, prosvd_k=6, bw_params=None, max_steps=10_000):
     psvd = proSVD(prosvd_k)
     jpca = sjPCA(input_d=prosvd_k)
-    bw = Bubblewrap(prosvd_k, **dict(default_rwd_parameters, go_fast=True, **(bw_params if bw_params is not None else {})))
+
+    bw_params = bw_params if bw_params is not None else {}
+    bw_params['go_fast'] = True
+    bw = Bubblewrap(prosvd_k, **bw_params)
+
     reg = SemiRegularizedRegressor(input_d=bw.N, output_d=regression_output.shape[1])
 
     prosvd_init = 20

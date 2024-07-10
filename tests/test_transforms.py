@@ -112,5 +112,5 @@ def test_utils_run(rng):
 
     A, Qs = adaptive_latents.transforms.utils.prosvd_data_with_Qs(input_arr=A, output_d=2, init_size=10)
 
-    adaptive_latents.transforms.utils.bwrap_alphas(input_arr=A, bw_params=adaptive_latents.default_parameters.default_rwd_parameters, _recalculate_cache_value=True)
-    adaptive_latents.transforms.utils.bwrap_alphas_ahead(input_arr=A, bw_params=adaptive_latents.default_parameters.default_rwd_parameters, _recalculate_cache_value=True)
+    adaptive_latents.transforms.utils.bwrap_alphas(input_arr=A, bw_params=adaptive_latents.Bubblewrap.default_clock_parameters, _recalculate_cache_value=True)
+    adaptive_latents.transforms.utils.bwrap_alphas_ahead(input_arr=A, bw_params=adaptive_latents.Bubblewrap.default_clock_parameters, _recalculate_cache_value=True)

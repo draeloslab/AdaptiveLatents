@@ -32,7 +32,7 @@ def _make_br(rng, freeze=True):
         obs_ds = NumpyTimedDataSource(observations, timepoints=np.arange(m), time_offsets=(-1, 0, 3))
         beh_ds = NumpyTimedDataSource(states, timepoints=np.arange(m), time_offsets=(-1, 0, 3, 4))
 
-        bw = Bubblewrap(n_obs, **dict(adaptive_latents.default_parameters.default_clock_parameters, **bw_params))
+        bw = Bubblewrap(n_obs, **dict(Bubblewrap.default_clock_parameters, **bw_params))
         reg = VanillaOnlineRegressor(bw.N, n_beh)
         br = BWRun(bw, obs_ds, beh_ds, behavior_regressor=reg, show_tqdm=False, log_level=log_level)
         br.run(save=False, freeze=freeze)

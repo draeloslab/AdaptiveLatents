@@ -5,14 +5,17 @@ from jax import jit, vmap
 from jax import nn, random
 import jax
 import warnings
+from adaptive_latents.config import use_config_defaults
 
 # todo: make this a parameter?
 epsilon = 1e-10
 
 
-class Bubblewrap():
+class Bubblewrap:
+    @use_config_defaults # note the defaults in this signature are overridden by the defaults in adaptive_latents_config using use_config_defaults
     def __init__(self, dim, num=1000, seed=42, M=30, lam=1, nu=1e-2, eps=3e-2, B_thresh=1e-4, step=1e-6, n_thresh=5e-4,
                  batch=False, batch_size=1, go_fast=False, copy_row_on_teleport=True, num_grad_q=1, sigma_orig_adjustment=0):
+
         self.N = num  # Number of nodes
         self.d = dim  # dimension of the space
         self.seed = seed
@@ -278,6 +281,24 @@ class Bubblewrap():
             if not self.go_fast:
                 from jax.lib import xla_bridge
                 self.backend_note += " " + xla_bridge.get_backend().platform
+
+    default_clock_parameters = dict(
+        num=8,
+        lam=1e-3,
+        nu=1e-3,
+        eps=1e-4,
+        step=8e-2,
+        M=100,
+        B_thresh=-5,
+        batch=False,
+        batch_size=1,
+        go_fast=False,
+        seed=42,
+        num_grad_q=1,
+        copy_row_on_teleport=True,
+        sigma_orig_adjustment=0,
+        n_thresh=5e-4,
+    )
 
 
 beta1 = 0.99

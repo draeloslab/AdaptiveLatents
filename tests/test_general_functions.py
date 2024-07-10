@@ -5,7 +5,6 @@ import pytest
 
 import adaptive_latents
 from adaptive_latents import Bubblewrap, SemiRegularizedRegressor, NumpyTimedDataSource, BWRun, AnimationManager
-from adaptive_latents.default_parameters import default_clock_parameters
 import adaptive_latents.plotting_functions as bpf
 import jax
 
@@ -35,7 +34,7 @@ class TestBWRun:
         obs_ds = NumpyTimedDataSource(obs, t, (0,1))
         beh_ds = NumpyTimedDataSource(beh, t, (0,1))
 
-        bw = Bubblewrap(n_obs, **default_clock_parameters)
+        bw = Bubblewrap(n_obs, **Bubblewrap.default_clock_parameters)
         reg = SemiRegularizedRegressor(bw.N, n_beh)
         br = BWRun(bw, in_ds=obs_ds, out_ds=beh_ds, behavior_regressor=reg, show_tqdm=False, output_directory=outdir)
         br.run()
@@ -46,7 +45,7 @@ class TestBWRun:
         t = np.arange(m)
         obs_ds = NumpyTimedDataSource(obs, t, (0,1))
 
-        bw = Bubblewrap(3, **default_clock_parameters)
+        bw = Bubblewrap(3, **Bubblewrap.default_clock_parameters)
         br = BWRun(bw, obs_ds, show_tqdm=False, output_directory=outdir)
         br.run()
 
@@ -67,7 +66,7 @@ class TestBWRun:
 
         ca = CustomAnimation()
 
-        bw = Bubblewrap(3, **default_clock_parameters)
+        bw = Bubblewrap(3, **Bubblewrap.default_clock_parameters)
         reg = SemiRegularizedRegressor(bw.N, n_beh)
         br = BWRun(bw, obs_ds, beh_ds, behavior_regressor=reg, animation_manager=ca, show_tqdm=False, output_directory=outdir)
         br.run()
@@ -78,7 +77,7 @@ class TestBWRun:
         t = np.arange(m)
         obs = rng.normal(size=(m, n_obs))
         obs_ds = NumpyTimedDataSource(obs, t, (0,1))
-        bw = Bubblewrap(n_obs, **default_clock_parameters)
+        bw = Bubblewrap(n_obs, **Bubblewrap.default_clock_parameters)
         br = BWRun(bw, obs_ds, show_tqdm=False, output_directory=outdir, log_level=2)
         br.run(limit=100, save=True, freeze=True)
 
@@ -99,7 +98,7 @@ class TestBWRun:
         t = np.arange(m)
         obs_ds = NumpyTimedDataSource(obs, t, (0, 1))
 
-        bw = Bubblewrap(3, **default_clock_parameters)
+        bw = Bubblewrap(3, **Bubblewrap.default_clock_parameters)
         br = BWRun(bw, obs_ds, show_tqdm=False, output_directory=outdir)
         br.run(limit=100,save=True, freeze=False)
 
@@ -121,17 +120,17 @@ class TestBWRun:
         t = np.arange(m)
 
         br1 = BWRun(
-            Bubblewrap(3, **default_clock_parameters),
+            Bubblewrap(3, **Bubblewrap.default_clock_parameters),
             NumpyTimedDataSource(obs, t, (0,1)),
             NumpyTimedDataSource(beh, t, (0,1)),
-            SemiRegularizedRegressor(default_clock_parameters['num'], n_beh),
+            SemiRegularizedRegressor(Bubblewrap.default_clock_parameters['num'], n_beh),
             show_tqdm=False,
             output_directory=outdir
         )
         br1.run()
 
         br2 = BWRun(
-            Bubblewrap(3, **default_clock_parameters),
+            Bubblewrap(3, **Bubblewrap.default_clock_parameters),
             NumpyTimedDataSource(obs, t, (0,1)),
             show_tqdm=False,
             output_directory=outdir
@@ -147,7 +146,7 @@ class TestDefaultParameters:
     def test_if_defaults_cover_all_options(self):
         signature = inspect.signature(Bubblewrap)
         params_with_defaults = {k: v for k, v in signature.parameters.items() if v.default is not signature.empty}
-        for v in [v for k, v in adaptive_latents.default_parameters.__dict__.items() if type(v) == dict and "__" not in k]:
+        for v in [Bubblewrap.default_clock_parameters]:
             k1, k2 = set(v.keys()), set(params_with_defaults.keys())
 
             # testing two differences makes it easier to find where the discrepancy is
