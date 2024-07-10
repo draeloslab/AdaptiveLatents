@@ -29,6 +29,7 @@ adaptive_latents = ["adaptive_latents_config.yaml"]
 include = [
     "adaptive_latents/**/*.py",
     "tests/**/*.py",
+    "scripts/**/*.py",
     ]
 
 [tool.coverage.html]

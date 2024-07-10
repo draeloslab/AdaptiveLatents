@@ -15,7 +15,8 @@ dependencies:
   - h5py
   - pynwb
   - scikit-image
-  # mmica dependencies
+  - coverage
+# mmica dependencies
   - numba
   # end mmica dependencies
   - pip

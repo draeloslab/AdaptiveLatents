@@ -25,7 +25,7 @@ def make_hashable_and_hash(x):
     return int(hashlib.sha1(make_hashable(x)).hexdigest(), 16)
 
 
-def save_to_cache(file, location=CONFIG["data_path"] / "cache"):
+def save_to_cache(file, location=CONFIG["cache_path"]):
     if not os.path.exists(location):
         os.makedirs(location)
     cache_index_file = os.path.join(location, f"{file}_index.pickle")
@@ -39,7 +39,7 @@ def save_to_cache(file, location=CONFIG["data_path"] / "cache"):
         if not CONFIG["attempt_to_cache"]:
             def new_function(_recalculate_cache_value=True, **kwargs):
                 assert _recalculate_cache_value==True
-                original_function(**kwargs)
+                return original_function(**kwargs)
             return new_function
 
         def new_function(_recalculate_cache_value=False, **kwargs):
