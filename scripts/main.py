@@ -24,8 +24,10 @@ def main(output_directory='.', steps_to_run=None):
 
             pfs.show_bubbles_2d(self.ax[0,0], historical_observations, bw, alpha_coefficient=.5)
             self.ax[0,0].set_title(f"Step {step}")
+
         def frame_draw_condition(self, step_number, bw):
             return step_number % 5 == 0
+
     am = CustomAnimation()
 
     # define the object to coordinate all the other objects

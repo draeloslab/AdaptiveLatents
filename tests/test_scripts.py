@@ -6,7 +6,6 @@ import scripts.datasets as datasets
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
 
 class TestScripts:
-    @staticmethod
     def test_run_main(self, outdir):
         main(output_directory=outdir, steps_to_run=35)
 

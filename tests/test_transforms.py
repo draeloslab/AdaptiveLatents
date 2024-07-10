@@ -79,9 +79,8 @@ class TestProSVD:
         diff = errors[0] - errors[1]
         return (errors[0] - errors[1] > 0).mean(), diff.mean()
 
-    @classmethod
-    def test_adding_colums_doesnt_hurt(cls, rng):
-        assert cls.probabilistically_check_adding_channels_works(rng)[0] > .5
+    def test_adding_colums_doesnt_hurt(self, rng):
+        assert self.probabilistically_check_adding_channels_works(rng)[0] > .5
 
     def test_centering_works(self, rng):
         d = np.ones(10)
@@ -96,13 +95,13 @@ class TestProSVD:
         _, s1, _ = np.linalg.svd(psvd1.B)
         _, s2, _ = np.linalg.svd(psvd2.B)
 
-        assert abs(max(s1) / min(s1) - 2)  > .5
-        assert abs(max(s2) / min(s2) - 2)  < .5
+        assert abs(max(s1) / min(s1) - 2) > .5
+        assert abs(max(s2) / min(s2) - 2) < .5
 
 
 def test_utils_run(rng):
     # note I do not test correctness here
-    A = rng.normal(size=(1000, 10))
+    A = rng.normal(size=(200, 10))
     t = np.arange(A.shape[0])
 
     A = adaptive_latents.transforms.utils.center_from_first_n(A)

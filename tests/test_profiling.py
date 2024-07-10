@@ -5,7 +5,7 @@ from adaptive_latents.profiling_functions import get_speed_by_time, get_speed_pe
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
 
-def test_fast_enough_for_resampled_buzaki_data():
+def test_speed_per_step():
     obs, beh = adaptive_latents.input_sources.hmm_simulation.simulate_example_data(n=200)
     bin_width = 0.03
 
@@ -14,7 +14,7 @@ def test_fast_enough_for_resampled_buzaki_data():
     assert np.quantile(step_times, .99) < bin_width  # 30 ms is a pretty standard bin width
 
 
-def test_get_speed_by_time_works():
+def test_get_speed_by_time():
     obs, beh = adaptive_latents.input_sources.hmm_simulation.simulate_example_data(n=200)
 
     get_speed_by_time(psvd_input=obs, regression_output=beh)
