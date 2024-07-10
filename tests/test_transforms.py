@@ -114,3 +114,11 @@ def test_utils_run(rng):
 
     adaptive_latents.transforms.utils.bwrap_alphas(input_arr=A, bw_params=adaptive_latents.Bubblewrap.default_clock_parameters, _recalculate_cache_value=True)
     adaptive_latents.transforms.utils.bwrap_alphas_ahead(input_arr=A, bw_params=adaptive_latents.Bubblewrap.default_clock_parameters, _recalculate_cache_value=True)
+
+    # this tests that y
+    A = adaptive_latents.transforms.utils.prosvd_data(input_arr=A, output_d=2, init_size=10, centering=False, _recalculate_cache_value=True)
+
+def test_can_use_args_in_cache(rng):
+    A = rng.normal(size=(200, 10))
+    A = adaptive_latents.transforms.utils.prosvd_data(input_arr=A, output_d=2, init_size=10, _recalculate_cache_value=True)
+    A = adaptive_latents.transforms.utils.prosvd_data(input_arr=A, output_d=2, init_size=10, _recalculate_cache_value=False)

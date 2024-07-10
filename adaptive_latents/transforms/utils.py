@@ -7,6 +7,9 @@ from tqdm import tqdm
 import hashlib
 from adaptive_latents.config import CONFIG
 import adaptive_latents
+import inspect
+import warnings
+import functools
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -26,6 +29,19 @@ def make_hashable_and_hash(x):
 
 
 def save_to_cache(file, location=CONFIG["cache_path"]):
+    if not CONFIG["attempt_to_cache"]:
+        def decorator(original_function):
+            @functools.wraps(original_function)
+            def new_function(*args, _recalculate_cache_value=True, **kwargs):
+                bound_args = inspect.signature(original_function).bind(*args, **kwargs)
+                bound_args.apply_defaults()
+                if not _recalculate_cache_value:
+                    warnings.warn("don't try to cache when it's turned off in config")
+                return original_function(**bound_args.arguments)
+            return new_function
+        return decorator
+
+
     if not os.path.exists(location):
         os.makedirs(location)
     cache_index_file = os.path.join(location, f"{file}_index.pickle")
@@ -36,36 +52,34 @@ def save_to_cache(file, location=CONFIG["cache_path"]):
         cache_index = {}
 
     def decorator(original_function):
-        if not CONFIG["attempt_to_cache"]:
-            def new_function(_recalculate_cache_value=True, **kwargs):
-                assert _recalculate_cache_value==True
-                return original_function(**kwargs)
-            return new_function
+        @functools.wraps(original_function)
+        def new_function(*args, _recalculate_cache_value=False, **kwargs):
+            bound_args = inspect.signature(original_function).bind(*args, **kwargs)
+            bound_args.apply_defaults()
 
-        def new_function(_recalculate_cache_value=False, **kwargs):
-            kwargs_as_key = make_hashable_and_hash(kwargs)
+            all_args = bound_args.arguments
+            all_args_as_key = make_hashable_and_hash(all_args)
 
-            if _recalculate_cache_value or kwargs_as_key not in cache_index or not os.path.exists(location / cache_index[kwargs_as_key]):
-                result = original_function(**kwargs)
+            if _recalculate_cache_value or all_args_as_key not in cache_index or not os.path.exists(location / cache_index[all_args_as_key]):
+                result = original_function(**all_args)
 
-                hstring = str(kwargs_as_key)[-15:]
+                hstring = str(all_args_as_key)[-15:]
                 cache_file = os.path.join(location,f"{file}_{hstring}.pickle")
                 if CONFIG["verbose"]:
                     print(f"caching value in: {cache_file}")
                 with open(cache_file, "wb") as fhan:
                     pickle.dump(result, fhan)
 
-                cache_index[kwargs_as_key] = cache_file
+                cache_index[all_args_as_key] = cache_file
                 with open(cache_index_file, 'bw') as fhan:
                     pickle.dump(cache_index, fhan)
 
-            with open(os.path.join(location, cache_index[kwargs_as_key]), 'rb') as fhan:
+            with open(os.path.join(location, cache_index[all_args_as_key]), 'rb') as fhan:
                 if CONFIG["verbose"]:
                     # TODO: also log here
                     # TODO: have tests globally disable caching; you can recalculate, but that doesn't get inner caching
-                    print(f"retreiving cache from: {cache_index[kwargs_as_key]}")
+                    print(f"retreiving cache from: {cache_index[all_args_as_key]}")
                 return pickle.load(fhan)
-
         return new_function
     return decorator
 
@@ -82,7 +96,7 @@ def get_from_saved_npz(filename):
     return obs, beh.reshape([obs.shape[0], -1])
 
 @save_to_cache("prosvd_data")
-def prosvd_data(input_arr, output_d, init_size, centering):
+def prosvd_data(input_arr, output_d, init_size, centering=True):
     # todo: rename this and the sjPCA version to apply_and_cache?
     pro = proSVD(k=output_d, centering=centering)
     pro.initialize(input_arr[:init_size].T)
