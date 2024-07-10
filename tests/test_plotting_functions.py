@@ -8,16 +8,15 @@ if TYPE_CHECKING:
 
 
 
-def test_axis_plots(premade_unfrozen_br, premade_big_br):
+def test_axis_plots(premade_unfrozen_br):
 
-    fig, axs = plt.subplots(nrows=1, ncols=2)
+    fig, axs = plt.subplots(nrows=1, ncols=2, dpi=20)
     ax = axs[0]
-    br:BWRun = premade_unfrozen_br
+    br: BWRun = premade_unfrozen_br
     bw = br.bw
     obs, obs_t = br.input_ds.get_history()
     beh, beh_t = br.output_ds.get_history()
 
-    big_br:BWRun = premade_big_br
 
     neural_offset = br.input_ds.time_offsets[-1] # this is usually 1
     behavior_offset = br.output_ds.time_offsets[-1] # this is usually 1
@@ -30,10 +29,12 @@ def test_axis_plots(premade_unfrozen_br, premade_big_br):
     bpf.show_B(ax, br)
     bpf.show_B(ax, br, show_log=True)
     bpf.show_alpha(ax, br)
-    bpf.show_alpha(ax, big_br, show_log=True)
     bpf.show_behavior(ax, br, offset=behavior_offset)
     bpf.show_A_eigenspectrum(ax, bw)
     bpf.show_data_distance(ax, obs, max_step=50)
+
+    # big_br: BWRun = premade_big_br
+    # bpf.show_alpha(ax, big_br, show_log=True)
 
     bpf.show_active_bubbles_and_connections_2d(ax, obs, bw)
     bpf.show_nstep_pdf(axs[1], br, axs[0], fig=fig, offset=neural_offset)

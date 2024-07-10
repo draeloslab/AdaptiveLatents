@@ -189,7 +189,7 @@ class BWRun:
 
     def save(self):
         self.saved = True
-        pathlib.Path(self.pickle_file).parent.mkdir() # todo: put this in config?
+        pathlib.Path(self.pickle_file).parent.mkdir(exist_ok=True) # todo: put this in config?
         with open(self.pickle_file, "wb") as fhan:
             pickle.dump(self, fhan)
 

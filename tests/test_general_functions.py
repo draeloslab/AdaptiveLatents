@@ -28,7 +28,7 @@ class TestEnvironment:
 
 class TestBWRun:
     def test_can_run_with_beh(self, rng, outdir):
-        m, n_obs, n_beh = 150, 3, 4
+        m, n_obs, n_beh = 100+5, 3, 4
         obs = rng.normal(size=(m, n_obs))
         beh = rng.normal(size=(m, n_beh))
         t = np.arange(m)
@@ -41,7 +41,7 @@ class TestBWRun:
         br.run()
 
     def test_can_run_without_beh(self, rng, outdir):
-        m, n_obs, n_beh = 150, 3, 4
+        m, n_obs, n_beh = 100+5, 3, 4
         obs = rng.normal(size=(m, n_obs))
         t = np.arange(m)
         obs_ds = NumpyTimedDataSource(obs, t, (0,1))
@@ -51,7 +51,7 @@ class TestBWRun:
         br.run()
 
     def test_can_make_video(self, rng, outdir):
-        m, n_obs, n_beh = 150, 3, 4
+        m, n_obs, n_beh = 100+5, 3, 4
         obs = rng.normal(size=(m, n_obs))
         beh = rng.normal(size=(m, n_beh))
         t = np.arange(m)
@@ -74,8 +74,7 @@ class TestBWRun:
 
 
     def test_can_save_and_freeze(self, rng, outdir):
-        # note I'm also passing save_A
-        m, n_obs, n_beh = 300, 3, 4
+        m, n_obs, n_beh = 100+20, 3, 4
         t = np.arange(m)
         obs = rng.normal(size=(m, n_obs))
         obs_ds = NumpyTimedDataSource(obs, t, (0,1))
@@ -95,7 +94,7 @@ class TestBWRun:
             br.run()
 
     def test_can_save_and_rerun(self, rng, outdir):
-        m, n_obs, n_beh = 300, 3, 4
+        m, n_obs, n_beh = 100+20, 3, 4
         obs = rng.normal(size=(m, n_obs))
         t = np.arange(m)
         obs_ds = NumpyTimedDataSource(obs, t, (0, 1))

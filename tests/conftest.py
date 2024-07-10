@@ -21,7 +21,7 @@ def rng():
 
 
 def _make_br(rng, freeze=True):
-    def br_f(m=600, n_obs=2, bw_params=None, log_level=0):
+    def br_f(m=175, n_obs=2, bw_params=None, log_level=0):
         if bw_params is None:
             bw_params = dict()
         n_beh = 1
