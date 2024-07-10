@@ -112,7 +112,7 @@ def prosvd_data_with_Qs(input_arr, output_d, init_size):
     return np.array(output).reshape((-1, output_d)), np.array(old_Qs)
 
 
-def zscore(input_arr, init_size=6, clip=True):
+def zscore(input_arr, init_size=6, clip_level=15):
     mean = 0
     m2 = 1e-4
     output = []
@@ -132,9 +132,9 @@ def zscore(input_arr, init_size=6, clip=True):
         count += 1
     output = np.array(output)
 
-    if clip:
-        output[output > 15] = 15
-        output[output < -15] = -15
+    if clip is not None:
+        output[output > clip_level] = clip_level
+        output[output < -clip_level] = -clip_level
     return output
 
 # todo: some rank-version of zscore?

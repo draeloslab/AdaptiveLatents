@@ -1,4 +1,4 @@
-from adaptive_latents import Bubblewrap, BWRun, AnimationManager, SemiRegularizedRegressor, NumpyTimedDataSource, default_rwd_parameters
+from adaptive_latents import Bubblewrap, BWRun, AnimationManager, SemiRegularizedRegressor, NumpyTimedDataSource
 from adaptive_latents.input_sources.hmm_simulation import simulate_example_data
 import adaptive_latents.plotting_functions as pfs
 
@@ -8,7 +8,7 @@ def main(output_directory='.', steps_to_run=None):
     out_ds = NumpyTimedDataSource(beh, None, time_offsets=(1,))
 
     # define the adaptive_latents object
-    bw = Bubblewrap(dim=in_ds.output_shape,  **default_rwd_parameters)
+    bw = Bubblewrap(dim=in_ds.output_shape)
 
     # define the (optional) method to regress the HMM state from `bw.alpha`
     reg = SemiRegularizedRegressor(input_d=bw.N, output_d=1)
