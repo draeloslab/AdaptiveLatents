@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegFileWriter
 import warnings
 import time
-from .config import CONFIG
 from types import SimpleNamespace
+import pathlib
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -18,7 +18,8 @@ if TYPE_CHECKING:
 
 class BWRun:
     def __init__(self, bw, in_ds,  out_ds=None, behavior_regressor=None, animation_manager=None, log_level=1, show_tqdm=True,
-                 output_directory=CONFIG["output_path"]/"bubblewrap_runs", notes=()):
+                 output_directory=".", notes=()):
+        # todo: output_directory in CONFIG
 
         self.bw: Bubblewrap = bw
         self.animation_manager: AnimationManager = animation_manager
@@ -184,9 +185,13 @@ class BWRun:
         if freeze:
             self.finish_and_remove_jax()
         if save:
-            self.saved = True
-            with open(self.pickle_file, "wb") as fhan:
-                pickle.dump(self, fhan)
+            self.save()
+
+    def save(self):
+        self.saved = True
+        pathlib.Path(self.pickle_file).parent.mkdir() # todo: put this in config?
+        with open(self.pickle_file, "wb") as fhan:
+            pickle.dump(self, fhan)
 
     def next_bubblewrap_step(self, obs):
         self.bw.observe(obs)

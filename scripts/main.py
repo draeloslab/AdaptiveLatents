@@ -1,9 +1,8 @@
 from adaptive_latents import Bubblewrap, BWRun, AnimationManager, SemiRegularizedRegressor, NumpyTimedDataSource, default_rwd_parameters
 from adaptive_latents.input_sources.hmm_simulation import simulate_example_data
 import adaptive_latents.plotting_functions as pfs
-from adaptive_latents import CONFIG
 
-def main(output_directory=CONFIG["output_path"]/"bubblewrap_runs", steps_to_run=None):
+def main(output_directory='.', steps_to_run=None):
     obs, beh = simulate_example_data()
     in_ds = NumpyTimedDataSource(obs, None, time_offsets=(1,))
     out_ds = NumpyTimedDataSource(beh, None, time_offsets=(1,))

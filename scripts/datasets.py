@@ -3,11 +3,12 @@ import h5py
 import os
 from scipy.io import loadmat
 from tqdm import tqdm
-from adaptive_latents.transforms.utils import save_to_cache, clip, prosvd_data, center_from_first_n
+from adaptive_latents.transforms.utils import save_to_cache, clip, prosvd_data
 from skimage.transform import resize
 from pynwb import NWBHDF5IO
-from adaptive_latents.config import CONFIG
+import pathlib
 
+DATA_BASE_PATH = pathlib.Path('/home/jgould/Documents/AdaptiveLatents/scripts/datasets')
 
 individual_identifiers = {
     "indy": ['indy_20160407_02.mat'],
@@ -41,7 +42,7 @@ def construct_indy_data(individual_identifier, bin_width):
     bin_width is in seconds; a sensible default is 0.03
     """
 
-    fhan = h5py.File(CONFIG["data_path"] / individual_identifier, 'r')
+    fhan = h5py.File(DATA_BASE_PATH / individual_identifier, 'r')
 
     # this is a first pass I'm using to find the first and last spikes
     l = []
@@ -91,7 +92,7 @@ def construct_indy_data(individual_identifier, bin_width):
 @save_to_cache("buzaki_data")
 def construct_buzaki_data(individual_identifier, bin_width):
     """"bin_width is in seconds; a sensible default is 0.03"""
-    parent_folder = CONFIG["data_path"] / 'buzaki'
+    parent_folder = DATA_BASE_PATH / 'buzaki'
     def read_int_file(fname):
         with open(fname) as fhan:
             ret = []
@@ -178,7 +179,7 @@ def construct_buzaki_data(individual_identifier, bin_width):
     return A, raw_behavior, bin_centers, t
 
 def construct_fly_data(individual_identifier):
-    with NWBHDF5IO(CONFIG["data_path"] / 'fly' / individual_identifier, mode="r", load_namespaces=True) as fhan:
+    with NWBHDF5IO(DATA_BASE_PATH / 'fly' / individual_identifier, mode="r", load_namespaces=True) as fhan:
         file = fhan.read()
         A = file.processing["ophys"].data_interfaces["DfOverF"].roi_response_series['RoiResponseSeries'].data[:]
         beh = file.processing['behavioral state'].data_interfaces['behavioral state'].data[:]
@@ -187,7 +188,7 @@ def construct_fly_data(individual_identifier):
     return A, beh, t, t
 
 def construct_jenkins_data(bin_width):
-    fpath = CONFIG["data_path"] / '000128' / 'sub-Jenkins' / 'sub-Jenkins_ses-full_desc-train_behavior+ecephys.nwb'
+    fpath = DATA_BASE_PATH / '000128' / 'sub-Jenkins' / 'sub-Jenkins_ses-full_desc-train_behavior+ecephys.nwb'
     with NWBHDF5IO(fpath, "r") as fhan:
         nwb_in = fhan.read()
         units = nwb_in.units.to_dataframe()
@@ -236,7 +237,7 @@ def generate_musal_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_
     video_sampling_rate = 30
 
     #### load A
-    data_dir = CONFIG["data_path"] / "musal/their_data/2pData/Animals/mSM49/SpatialDisc/30-Jul-2018/"
+    data_dir = DATA_BASE_PATH / "musal/their_data/2pData/Animals/mSM49/SpatialDisc/30-Jul-2018/"
     variables = loadmat(data_dir/"data.mat",  squeeze_me=True, simplify_cells=True)
     A = variables["data"]['dFOF']
     _,n_samples_per_trial,_ = A.shape
@@ -247,8 +248,8 @@ def generate_musal_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_
         with open(file) as fhan:
             text = fhan.read()
             return [float(x) for x in text.split(",")]
-    on_times = read_floats(CONFIG["data_path"] / "musal" / "trialOn.txt")
-    off_times = read_floats(CONFIG["data_path"] / "musal" / "trialOff.txt")
+    on_times = read_floats(DATA_BASE_PATH / "musal" / "trialOn.txt")
+    off_times = read_floats(DATA_BASE_PATH / "musal" / "trialOff.txt")
     trial_edges = np.array([on_times, off_times]).T
     trial_edges = trial_edges[np.all(np.isfinite(trial_edges), axis=1)].astype(int)
 
@@ -296,7 +297,7 @@ def generate_musal_dataset(cam=1, video_target_dim=100, resize_factor=1, prosvd_
 
 def construct_nason20_data(bin_width=0.15):
     bin_width_in_ms = int(bin_width*1000)
-    file = CONFIG["data_path"] / 'sbp'/ 'OnlineTrainingData.mat'
+    file = DATA_BASE_PATH / 'sbp'/ 'OnlineTrainingData.mat'
     mat = loadmat(file, squeeze_me=True, simplify_cells=True)
     data = mat['OnlineTrainingData']
     n_channels = data[0]['SpikingBandPower'].shape[1]
@@ -338,7 +339,7 @@ def construct_nason20_data(bin_width=0.15):
     return A, beh, t, t
 
 def construct_unpublished24_data(include_position=True, include_velocity=False, include_acceleration=False):
-    mat = loadmat(CONFIG['data_path'] / 'Chestek' / 'jgould_first_extraction.mat', squeeze_me=True, simplify_cells=True)
+    mat = loadmat(DATA_BASE_PATH / 'Chestek' / 'jgould_first_extraction.mat', squeeze_me=True, simplify_cells=True)
     pre_smooth_beh = mat["feats"][1]
     pre_smooth_A = mat["feats"][0]
     pre_smooth_t = mat["feats"][2] / 1000

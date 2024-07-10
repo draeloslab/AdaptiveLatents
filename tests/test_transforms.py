@@ -7,8 +7,7 @@ from adaptive_latents.transforms.utils import column_space_distance
 
 
 class TestICA:
-    @staticmethod
-    def test_ica_runs():
+    def test_ica_runs(self):
         rng = np.random.default_rng()
         ica = mmICA(p=10)
         for _ in range(50):
@@ -16,8 +15,7 @@ class TestICA:
             ica.observe_new_batch(data)
 
 class TestJPCA:
-    @staticmethod
-    def test_make_H(rng, dd=10):
+    def test_make_H(self, rng, dd=10):
         for d in range(2,dd):
             H = jpca.sjPCA.make_H(d)
             for _ in range(100):
@@ -26,8 +24,7 @@ class TestJPCA:
                 assert np.linalg.norm(np.real(np.linalg.eigvals(sksym))) < 1e-14
 
 
-    @staticmethod
-    def test_works_on_circular_data(rng):
+    def test_works_on_circular_data(self, rng):
         X, X_dot, true_variables = jpca.generate_circle_embedded_in_high_d(rng, m=10_000, stddev=.01)
 
         jp = jpca.sjPCA(X.shape[1])
@@ -39,8 +36,7 @@ class TestJPCA:
         assert np.allclose(aligned_U, aligned_C, atol=1e-4)
 
 class TestProSVD:
-    @staticmethod
-    def probabilistically_check_adding_channels_works(rng, n_samples=50, n1=4,n2=10,k=2):
+    def probabilistically_check_adding_channels_works(self, rng, n_samples=50, n1=4,n2=10,k=2):
         errors = [[],[]]
         for _ in range(n_samples):
             d = np.ones(n2)
@@ -87,8 +83,7 @@ class TestProSVD:
     def test_adding_colums_doesnt_hurt(cls, rng):
         assert cls.probabilistically_check_adding_channels_works(rng)[0] > .5
 
-    @staticmethod
-    def test_centering_works(rng):
+    def test_centering_works(self, rng):
         d = np.ones(10)
         d[0] = 2
         X = np.diag(d) @ rng.normal(size=(10,500)) + 500
