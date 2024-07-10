@@ -363,7 +363,7 @@ def _deduce_bw_parameters(bw):
                 )
 
 
-def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing_scale=50, show_legend=True, show_title=True, red_lines=(), minutes=False, include_behavior=True, include_trendlines=True):
+def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing_scale=50, show_legend=True, show_title=True, red_lines=(), minutes=False, include_behavior=True, include_trendlines=True, red_lines_frames=None, xlim_start=None, xlim_end=None):
     colors = ["black"] + [f"C{i}" for i in range(len(brs) - 1)]
     ps = [_deduce_bw_parameters(br.bw) for br in brs]
     keys = set([leaf for tree in ps for leaf in tree.keys()])
@@ -383,7 +383,7 @@ def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing
     else:
         include_behavior = False
 
-    fig, ax = plt.subplots(figsize=(14, 5), nrows=2+include_behavior, ncols=2, sharex='col', layout='tight', gridspec_kw={'width_ratios': [7, 1]})
+    fig, ax = plt.subplots(figsize=(14, 5), nrows=2+include_behavior, ncols=2, sharex='col', gridspec_kw={'width_ratios': [7, 1]})
     fig: plt.Figure
     to_write = [[] for _ in range(ax.shape[0])]
     last_half_times = []
@@ -399,7 +399,7 @@ def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing
         smoothed_predictions = _one_sided_ewma(predictions, smoothing_scale)
 
         if minutes:
-            bw_offset_t = bw_offset_t/60
+            bw_offset_t = bw_offset_t / 60
 
         c = 'black'
         if colors:
@@ -408,11 +408,11 @@ def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing
         last_half_times.append(br.get_last_half_time(offset))
         metrics = br.get_last_half_metrics(offset)
 
-        ax[0,0].plot(bw_offset_t, predictions, alpha=0.25, color=c)
+        ax[0, 0].plot(bw_offset_t, predictions, alpha=0.25, color=c)
         if include_trendlines:
-            ax[0,0].plot(bw_offset_t, smoothed_predictions, color=c, label=br.pickle_file.split("/")[-1].split(".")[0].split("_")[-1])
-        ax[0,0].tick_params(axis='y')
-        ax[0,0].set_ylabel('prediction')
+            ax[0, 0].plot(bw_offset_t, smoothed_predictions, color=c, label=br.pickle_file.split("/")[-1].split(".")[0].split("_")[-1])
+        ax[0, 0].tick_params(axis='y')
+        ax[0, 0].set_ylabel('prediction')
         to_write[0].append((idx, f"{metrics['log_pred_p']:.3f}", dict(color=c)))
 
         entropy = br.h.entropy[offset]
@@ -421,15 +421,15 @@ def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing
         c = 'black'
         if colors:
             c = colors[idx]
-        ax[1,0].plot(bw_offset_t, entropy, color=c, alpha=0.25)
+        ax[1, 0].plot(bw_offset_t, entropy, color=c, alpha=0.25)
 
         if include_trendlines:
-            ax[1,0].plot(bw_offset_t, smoothed_entropy, color=c)
+            ax[1, 0].plot(bw_offset_t, smoothed_entropy, color=c)
         max_entropy = np.log2(br.bw.N)
-        ax[1,0].axhline(max_entropy, color='k', linestyle='--')
+        ax[1, 0].axhline(max_entropy, color='k', linestyle='--')
 
-        ax[1,0].tick_params(axis='y')
-        ax[1,0].set_ylabel('entropy')
+        ax[1, 0].tick_params(axis='y')
+        ax[1, 0].set_ylabel('entropy')
         to_write[1].append((idx, f"{metrics['entropy']:.3f}", dict(color=c)))
 
         if include_behavior:
@@ -442,13 +442,13 @@ def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing
             else:
                 beh_t = br.h.reg_offset_origin_t[offset]
 
-            ax[-1,0].plot(beh_t, beh_error, color=c)
-            ax[-1,0].set_ylabel('behavior sq.e.')
-            ax[-1,0].tick_params(axis='y')
+            ax[-1, 0].plot(beh_t, beh_error, color=c)
+            ax[-1, 0].set_ylabel('behavior sq.e.')
+            ax[-1, 0].tick_params(axis='y')
 
             to_write[2].append((idx, " ".join([f"{x :.2f}" for x in metrics['beh_sq_error']]), dict(color=c)))
 
-    for axis in ax[:,0]:
+    for axis in ax[:, 0]:
         data_lim = np.array(axis.dataLim).T.flatten()
         bounds = data_lim
         bounds[:2] = (bounds[:2] - bounds[:2].mean()) * np.array([1.02, 1.2]) + bounds[:2].mean()
@@ -458,46 +458,44 @@ def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing
 
     for i, l in enumerate(to_write):
         for idx, text, kw in l:
-            x, y = .93, .93-.1*idx
+            x, y = .93, .93 - .1 * idx
             x, y = ax[i, 0].transLimits.inverted().transform([x, y])
-            ax[i,0].text(x, y, text, clip_on=True, verticalalignment='top', **kw)
+            ax[i, 0].text(x, y, text, clip_on=True, verticalalignment='top', **kw)
 
-    xlim = ax[-1,0].get_xlim()
-    xticks = list(ax[-1,0].get_xticks())
-    xtick_labels = list(ax[-1,0].get_xticklabels())
-    ax[-1,0].set_xticks(xticks + list(set(last_half_times)))
-    ax[-1,0].set_xticklabels(xtick_labels + [""]*len(set(last_half_times)))
-    ax[-1,0].set_xlim(xlim)
+    if xlim_start is not None and xlim_end is not None:
+        for axis in ax[:, 0]:
+            axis.set_xlim(xlim_start, xlim_end)
 
-    if minutes:
-        ax[-1,0].set_xlabel("time (min)")
-    else:
-        ax[-1,0].set_xlabel("time (s)")
-
-    # ax[0,0].set_xlim(xlim)
-
-    for axis in ax[:,0]:
+    for axis in ax[:, 0]:
         axis.format_coord = lambda x, y: 'x={:g}, y={:g}'.format(x, y)
 
-    for axis in ax[:,0]:
+    # Add red lines for frame numbers if provided
+    if red_lines_frames is not None:
+        print(f"Adding red lines at frame numbers: {red_lines_frames}")  # Debug print
+        for frame in red_lines_frames:
+            for axis in ax[:, 0]:
+                if (xlim_start is None or frame >= xlim_start) and (xlim_end is None or frame <= xlim_end):
+                    axis.axvline(frame, color='red', linestyle='--', alpha=0.7)
+
+    for axis in ax[:, 0]:
         axis: plt.Axes
         for line in red_lines:
             axis.axvline(line, color='red', alpha=.5)
 
     if show_title:
-        ax[0,0].set_title(" ".join(to_print))
+        ax[0, 0].set_title(" ".join(to_print))
     else:
         print(to_print)
     if show_legend:
-        ax[0,0].legend(loc="lower right")
+        ax[0, 0].legend(loc="lower right")
 
-    gs = ax[0,1].get_gridspec()
-    for a in ax[:,1]:
+    gs = ax[0, 1].get_gridspec()
+    for a in ax[:, 1]:
         a.remove()
-    axbig = fig.add_subplot(gs[:,1])
+    axbig = fig.add_subplot(gs[:, 1])
     axbig.axis("off")
-    to_write = "\n".join([f"{k}: {v}" for k,v in ps[0].items()])
+    to_write = "\n".join([f"{k}: {v}" for k, v in ps[0].items()])
     to_write += f"\n\ntime: {br.runtime_since_init:.1f} s\nend of dataset? {'y' if br.hit_end_of_dataset else 'n'}"
     for note in br.notes:
         to_write += f"\n{note}"
-    axbig.text(0,1, to_write, transform=axbig.transAxes, verticalalignment="top")
+    axbig.text(0, 1, to_write, transform=axbig.transAxes, verticalalignment="top")
