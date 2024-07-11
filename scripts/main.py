@@ -1,4 +1,4 @@
-from adaptive_latents import Bubblewrap, BWRun, AnimationManager, SemiRegularizedRegressor, NumpyTimedDataSource
+from adaptive_latents import Bubblewrap, BWRun, AnimationManager, SemiRegularizedRegressor, NumpyTimedDataSource, CONFIG
 from adaptive_latents.input_sources.hmm_simulation import simulate_example_data
 import adaptive_latents.plotting_functions as pfs
 

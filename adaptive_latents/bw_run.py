@@ -1,4 +1,4 @@
-from adaptive_latents import Bubblewrap
+from adaptive_latents import Bubblewrap, CONFIG
 import datetime
 import pickle
 import os
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 class BWRun:
     def __init__(self, bw, in_ds,  out_ds=None, behavior_regressor=None, animation_manager=None, log_level=1, show_tqdm=True,
-                 output_directory=".", notes=()):
+                 output_directory=CONFIG['bwrun_save_path'], notes=()):
         # todo: output_directory in CONFIG
 
         self.bw: Bubblewrap = bw
