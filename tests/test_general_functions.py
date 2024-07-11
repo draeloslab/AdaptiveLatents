@@ -79,7 +79,7 @@ class TestBWRun:
         obs_ds = NumpyTimedDataSource(obs, t, (0,1))
         bw = Bubblewrap(n_obs, **Bubblewrap.default_clock_parameters)
         br = BWRun(bw, obs_ds, show_tqdm=False, output_directory=outdir, log_level=2)
-        br.run(limit=100, save=True, freeze=True)
+        br.run(bw_step_limit=100, save_bw_history=True, freeze=True)
 
         pickle_file = br.pickle_file
         del br
@@ -100,7 +100,7 @@ class TestBWRun:
 
         bw = Bubblewrap(3, **Bubblewrap.default_clock_parameters)
         br = BWRun(bw, obs_ds, show_tqdm=False, output_directory=outdir)
-        br.run(limit=100,save=True, freeze=False)
+        br.run(bw_step_limit=100, save_bw_history=True, freeze=False)
 
         pickle_file = br.pickle_file
         del br

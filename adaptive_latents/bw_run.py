@@ -10,21 +10,22 @@ import warnings
 import time
 from types import SimpleNamespace
 import pathlib
+from .input_sources.timed_data_source import NumpyTimedDataSource
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .regressions import OnlineRegressor
-    from .input_sources.timed_data_source import NumpyTimedDataSource
 
 class BWRun:
     def __init__(self, bw, in_ds,  out_ds=None, behavior_regressor=None, animation_manager=None, log_level=1, show_tqdm=True,
                  output_directory=CONFIG['bwrun_save_path'], notes=()):
-        # todo: output_directory in CONFIG
 
         self.bw: Bubblewrap = bw
         self.animation_manager: AnimationManager = animation_manager
-        self.input_ds: NumpyTimedDataSource = in_ds
-        self.output_ds = out_ds
+
+        self.input_ds = NumpyTimedDataSource(in_ds)
+        self.output_ds = NumpyTimedDataSource(out_ds) if out_ds is not None else None
+
         # todo: check for beh and obs remnants
 
         if self.input_ds.output_shape > 10:
@@ -50,12 +51,12 @@ class BWRun:
 
         self.log_level = log_level
         self.add_lambda_functions()
-        self.model_offset_variable_history = {key: {offset: [] for offset in in_ds.time_offsets} for key in self.model_offset_variables_to_track}
+        self.model_offset_variable_history = {key: {offset: [] for offset in self.input_ds.time_offsets} for key in self.model_offset_variables_to_track}
         self.model_step_variable_history = {key:[] for key in self.model_step_variables_to_track}
 
         if out_ds is not None:
-            self.output_offset_variable_history = {key: {offset: [] for offset in out_ds.time_offsets} for key in self.output_offset_variables_to_track}
-            self.output_step_variable_history = {key:[] for key in self.output_step_variables_to_track}
+            self.output_offset_variable_history = {key: {offset: [] for offset in self.output_ds.time_offsets} for key in self.output_offset_variables_to_track}
+            self.output_step_variable_history = {key: [] for key in self.output_step_variables_to_track}
         else:
             self.output_offset_variable_history = {}
             self.output_step_variable_history = {}
@@ -137,15 +138,15 @@ class BWRun:
 
 
 
-    def run(self, save=False, limit=None, freeze=True):
+    def run(self, save_bw_history=False, bw_step_limit=None, freeze=True):
         start_time = time.time()
 
         if len(self.input_ds) < self.bw.M:
             warnings.warn("Data length shorter than initialization.")
 
-        if limit is None:
-            limit = len(self.input_ds)
-        limit = min(len(self.input_ds), limit)
+        if bw_step_limit is None:
+            bw_step_limit = len(self.input_ds)
+        bw_step_limit = min(len(self.input_ds), bw_step_limit)
 
         bw_step = 0
         obs_next_t, obs_done = self.input_ds.preview_next_timepoint()
@@ -154,8 +155,8 @@ class BWRun:
         else:
             beh_next_t, beh_done = float("inf"), True
 
-        with tqdm(total=limit, disable=not self.show_tqdm) as pbar:
-            while not (obs_done and beh_done) and bw_step <= limit:
+        with tqdm(total=bw_step_limit, disable=not self.show_tqdm) as pbar:
+            while not (obs_done and beh_done) and bw_step <= bw_step_limit:
                 if beh_done or obs_next_t < beh_next_t:
                     obs = next(self.input_ds)
 
@@ -184,7 +185,7 @@ class BWRun:
 
         if freeze:
             self.finish_and_remove_jax()
-        if save:
+        if save_bw_history:
             self.save()
 
     def save(self):

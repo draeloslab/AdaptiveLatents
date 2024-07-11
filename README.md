@@ -17,10 +17,12 @@ pip install -e .
 pip install -U "jax[cuda12]"
 # note: if using apple silicon, you may need to build jax from source
 
-# edit the adaptive_latents_config.yaml file if you need
+# create an adaptive_latents_config.yaml file if you wish
+# the default copy is found in adaptive_latents/adaptive_latents_config.yaml
+# just make sure your copy is in the current working directory when you import adaptive latents
 
 # test if everything is working
-python scripts/main.py
+python scripts/main.py # this should produce a gif in the current working directory
 pytest .
 coverage run -m pytest --longrun && coverage html # (optional)
 ```
@@ -37,15 +39,24 @@ We provide an environment file for use with conda to create a new environment wi
 ## Refrence
 The core Bubblewrap algorithm was initially described here: ['Bubblewrap: Online tiling and real-time flow prediction on neural manifolds'](https://proceedings.neurips.cc/paper/2021/hash/307eb8ee16198da891c521eca21464c1-Abstract.html).
 
-## Refactor plan
-* BWRun should take arrays (new users don't need to know about `NumpyTimedDataSource`)
-* the bubblewrap class should have a static run method in addition to BWRun
-* defalut_parameters and the default adaptive_latents_config.yaml should be united (with a default?)
-* I should move the filesystem-dependent files to a new repo or at least the scripts folder
-* move the `dataset_plots` notebook to a function
-* general pipeline component interface so we can share a logger?
-  * learn from sklearn?
-* log caching (and make it local)
-* make Indy dataset not have trailing zeros
-* src/ structure
-* hashable TimedDataSource?
+[//]: # (## Refactor plan)
+
+[//]: # (* the bubblewrap class should have a static run method in addition to BWRun)
+
+[//]: # (* defalut_parameters and the default adaptive_latents_config.yaml should be united &#40;with a default?&#41;)
+
+[//]: # (* I should move the filesystem-dependent files to a new repo or at least the scripts folder)
+
+[//]: # (* move the `dataset_plots` notebook to a function)
+
+[//]: # (* general pipeline component interface so we can share a logger?)
+
+[//]: # (  * learn from sklearn?)
+
+[//]: # (* log caching &#40;and make it local&#41;)
+
+[//]: # (* make Indy dataset not have trailing zeros)
+
+[//]: # (* src/ structure)
+
+[//]: # (* hashable TimedDataSource?)
