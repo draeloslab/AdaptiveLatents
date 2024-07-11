@@ -35,7 +35,7 @@ def _make_br(rng, freeze=True):
         bw = Bubblewrap(n_obs, **dict(Bubblewrap.default_clock_parameters, **bw_params))
         reg = VanillaOnlineRegressor(bw.N, n_beh)
         br = BWRun(bw, obs_ds, beh_ds, behavior_regressor=reg, show_tqdm=False, log_level=log_level)
-        br.run(save=False, freeze=freeze)
+        br.run(save_bw_history=False, freeze=freeze)
         return br
     return br_f
 

@@ -1,7 +1,12 @@
 import numpy as np
 
 class NumpyTimedDataSource:
-    def __init__(self, a, timepoints, time_offsets=()):
+    def __init__(self, a, timepoints=None, time_offsets=(0,1)):
+        # todo: make this stateless
+        if isinstance(a, NumpyTimedDataSource):
+            timepoints = a.t
+            time_offsets = a.time_offsets
+            a = a.a
         a = np.array(a)
         if len(a.shape) == 1:
             a = a[:, None]
@@ -11,8 +16,6 @@ class NumpyTimedDataSource:
         self.time_offsets = time_offsets
         self.output_shape = len(a[0])
         self.init_size = 0
-
-
 
         self.a = a
         self.t = timepoints if timepoints is not None else np.arange(a.shape[0])
