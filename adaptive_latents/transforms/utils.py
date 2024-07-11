@@ -84,17 +84,6 @@ def save_to_cache(file, location=CONFIG["cache_path"]):
     return decorator
 
 
-def get_from_saved_npz(filename):
-    dataset = np.load(os.path.join(adaptive_latents.config.CONFIG["data_path"], filename))
-    beh = dataset['x']
-
-    if len(dataset['y'].shape) == 3:
-        obs = dataset['y'][0]
-    else:
-        obs = dataset['y']
-
-    return obs, beh.reshape([obs.shape[0], -1])
-
 @save_to_cache("prosvd_data")
 def prosvd_data(input_arr, output_d, init_size, centering=True):
     # todo: rename this and the sjPCA version to apply_and_cache?
