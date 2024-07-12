@@ -24,7 +24,11 @@ pip install -U "jax[cuda12]"
 # test if everything is working
 python workspace/main.py # this should produce a gif in the current working directory
 pytest .
-coverage run -m pytest --longrun && coverage html # (optional)
+
+# check test code coverage
+coverage run -m pytest --longrun
+coverage html
+open tests/reports/coverage-html/index.html 2>/dev/null
 ```
 
 
