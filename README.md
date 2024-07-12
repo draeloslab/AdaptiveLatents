@@ -22,7 +22,7 @@ pip install -U "jax[cuda12]"
 # just make sure your copy is in the current working directory when you import adaptive latents
 
 # test if everything is working
-python scripts/main.py # this should produce a gif in the current working directory
+python workspace/main.py # this should produce a gif in the current working directory
 pytest .
 coverage run -m pytest --longrun && coverage html # (optional)
 ```

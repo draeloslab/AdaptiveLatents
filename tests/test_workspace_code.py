@@ -1,6 +1,6 @@
 import pytest
-from scripts.main import main
-import scripts.datasets as datasets
+from workspace.main import main
+import workspace.datasets as datasets
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
 

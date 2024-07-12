@@ -1,7 +1,7 @@
 generated/*
 htmlcov/*
 **/adaptive_latents_config.yaml
-scripts/datasets/*
+workspace/datasets/*
 
 *.mp4
 *.db
