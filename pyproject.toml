@@ -25,11 +25,23 @@ packages = ["adaptive_latents"]
 [tool.setuptools.package-data]
 adaptive_latents = ["adaptive_latents_config.yaml"]
 
+
+[tool.coverage.report]
+exclude_also = [
+    # Don't complain if non-runnable code isn't run:
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "if .TYPE_CHECKING.:",
+
+    # Don't complain about abstract methods, they aren't run:
+    "@(abc\\.)?abstractmethod",
+    ]
+
 [tool.coverage.run]
-include = [
-    "adaptive_latents/**/*.py",
-    "tests/**/*.py",
-    "workspace/**/*.py",
+source = [
+    "adaptive_latents",
+    "tests",
+    "workspace",
     ]
 
 [tool.coverage.html]
