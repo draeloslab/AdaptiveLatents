@@ -15,6 +15,7 @@ dependencies:
   - h5py
   - pynwb
   - scikit-image
+  - adjustText
   - coverage
   - yapf
   - dandi
@@ -28,5 +29,3 @@ dependencies:
      - jax
      - datahugger
      - "git+https://github.com/Jonathan-Gould/mmica"
-#  - jax
-#  - jaxlib
