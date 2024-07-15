@@ -8,7 +8,7 @@ version = "0.0.1"
 description = "Methods for real-time prediction of latent neural dynamics"
 authors = [{name = "Jonathan Gould", email = "jngould@umich.edu"},
            {name = "Anne Draelos", email = "adraelos@umich.edu"}]
-            #TODO: Pato
+            #TODO: Pato?
 readme = "README.md"
 requires-python = ">=3.7"
 keywords = ["neuroscience", "prediction", "dynamics"]
@@ -22,8 +22,39 @@ pythonpath = [
 [tool.setuptools]
 packages = ["adaptive_latents"]
 
-[tool.distutils.egg_info]
-egg_base = "dist"
+[tool.setuptools.package-data]
+adaptive_latents = ["adaptive_latents_config.yaml"]
+
+[tool.yapf]
+based_on_style='facebook'
+ARITHMETIC_PRECEDENCE_INDICATION=true
+SPLIT_BEFORE_NAMED_ASSIGNS=true
+SPACE_BETWEEN_ENDING_COMMA_AND_CLOSING_BRACKET=false
+COALESCE_BRACKETS=true
+COLUMN_LIMIT=300
+
+[tool.yapfignore]
+ignore_patterns=[
+    "workspace/datasets/*"
+]
+
+[tool.coverage.report]
+exclude_also = [
+    # Don't complain if non-runnable code isn't run:
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "if .TYPE_CHECKING.:",
+
+    # Don't complain about abstract methods, they aren't run:
+    "@(abc\\.)?abstractmethod",
+    ]
+
+[tool.coverage.run]
+source = [
+    "adaptive_latents",
+    "tests",
+    "workspace",
+    ]
 
 [tool.coverage.html]
 directory = "./tests/reports/coverage-html"

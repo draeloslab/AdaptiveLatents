@@ -3,15 +3,12 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - jax
-  - jaxlib
   - numpy
   - matplotlib
   - scikit-learn
   - tqdm
   - pyyaml
   - pytest
-  - pytest-cov
   - pandas
   - ffmpeg
   - jupyter
@@ -19,3 +16,16 @@ dependencies:
   - pynwb
   - scikit-image
   - adjustText
+  - coverage
+  - yapf
+  - dandi
+  - fsspec
+  - requests
+  - aiohttp
+  - frozendict
+  - numba # todo: this is for mmica, do I really need it?
+  - pip
+  - pip:
+     - jax
+     - datahugger
+     - "git+https://github.com/Jonathan-Gould/mmica"

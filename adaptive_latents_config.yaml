@@ -1,6 +1,0 @@
-# these only apply to the adaptive_latents.input_sources.functional file
-attempt_to_cache: True
-show_cache_files: True
-
-data_path: ./generated/datasets
-output_path: ./generated
