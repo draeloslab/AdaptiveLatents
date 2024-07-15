@@ -41,7 +41,7 @@ coverage html
 open tests/reports/coverage-html/index.html 2>/dev/null
 
 # run the yapf formatter
-yapf --in-place --recursive . --exclude 'workspace/datasets/*'
+yapf --in-place --recursive .
 ```
 
 
