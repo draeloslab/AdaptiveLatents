@@ -48,7 +48,7 @@ class VanillaOnlineRegressor(OnlineRegressor):
     def format_x(self, x):
         x = x.reshape([-1, 1])
         if self.add_intercept:
-            x = np.vstack([x,[1]])
+            x = np.vstack([x, [1]])
         return x
 
     def _observe(self, x, y, update_D=False):
@@ -59,7 +59,7 @@ class VanillaOnlineRegressor(OnlineRegressor):
             self.D = rank_one_update_formula1(self.D, x, x)
         else:
             self.F = self.F + x @ x.T
-        self.c = self.c + x * y
+        self.c = self.c + x*y
 
         self.n_observed += 1
 
@@ -90,7 +90,7 @@ class VanillaOnlineRegressor(OnlineRegressor):
 class SemiRegularizedRegressor(VanillaOnlineRegressor):
     def __init__(self, input_d, output_d, add_intercept=True, regularization_factor=0.01):
         super().__init__(input_d, output_d, add_intercept=add_intercept)
-        self.D = np.eye(self.input_d)/regularization_factor
+        self.D = np.eye(self.input_d) / regularization_factor
         self.c = np.zeros([self.input_d, self.output_d])
 
 
@@ -125,7 +125,7 @@ class NearestNeighborRegressor(OnlineRegressor):
 def auto_regression_decorator(regressor_class: OnlineRegressor, n_steps=1, autoregress_only=False):
     class AutoRegressor(regressor_class):
         def __init__(self, input_d, output_d, **kwargs):
-            super().__init__(input_d+output_d*n_steps, output_d, **kwargs)
+            super().__init__(input_d + output_d*n_steps, output_d, **kwargs)
             self._y_history = deque(maxlen=n_steps)
 
         def observe(self, x, y):
@@ -147,6 +147,7 @@ def auto_regression_decorator(regressor_class: OnlineRegressor, n_steps=1, autor
                 return np.nan * np.empty(shape=(self.output_d,))
 
     return AutoRegressor
+
 
 """
 ideas:

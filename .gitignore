@@ -1,5 +1,7 @@
-generated/*
+**/al_generated/*
 htmlcov/*
+**/adaptive_latents_config.yaml
+workspace/datasets/*
 
 *.mp4
 *.db

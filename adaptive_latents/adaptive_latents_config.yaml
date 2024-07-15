@@ -1,0 +1,29 @@
+# todo: this contains state I don't account for in tests
+
+jax_enable_x64: True # this should basically never be false
+jax_platform_name: 'cpu'
+
+attempt_to_cache: False
+verbose: True
+
+bwrun_save_path: ./al_generated/bw_runs
+cache_path: ./al_generated/caches
+
+# note that while this configures defaults, they can still be overridden in your code
+default_parameters:
+  Bubblewrap:
+    num: 200
+    lam: 1e-3
+    nu: 1e-3
+    eps: 1e-3
+    step: 8e-2
+    M: 30
+    B_thresh: -10
+    batch: False
+    batch_size: 1
+    go_fast: False
+    seed: 42
+    num_grad_q: 1
+    copy_row_on_teleport: True
+    sigma_orig_adjustment: 0
+    n_thresh: 5e-4
