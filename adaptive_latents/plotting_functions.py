@@ -358,9 +358,7 @@ def _deduce_bw_parameters(bw):
     )
 
 
-def compare_metrics(
-    brs, offset, colors=None, show_target_times=False, smoothing_scale=50, show_legend=True, show_title=True, red_lines=(), minutes=False, include_behavior=True, include_trendlines=True, red_lines_frames=None, xlim_start=None, xlim_end=None
-):
+def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing_scale=50, show_legend=True, show_title=True, red_lines=(), minutes=False, include_behavior=True, include_trendlines=True, red_lines_frames=None, xlim=None):
     colors = ["black"] + [f"C{i}" for i in range(len(brs) - 1)]
     ps = [_deduce_bw_parameters(br.bw) for br in brs]
     keys = set([leaf for tree in ps for leaf in tree.keys()])
@@ -380,7 +378,7 @@ def compare_metrics(
     else:
         include_behavior = False
 
-    fig, ax = plt.subplots(figsize=(14, 5), nrows=2 + include_behavior, ncols=2, sharex='col', gridspec_kw={'width_ratios': [7, 1]})
+    fig, ax = plt.subplots(figsize=(14, 5), nrows=2 + include_behavior, ncols=2, sharex='col', layout='tight', gridspec_kw={'width_ratios': [7, 1]})
     fig: plt.Figure
     to_write = [[] for _ in range(ax.shape[0])]
     last_half_times = []
@@ -459,9 +457,9 @@ def compare_metrics(
             x, y = ax[i, 0].transLimits.inverted().transform([x, y])
             ax[i, 0].text(x, y, text, clip_on=True, verticalalignment='top', **kw)
 
-    if xlim_start is not None and xlim_end is not None:
+    if xlim is not None:
         for axis in ax[:, 0]:
-            axis.set_xlim(xlim_start, xlim_end)
+            axis.set_xlim(*xlim)
 
     for axis in ax[:, 0]:
         axis.format_coord = lambda x, y: 'x={:g}, y={:g}'.format(x, y)
@@ -471,13 +469,22 @@ def compare_metrics(
         print(f"Adding red lines at frame numbers: {red_lines_frames}")  # Debug print
         for frame in red_lines_frames:
             for axis in ax[:, 0]:
-                if (xlim_start is None or frame >= xlim_start) and (xlim_end is None or frame <= xlim_end):
+                if xlim is None or xlim[0] <= frame <= xlim[0]:
                     axis.axvline(frame, color='red', linestyle='--', alpha=0.7)
 
-    for axis in ax[:, 0]:
-        axis: plt.Axes
-        for line in red_lines:
-            axis.axvline(line, color='red', alpha=.5)
+    if minutes:
+        ax[-1, 0].set_xlabel("time (min)")
+    else:
+        ax[-1, 0].set_xlabel("time (s)")
+
+    xlim = ax[-1, 0].get_xlim()
+    xticks = list(ax[-1, 0].get_xticks())
+    xtick_labels = list(ax[-1, 0].get_xticklabels())
+    ax[-1, 0].set_xticks(xticks + list(set(last_half_times)))
+    ax[-1, 0].set_xticklabels(xtick_labels + [""] * len(set(last_half_times)))
+    ax[-1, 0].set_xlim(xlim)
+
+
 
     if show_title:
         ax[0, 0].set_title(" ".join(to_print))
