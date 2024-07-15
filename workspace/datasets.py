@@ -42,6 +42,7 @@ class Dataset(ABC):
     def construct(self, *args, **kwargs) -> (NumpyTimedDataSource, NumpyTimedDataSource):
         pass
 
+
 class MultiDataset(Dataset):
     @abstractmethod
     def acquire(self, sub_dataset_identifier):
@@ -78,7 +79,6 @@ class Low21Dataset(MultiDataset):
     #     pass
 
 
-
 class Odoherty21Dataset(MultiDataset):
     doi = 'https://doi.org/10.5281/zenodo.3854034'
     dataset_base_path = DATA_BASE_PATH / "odoherty21"
@@ -87,24 +87,22 @@ class Odoherty21Dataset(MultiDataset):
     def __init__(self, bin_width=0.03):
         self.bin_width = bin_width
 
-
     def get_sub_datasets(self):
         return ['indy_20160407_02.mat']
 
     def acquire(self, sub_dataset_identifier):
         if not (self.dataset_base_path / sub_dataset_identifier).is_file():
             try:
-                file_url = f"https://zenodo.org/records/3854034/files/{sub_dataset_identifier}?download=1"""
+                file_url = f"https://zenodo.org/records/3854034/files/{sub_dataset_identifier}?download=1" ""
                 self.dataset_base_path.mkdir(exist_ok=True)
                 urllib.request.urlretrieve(url=file_url, filename=self.dataset_base_path / sub_dataset_identifier)
-            except: # todo: make this a real error handling thing
+            except:  # todo: make this a real error handling thing
                 # this is usually very slow
                 datahugger.get(self.doi, self.dataset_base_path)
         return h5py.File(self.dataset_base_path / sub_dataset_identifier, 'r')
 
     def _construct(self, sub_dataset_identifier):
         fhan = self.acquire(sub_dataset_identifier)
-
 
         # this is a first pass I'm using to find the first and last spikes
         l = []
@@ -142,13 +140,14 @@ class Odoherty21Dataset(MultiDataset):
         for c in range(behavior.shape[1]):
             behavior[:, c] = np.interp(bin_centers, t, raw_behavior[:, c])
 
-        mask = bin_centers > 70 # behavior is near-constant before 70 seconds
+        mask = bin_centers > 70  # behavior is near-constant before 70 seconds
         bin_centers, behavior, A = bin_centers[mask], behavior[mask], A[mask]
 
         raw_behavior[:, 0] -= 8.5
         raw_behavior[:, 0] *= 10
 
         return A, raw_behavior, bin_centers, t
+
 
 class Schaffer23Datset(MultiDataset):
     doi = 'https://doi.org/10.6084/m9.figshare.23749074'
@@ -157,11 +156,9 @@ class Schaffer23Datset(MultiDataset):
 
     def get_sub_datasets(self):
         return [
-            '2019_06_28_fly2.nwb', '2019_07_01_fly2.nwb', '2019_08_07_fly2.nwb', '2019_08_14_fly1.nwb',
-            '2019_08_14_fly2.nwb', '2019_08_14_fly3_2.nwb', '2019_08_20_fly2.nwb', '2019_08_20_fly3.nwb',
-            '2019_10_02_fly2.nwb', '2019_10_10_fly3.nwb', '2019_10_14_fly2.nwb', '2019_10_14_fly3.nwb',
-            '2019_10_14_fly4.nwb', '2019_10_18_fly2.nwb', '2019_10_18_fly3.nwb', '2019_10_21_fly1.nwb'
-            ]
+            '2019_06_28_fly2.nwb', '2019_07_01_fly2.nwb', '2019_08_07_fly2.nwb', '2019_08_14_fly1.nwb', '2019_08_14_fly2.nwb', '2019_08_14_fly3_2.nwb', '2019_08_20_fly2.nwb', '2019_08_20_fly3.nwb', '2019_10_02_fly2.nwb', '2019_10_10_fly3.nwb',
+            '2019_10_14_fly2.nwb', '2019_10_14_fly3.nwb', '2019_10_14_fly4.nwb', '2019_10_18_fly2.nwb', '2019_10_18_fly3.nwb', '2019_10_21_fly1.nwb'
+        ]
 
     def acquire(self, sub_dataset_identifier):
         if len(list(self.dataset_base_path.glob("*.nwb"))) == 0:
@@ -199,7 +196,7 @@ class Churchland22Dataset(Dataset):
         fs = fsspec.filesystem("http")
         fs = CachingFileSystem(
             fs=fs,
-            cache_storage=[DATA_BASE_PATH/"nwb_cache"],
+            cache_storage=[DATA_BASE_PATH / "nwb_cache"],
         )
 
         with fs.open(s3_url, "rb") as f:
@@ -207,7 +204,7 @@ class Churchland22Dataset(Dataset):
                 fhan = NWBHDF5IO(file=file)
                 yield fhan
 
-    def construct(self, ):
+    def construct(self,):
         with self.acquire() as fhan:
             nwb_in = fhan.read()
             units = nwb_in.units.to_dataframe()
@@ -248,6 +245,7 @@ class Churchland22Dataset(Dataset):
 
         return A, hand_pos, bin_centers, hand_t
 
+
 class Nason20Dataset(Dataset):
     doi = 'https://doi.org/10.7302/wwya-5q86'
     directory_name = 'nason20'
@@ -260,17 +258,15 @@ class Nason20Dataset(Dataset):
     def acquire(self):
         file = self.dataset_base_path / 'OnlineTrainingData.mat'
         if not file.is_file():
-            print(
-f"""\
+            print(f"""\
 Please manually download the OnlineTrainingData.mat file from {self.doi}.
 Then put it in '{self.dataset_base_path}'.
-"""
-            )
+""")
             raise FileNotFoundError()
         return loadmat(file, squeeze_me=True, simplify_cells=True)
 
     def construct(self):
-        bin_width_in_ms = int(self.bin_width*1000)
+        bin_width_in_ms = int(self.bin_width * 1000)
 
         mat = self.acquire()
         data = mat['OnlineTrainingData']
@@ -283,11 +279,11 @@ Then put it in '{self.dataset_base_path}'.
         t = []
         beh = []
         for i, trial in enumerate(data):
-            A_spacer = np.nan * np.zeros((3,n_channels))
-            t_spacer = np.arange(1,4) + trial['ExperimentTime'][-1]
+            A_spacer = np.nan * np.zeros((3, n_channels))
+            t_spacer = np.arange(1, 4) + trial['ExperimentTime'][-1]
             beh_spacer = t_spacer * np.nan
-            if i == len(data)-1:
-                A_spacer = np.zeros((0,n_channels))
+            if i == len(data) - 1:
+                A_spacer = np.zeros((0, n_channels))
                 t_spacer = []
                 beh_spacer = []
             sub_A_spaced = np.vstack([trial['SpikingBandPower'], A_spacer])
@@ -297,20 +293,20 @@ Then put it in '{self.dataset_base_path}'.
             t.append(sub_t_spaced)
             beh.append(sub_beh_spaced)
         A = np.vstack(A)
-        t = np.hstack(t) / 1000 # converts to seconds
+        t = np.hstack(t) / 1000  # converts to seconds
         beh = np.hstack(beh)
 
-        s = t > 1.260 # there's an early dead zone
+        s = t > 1.260  # there's an early dead zone
         A, beh, t = A[s], beh[s], t[s]
 
-
-        aug = np.column_stack([t,beh, A])
-        binned_aug = aug[aug.shape[0] % bin_width_in_ms:,:].reshape(( -1, bin_width_in_ms, aug.shape[1]))
-        t = binned_aug[:,:,0].max(axis=1)
-        beh = np.nanmean(binned_aug[:,:,1], axis=1)
-        A = np.nanmean(binned_aug[:,:,2:], axis=1)
+        aug = np.column_stack([t, beh, A])
+        binned_aug = aug[aug.shape[0] % bin_width_in_ms:, :].reshape((-1, bin_width_in_ms, aug.shape[1]))
+        t = binned_aug[:, :, 0].max(axis=1)
+        beh = np.nanmean(binned_aug[:, :, 1], axis=1)
+        A = np.nanmean(binned_aug[:, :, 2:], axis=1)
 
         return A, beh, t, t
+
 
 class Peyrache15Dataset(MultiDataset):
     doi = 'http://dx.doi.org/10.6080/K0G15XS1'
@@ -325,18 +321,16 @@ class Peyrache15Dataset(MultiDataset):
 
     def acquire(self, sub_dataset_identifier):
         if not (self.dataset_base_path / sub_dataset_identifier).is_dir():
-            print(
-                f"""\
+            print(f"""\
 Please download {sub_dataset_identifier} from {self.doi} and put it in {self.dataset_base_path}.
-"""
-            )
+""")
             raise FileNotFoundError()
 
     def _construct(self, sub_dataset_identifier):
         self.acquire(sub_dataset_identifier)
+
         @save_to_cache("peyrache15_data")
         def static_construct(sub_dataset_identifier, bin_width):
-
             def read_int_file(fname):
                 with open(fname) as fhan:
                     ret = []
@@ -347,8 +341,7 @@ Please download {sub_dataset_identifier} from {self.doi} and put it in {self.dat
 
             shanks = []
             for n in range(30):
-                shanks.append(
-                    os.path.isfile(self.dataset_base_path / sub_dataset_identifier / f"{sub_dataset_identifier}.clu.{n}"))
+                shanks.append(os.path.isfile(self.dataset_base_path / sub_dataset_identifier / f"{sub_dataset_identifier}.clu.{n}"))
 
             assert not any(shanks[20:])
             shanks = np.nonzero(shanks)[0]
@@ -363,8 +356,7 @@ Please download {sub_dataset_identifier} from {self.doi} and put it in {self.dat
             max_time = 0
             used_columns = 0
             for shank in shanks:
-                clusters = read_int_file(
-                    self.dataset_base_path / sub_dataset_identifier / f"{sub_dataset_identifier}.clu.{shank}")
+                clusters = read_int_file(self.dataset_base_path / sub_dataset_identifier / f"{sub_dataset_identifier}.clu.{shank}")
                 n_clusters = clusters[0]
                 clusters = clusters[1:]
 
@@ -378,8 +370,7 @@ Please download {sub_dataset_identifier} from {self.doi} and put it in {self.dat
                         cluster_mapping[(shank, cluster)] = np.nan
 
                 clusters = [cluster_mapping[(shank, c)] for c in clusters]
-                times = read_int_file(
-                    self.dataset_base_path / sub_dataset_identifier / f"{sub_dataset_identifier}.res.{shank}")
+                times = read_int_file(self.dataset_base_path / sub_dataset_identifier / f"{sub_dataset_identifier}.res.{shank}")
 
                 pairs = np.array([times, clusters]).T
                 pairs = pairs[~np.isnan(pairs[:, 1]), :]
@@ -425,7 +416,6 @@ Please download {sub_dataset_identifier} from {self.doi} and put it in {self.dat
         return static_construct(sub_dataset_identifier, self.bin_width)
 
 
-
 class Temmar24uDataset(Dataset):
     doi = None
     dataset_base_path = DATA_BASE_PATH / 'temmar24u'
@@ -435,21 +425,18 @@ class Temmar24uDataset(Dataset):
         self.include_position = include_position
         self.include_velocity = include_velocity
         self.include_acceleration = include_acceleration
-        self.bin_width = .05 # in seconds, this is in jgould_first_extraction.mat
+        self.bin_width = .05  # in seconds, this is in jgould_first_extraction.mat
 
     def acquire(self):
         file = self.dataset_base_path / 'jgould_first_extraction.mat'
         if not file.is_file():
             # todo: possibly run jgould_first_extraction here?
-            print(
-"""\
+            print("""\
 Talk to the Chestek lab to get access to this data, and Jonathan Gould for the specifics of how this file was generated.
 This data will eventually be published, after which there should be an easier way to download it.
-"""
-            )
+""")
             raise FileNotFoundError()
         return loadmat(file, squeeze_me=True, simplify_cells=True)
-
 
     def construct(self):
         mat = self.acquire()
@@ -462,19 +449,15 @@ This data will eventually be published, after which there should be an easier wa
 
         nonzero_columns = pre_smooth_beh.std(axis=0) > 0
         assert np.all(~(nonzero_columns[0, :] ^ nonzero_columns))  # checks that fingers always have the same values
-        pre_smooth_beh = pre_smooth_beh[:, :,
-                         nonzero_columns[0, :]]  # the booleans select for position, velocity, and acceleration
-        pre_smooth_beh = pre_smooth_beh[:, [self.include_position, self.include_velocity, self.include_acceleration], :].reshape(pre_smooth_beh.shape[0],
-                                                                                                                  -1)  # the three booleans select for position, velocity, and acceleration
+        pre_smooth_beh = pre_smooth_beh[:, :, nonzero_columns[0, :]]  # the booleans select for position, velocity, and acceleration
+        pre_smooth_beh = pre_smooth_beh[:, [self.include_position, self.include_velocity, self.include_acceleration], :].reshape(pre_smooth_beh.shape[0], -1)  # the three booleans select for position, velocity, and acceleration
         kernel = np.exp(np.linspace(0, -1, 5))
         kernel /= kernel.sum()
 
-
         mode = 'valid'
         A = np.column_stack([np.convolve(kernel, column, mode) for column in pre_smooth_A.T])
-        t = np.convolve(np.hstack([[1],kernel[:-1]*0]), pre_smooth_t, mode)
+        t = np.convolve(np.hstack([[1], kernel[:-1] * 0]), pre_smooth_t, mode)
         beh = pre_smooth_beh
-
 
         # pre_prosvd_A = center_from_first_n(pre_center_A, 100)
         # pre_prosvd_A, pre_prosvd_beh, pre_prosvd_t = clip(pre_prosvd_A, pre_prosvd_beh, pre_prosvd_t)
@@ -493,7 +476,7 @@ class Musall19Dataset(Dataset):
     automatically_downloadable = False
 
     def __init__(self, cam=1, video_target_dim=100, resize_factor=1):
-        self.cam = cam # either 1 or 2
+        self.cam = cam  # either 1 or 2
         self.video_target_dim = video_target_dim
         self.resize_factor = resize_factor
 
@@ -548,7 +531,7 @@ class Musall19Dataset(Dataset):
                 seg = resize(seg, (used_V, Wid1, Hei1), mode='constant')
 
                 i, j = k // 4, (k % 4)
-                Data[:, i * Wid1: (i + 1) * Wid1, j * Hei1: (j + 1) * Hei1] = seg
+                Data[:, i * Wid1:(i+1) * Wid1, j * Hei1:(j+1) * Hei1] = seg
 
             #### dimension reduce video
             t = np.arange(Data.shape[0]) / video_sampling_rate
@@ -568,13 +551,10 @@ class Musall19Dataset(Dataset):
     def acquire(self):
         if not self.inner_data_path.is_dir():
             # TODO:
-            print(
-f"""\
+            print(f"""\
 Please ask Anne Draelos where to download the Musal data.
-"""
-            )
+""")
             raise FileNotFoundError()
-
 
 
 if __name__ == '__main__':

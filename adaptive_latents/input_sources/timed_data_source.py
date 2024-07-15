@@ -1,7 +1,8 @@
 import numpy as np
 
+
 class NumpyTimedDataSource:
-    def __init__(self, a, timepoints=None, time_offsets=(0,1)):
+    def __init__(self, a, timepoints=None, time_offsets=(0, 1)):
         # todo: make this stateless
         if isinstance(a, NumpyTimedDataSource):
             timepoints = a.t
@@ -46,7 +47,7 @@ class NumpyTimedDataSource:
     def current_timepoint(self):
         return self.t[self.index]
 
-    def preview_next_timepoint(self, offset = 1):
+    def preview_next_timepoint(self, offset=1):
         return self.t[self.index + offset], self.index + offset >= len(self)
 
     def get_atemporal_data_point(self, offset=0):
@@ -74,6 +75,7 @@ class NumpyTimedDataSource:
             raise IndexError()
 
         return self.a[slice_start:slice_end], self.t[slice_start:slice_end]
+
 
 """
 todo:

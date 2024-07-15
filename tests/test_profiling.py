@@ -5,6 +5,7 @@ from adaptive_latents.profiling_functions import get_speed_by_time, get_speed_pe
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
 
+
 def test_speed_per_step():
     obs, beh = adaptive_latents.input_sources.hmm_simulation.simulate_example_data(n=200)
     bin_width = 0.03

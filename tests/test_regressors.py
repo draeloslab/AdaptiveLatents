@@ -1,9 +1,9 @@
-from adaptive_latents.regressions import NearestNeighborRegressor,  VanillaOnlineRegressor, auto_regression_decorator, SemiRegularizedRegressor
+from adaptive_latents.regressions import NearestNeighborRegressor, VanillaOnlineRegressor, auto_regression_decorator, SemiRegularizedRegressor
 import pytest
 import numpy as np
 
 
-@pytest.fixture(params=["nearest_n",  "vanilla", "vanilla_regularized"])
+@pytest.fixture(params=["nearest_n", "vanilla", "vanilla_regularized"])
 def base_reg_maker(request):
     match request.param:
         case "nearest_n":
@@ -28,8 +28,10 @@ def reg_maker(request, base_reg_maker):
 def test_can_run_nd(reg_maker, rng):
     m, n = 4, 3
     w = rng.random(size=(m, n))
+
     def f(point):
-        return w @ point + 4
+        return w@point + 4
+
     space = np.linspace(0, 1, 100)
 
     reg = reg_maker(n, m)
@@ -43,7 +45,7 @@ def test_can_run_nd(reg_maker, rng):
 
 
 def test_output_shapes_are_correct(reg_maker, rng):
-    for n, m in [(1,1), (1, 3), (3,1), (3,4)]:
+    for n, m in [(1, 1), (1, 3), (3, 1), (3, 4)]:
         reg = reg_maker(n, m)
         assert reg.predict(np.zeros(n)).shape == (m,)
 
@@ -57,7 +59,7 @@ def test_output_shapes_are_correct(reg_maker, rng):
 
 
 def test_will_ignore_nan_inputs(reg_maker, rng):
-    for n, m in [(1,1), (1, 3), (3,1), (3,4)]:
+    for n, m in [(1, 1), (1, 3), (3, 1), (3, 4)]:
         reg = reg_maker(n, m)
 
         n_samples = 1_000
@@ -79,6 +81,7 @@ def test_will_ignore_nan_inputs(reg_maker, rng):
                 reg.observe(rng.normal(size=n), rng.normal(size=m))
 
         assert np.all(np.isfinite(reg.predict(np.zeros(n))))
+
 
 # todo:
 #  special auto regressor tests for history dependency

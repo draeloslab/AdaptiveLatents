@@ -4,6 +4,7 @@ import workspace.datasets as datasets
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
 
+
 class TestScripts:
     def test_run_main(self, outdir):
         main(output_directory=outdir, steps_to_run=35)
@@ -29,7 +30,6 @@ class TestDatasets:
     def test_can_load_singletons(self, dataset_class):
         d = dataset_class()
         d.construct()
-
 
     @pytest.mark.parametrize("dataset_class", mult_datasets)
     def test_can_load_multis(self, dataset_class):
