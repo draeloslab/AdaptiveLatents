@@ -12,11 +12,9 @@ epsilon = 1e-10
 
 
 class Bubblewrap:
-    @use_config_defaults 
+    @use_config_defaults
     # note the defaults in this signature are overridden by the defaults in adaptive_latents_config
-    def __init__(self, dim, num=1000, seed=42, M=30, lam=1, nu=1e-2, eps=3e-2, B_thresh=1e-4, 
-                 step=1e-6, n_thresh=5e-4, batch=False, batch_size=1, go_fast=False, 
-                 copy_row_on_teleport=True, num_grad_q=1, sigma_orig_adjustment=0):
+    def __init__(self, dim, num=1000, seed=42, M=30, lam=1, nu=1e-2, eps=3e-2, B_thresh=1e-4, step=1e-6, n_thresh=5e-4, batch=False, batch_size=1, go_fast=False, copy_row_on_teleport=True, num_grad_q=1, sigma_orig_adjustment=0):
 
         self.N = num  # Number of nodes
         self.d = dim  # dimension of the space
@@ -35,7 +33,8 @@ class Bubblewrap:
 
         self.batch = batch
         self.batch_size = batch_size
-        if not self.batch: self.batch_size = 1
+        if not self.batch:
+            self.batch_size = 1
 
         self.go_fast = go_fast
 
@@ -44,7 +43,8 @@ class Bubblewrap:
         # TODO: change this to use the `rng` system
 
         # observations of the data; M is how many to keep in history
-        if self.batch: M = self.batch_size
+        if self.batch:
+            M = self.batch_size
         self.obs = Observations(self.d, M=M, go_fast=go_fast)
         self._add_jited_functions()
         self.mu_orig = None
@@ -108,7 +108,7 @@ class Bubblewrap:
         else:
             var = jnp.diag(jnp.var(jnp.array(self.obs.saved_obs), axis=0))
         for n in numpy.arange(self.N):
-            fullSigma[n] = var * (self.nu + self.d + 1) / (self.N ** (2 / self.d))
+            fullSigma[n] = var * (self.nu + self.d + 1) / (self.N**(2 / self.d))
 
             ## Optimization is done with L split into L_lower and L_diag elements
             ## L is defined using cholesky of precision matrix, NOT covariance
@@ -142,8 +142,7 @@ class Bubblewrap:
         self.get_mus0 = jit(vmap(get_mus, 0))
 
         ## Set up gradients
-        self.grad_all = jit(vmap(jit(jax.value_and_grad(Q_j, argnums=(0, 1, 2, 3), has_aux=True)), 
-                                 in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0, None, None, None, None, 0)))
+        self.grad_all = jit(vmap(jit(jax.value_and_grad(Q_j, argnums=(0, 1, 2, 3), has_aux=True)), in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0, None, None, None, None, 0)))
 
         ## Other jitted functions
         self.logB_jax = jit(vmap(single_logB, in_axes=(None, 0, 0, 0)))
@@ -187,9 +186,8 @@ class Bubblewrap:
         self.beta = 1 + 10 / (self.t + 1)
         self.B = self.logB_jax(x, self.mu, self.L, self.L_diag)
         self.update_B(x)
-        self.gamma, self.alpha, self.En, self.S1, self.S2, self.n_obs = self.update_internal_jax(
-            self.A, self.B,self.alpha, self.En, self.eps, self.S1, x, self.S2, self.n_obs)
-        
+        self.gamma, self.alpha, self.En, self.S1, self.S2, self.n_obs = self.update_internal_jax(self.A, self.B, self.alpha, self.En, self.eps, self.S1, x, self.S2, self.n_obs)
+
         if not self.go_fast and jnp.any(jnp.isnan(self.alpha)):
             # this sometimes happens when the input data has a singular covariance matrix
             raise Exception("There's a NaN in the alphas, something's wrong.")
@@ -213,8 +211,7 @@ class Bubblewrap:
         if ma.any():
             ind2 = self.get_amax(ma)
 
-            self.n_obs, self.S1, self.S2, self.En, self.log_A = self.kill_nodes(
-                ind2, self.n_thresh, self.n_obs,self.S1, self.S2, self.En, self.log_A)
+            self.n_obs, self.S1, self.S2, self.En, self.log_A = self.kill_nodes(ind2, self.n_thresh, self.n_obs, self.S1, self.S2, self.En, self.log_A)
             actual_ind = int(ind2)
             self.dead_nodes.append(actual_ind)
             self.dead_nodes_ind[actual_ind] = self.n_thresh
@@ -234,11 +231,10 @@ class Bubblewrap:
 
         if self.copy_row_on_teleport:
             # TODO: other updates here?
-            nearest_bubble = numpy.argsort(numpy.linalg.norm(self.mu-x, axis=1))[1]
+            nearest_bubble = numpy.argsort(numpy.linalg.norm(self.mu - x, axis=1))[1]
             A = numpy.array(self.A)
             A[node] = A[nearest_bubble]
             self.A = A
-
 
         return node
 
@@ -246,14 +242,14 @@ class Bubblewrap:
         for _ in range(self.num_grad_q):
             div = 1 + self.sum_me(self.En)
             (self.Q, self.Q_parts), (self.grad_mu, self.grad_L_lower, self.grad_L_diag, self.grad_A) = \
-            self.grad_all(self.mu, self.L_lower, self.L_diag, self.log_A, self.S1, self.lam, self.S2, 
+            self.grad_all(self.mu, self.L_lower, self.L_diag, self.log_A, self.S1, self.lam, self.S2,
                           self.n_obs, self.En, self.nu, self.sigma_orig, self.beta, self.d, self.mu_orig)
 
             # this line is for debugging purposes; you can step through the inside of grad_all for a single bubble
             # _Q_j(self.mu[0], self.L_lower[0], self.L_diag[0], self.log_A[0], self.S1[0], self.lam[0], \
             # self.S2[0], self.n_obs[0], self.En[0], self.nu, self.sigma_orig, self.beta, self.d, self.mu_orig[0])
 
-            self.run_adam(self.grad_mu/div, self.grad_L_lower/div, self.grad_L_diag/div, self.grad_A/div)
+            self.run_adam(self.grad_mu / div, self.grad_L_lower / div, self.grad_L_diag / div, self.grad_A / div)
 
             self.A = sm(self.log_A)
 
@@ -262,10 +258,8 @@ class Bubblewrap:
     def run_adam(self, mu, L, L_diag, A):
         ## inputs are gradients
         self.m_mu, self.v_mu, self.mu = single_adam(self.step, self.m_mu, self.v_mu, mu, self.t, self.mu)
-        self.m_L_lower, self.v_L_lower, self.L_lower = single_adam(
-            self.step, self.m_L_lower, self.v_L_lower, L, self.t, self.L_lower)
-        self.m_L_diag, self.v_L_diag, self.L_diag = single_adam(
-            self.step, self.m_L_diag, self.v_L_diag, L_diag, self.t,self.L_diag)
+        self.m_L_lower, self.v_L_lower, self.L_lower = single_adam(self.step, self.m_L_lower, self.v_L_lower, L, self.t, self.L_lower)
+        self.m_L_diag, self.v_L_diag, self.L_diag = single_adam(self.step, self.m_L_diag, self.v_L_diag, L_diag, self.t, self.L_diag)
         self.m_A, self.v_A, self.log_A = single_adam(self.step, self.m_A, self.v_A, A, self.t, self.log_A)
 
     def freeze(self):
@@ -305,13 +299,13 @@ class Bubblewrap:
 beta1 = 0.99
 beta2 = 0.999
 
-
 ### A ton of jitted functions for fast code execution
+
 
 @jit
 def single_adam(step, m, v, grad, t, val):
-    m = beta1 * m + (1 - beta1) * grad
-    v = beta2 * v + (1 - beta2) * grad ** 2
+    m = beta1*m + (1-beta1) * grad
+    v = beta2*v + (1-beta2) * grad**2
     m_hat = m / (1 - jnp.power(beta1, t + 1))
     v_hat = v / (1 - jnp.power(beta2, t + 1))
     update = step * m_hat / (jnp.sqrt(v_hat) + epsilon)
@@ -338,6 +332,7 @@ def amax(A):
 def get_L(x, y):
     return jnp.tril(jnp.diag(jnp.exp(x) + epsilon) + jnp.tril(y, -1))
 
+
 @jit
 def get_mus(mu):
     return jnp.outer(mu, mu)
@@ -355,25 +350,24 @@ def _Q_j(mu, L_lower, L_diag, log_A, S1, lam, S2, n_obs, En, nu, sigma_orig, bet
     mus_orig = jnp.outer(mu_orig, mu_orig)
     ld = -2 * jnp.sum(L_diag)
 
-
     # todo: this list structure could be optimized
     to_sum = [None, None, None, None]
-    to_sum[0] = ((S1 + lam * mu_orig).dot(sig_inv).dot(mu))
-    to_sum[1] = ((-1/2) * jnp.trace(((sigma_orig + S2 + lam * mus_orig + (lam + n_obs)*mus)
-                @ # NB: this is where a GPU numerical problem was cropping up at one point
-                sig_inv)))
-    to_sum[2] = ((-1/2) * (nu + n_obs + d + 2) * ld)
-    to_sum[3] = (jnp.sum((En + beta - 1) * nn.log_softmax(log_A)))
+    to_sum[0] = ((S1 + lam*mu_orig).dot(sig_inv).dot(mu))
+    to_sum[1] = ((-1 / 2) * jnp.trace(((sigma_orig + S2 + lam*mus_orig + (lam+n_obs) * mus) @  # NB: this is where a GPU numerical problem was cropping up at one point
+                                       sig_inv)))
+    to_sum[2] = ((-1 / 2) * (nu+n_obs+d+2) * ld)
+    to_sum[3] = (jnp.sum((En+beta-1) * nn.log_softmax(log_A)))
     summed = to_sum[0] + to_sum[1] + to_sum[2] + to_sum[3]
     return -jnp.sum(summed), to_sum
 
 
 Q_j = jit(_Q_j)
 
+
 @jit
 def single_logB(x, mu, L, L_diag):
     n = mu.shape[0]
-    B = (-1/2)*jnp.linalg.norm((x - mu)@L)**2 - (n/2)*jnp.log(2*jnp.pi) + jnp.sum(L_diag)
+    B = (-1 / 2) * jnp.linalg.norm((x-mu) @ L)**2 - (n/2) * jnp.log(2 * jnp.pi) + jnp.sum(L_diag)
     return B
 
 
@@ -391,10 +385,10 @@ def expB(B):
 def update_internal(A, B, last_alpha, En, eps, S1, obs_curr, S2, n_obs):
     gamma = B * A / (last_alpha.dot(A).dot(B) + 1e-16)
     alpha = last_alpha.dot(gamma)
-    En = gamma * last_alpha[:, jnp.newaxis] + (1 - eps) * En
-    S1 = (1 - eps)*S1 + alpha[:, jnp.newaxis]*obs_curr
-    S2 = (1 - eps)*S2 + alpha[:, jnp.newaxis, jnp.newaxis] * (obs_curr[:, jnp.newaxis]*obs_curr.T)
-    n_obs = (1 - eps)*n_obs + alpha
+    En = gamma * last_alpha[:, jnp.newaxis] + (1-eps) * En
+    S1 = (1-eps) * S1 + alpha[:, jnp.newaxis] * obs_curr
+    S2 = (1-eps) * S2 + alpha[:, jnp.newaxis, jnp.newaxis] * (obs_curr[:, jnp.newaxis] * obs_curr.T)
+    n_obs = (1-eps) * n_obs + alpha
     return gamma, alpha, En, S1, S2, n_obs
 
 
@@ -420,7 +414,7 @@ def pred_ahead(B, A, alpha, steps_ahead):
 def entropy(A, alpha, steps_ahead):
     AT = jnp.linalg.matrix_power(A, steps_ahead)
     one = alpha @ AT
-    return - jnp.sum(one.dot(jnp.log2(alpha @ AT)))
+    return -jnp.sum(one.dot(jnp.log2(alpha @ AT)))
 
 
 def center_mass(points):
@@ -490,7 +484,7 @@ def _unjax_state(self):
 
 @jit
 def update_mean(mean, curr, n_obs):
-    return mean + (curr - mean) / n_obs
+    return mean + (curr-mean) / n_obs
 
 
 # @jit # TODO: profile this, and maybe bring it back
@@ -498,5 +492,5 @@ def update_cov(cov, last, curr, mean, n):
     lastm = get_mus(last)
     currm = get_mus(mean)
     curro = get_mus(curr)
-    f = (n - 1) / n
-    return f * (cov + lastm) + (1 - f) * curro - currm
+    f = (n-1) / n
+    return f * (cov+lastm) + (1-f) * curro - currm

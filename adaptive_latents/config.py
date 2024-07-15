@@ -17,6 +17,7 @@ def merge_dicts(d1, d2):
         d3[key] = merge_dicts(d1[key], d2[key])
     return d3
 
+
 def freeze_recursively(o):
     match o:
         case dict():
@@ -26,6 +27,7 @@ def freeze_recursively(o):
         case _:
             assert type(o) in [str, int, float, bool] or isinstance(o, pathlib.Path)
             return o
+
 
 def load_config(path):
     file = path / CONFIG_FILE_NAME
@@ -58,18 +60,16 @@ def get_config():
 
     return freeze_recursively(config)
 
-CONFIG=get_config()
+
+CONFIG = get_config()
+
 
 def use_config_defaults(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         # https://stackoverflow.com/a/12627202
         sig = inspect.signature(func)
-        current_defaults = {
-            k: v.default
-            for k, v in sig.parameters.items()
-            if v.default is not inspect.Parameter.empty
-        }
+        current_defaults = {k: v.default for k, v in sig.parameters.items() if v.default is not inspect.Parameter.empty}
 
         name = func.__qualname__
         # this is a little hacky but it works
@@ -84,4 +84,5 @@ def use_config_defaults(func):
         config_defaults = config_defaults | kwargs
 
         return func(*args, **config_defaults)
+
     return wrapper

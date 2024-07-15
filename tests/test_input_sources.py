@@ -1,5 +1,6 @@
 import adaptive_latents.input_sources as ins
 
+
 def test_hmm_runs(rng):
     # note I do not test correctness here
     for hmm in (

@@ -6,13 +6,14 @@ from mmica._utils import python_cg_c, cython_cg_c, python_cg_c_with_extra_info
 def min_W_with_extra_info(W, A, maxiter_cg, tol=1e-10):
     N, _ = W.shape
     hit_iters = np.empty(N)
-    hit_norms = np.ones((N,maxiter_cg)) * np.nan
+    hit_norms = np.ones((N, maxiter_cg)) * np.nan
     for i in range(N):
         K = W @ A[i] @ W.T
-        s, hit_iters[i], hit_norms[i,:] = python_cg_c_with_extra_info(B=K, i=i, max_iter=maxiter_cg, tol=tol, N=K.shape[0])
+        s, hit_iters[i], hit_norms[i, :] = python_cg_c_with_extra_info(B=K, i=i, max_iter=maxiter_cg, tol=tol, N=K.shape[0])
         s /= np.sqrt(s[i])
         W[i] = s @ W
     return W, hit_iters, hit_norms
+
 
 class mmICA:
     def __init__(self, p, W_init=None, density='huber', maxiter_cg=10, greedy=0, alpha=.7, track_extra_info=False, tol=1e-10):
@@ -30,8 +31,7 @@ class mmICA:
 
         self.W = W_init.copy() if W_init is not None else np.eye(p)
 
-        self.density = {'huber': Huber(),
-                        'tanh': Sigmoid()}.get(density)
+        self.density = {'huber': Huber(), 'tanh': Sigmoid()}.get(density)
 
         self.A = np.zeros((p, p, p))
         self.n = 0
@@ -43,7 +43,7 @@ class mmICA:
         _, batch_size = x.shape
         y = np.dot(self.W, x)
         u = self.density.ustar(y)
-        step = 1. / (self.n + 1) ** self.alpha
+        step = 1. / (self.n + 1)**self.alpha
         self.A *= (1 - step)
         if self.greedy:
             u *= step * self.p / self.greedy

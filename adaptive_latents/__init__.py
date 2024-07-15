@@ -1,6 +1,7 @@
 from .config import CONFIG
 
 import jax
+
 jax.config.update('jax_enable_x64', CONFIG['jax_enable_x64'])
 jax.config.update('jax_platform_name', CONFIG['jax_platform_name'])
 

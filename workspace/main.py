@@ -2,6 +2,7 @@ from adaptive_latents import Bubblewrap, BWRun, AnimationManager, SemiRegularize
 from adaptive_latents.input_sources.hmm_simulation import simulate_example_data
 import adaptive_latents.plotting_functions as pfs
 
+
 def main(output_directory=CONFIG['bwrun_save_path'], steps_to_run=None, make_animation=True):
     # set make_animation to `False` to run much faster
     obs, beh = simulate_example_data(dimensionality=2)
@@ -16,14 +17,14 @@ def main(output_directory=CONFIG['bwrun_save_path'], steps_to_run=None, make_ani
         n_rows = 1
         n_cols = 1
         fps = 10
-        figsize = (15,10)
+        figsize = (15, 10)
         extension = "mp4"
 
         def custom_draw_frame(self, step, bw: Bubblewrap, br: BWRun):
             historical_observations, _ = br.input_ds.get_history()
 
-            pfs.show_bubbles_2d(self.ax[0,0], historical_observations, bw, alpha_coefficient=.5)
-            self.ax[0,0].set_title(f"Step {step}")
+            pfs.show_bubbles_2d(self.ax[0, 0], historical_observations, bw, alpha_coefficient=.5)
+            self.ax[0, 0].set_title(f"Step {step}")
 
         def frame_draw_condition(self, step_number, bw):
             return step_number % 5 == 0
@@ -35,5 +36,6 @@ def main(output_directory=CONFIG['bwrun_save_path'], steps_to_run=None, make_ani
 
     br.run(bw_step_limit=steps_to_run, save_bw_history=False)
 
+
 if __name__ == '__main__':
-    main(output_directory='.',steps_to_run=500)
+    main(output_directory='.', steps_to_run=500)

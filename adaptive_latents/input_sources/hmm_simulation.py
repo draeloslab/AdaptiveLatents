@@ -95,8 +95,7 @@ class HMM:
 
             return (hmm.transition_matrix, em, hmm.initial_distribution)
 
-        return HMM(transition_matrix, GaussianEmissionModel(means, variances), initial_distribution,
-                   mutation_function=mutation_function)
+        return HMM(transition_matrix, GaussianEmissionModel(means, variances), initial_distribution, mutation_function=mutation_function)
 
     @staticmethod
     def teetering_gaussian_clock_hmm(n_states, p0=0, p1=1., angle=0., rate=1., radius=10):
@@ -126,15 +125,14 @@ class HMM:
             diag_indices[1] = np.roll(diag_indices[1], -1)
 
             mixing_v = (np.sin(time * rate) / 2 + .5)
-            switch_p = mixing_v * p1 + (1 - mixing_v) * p0
+            switch_p = mixing_v*p1 + (1-mixing_v) * p0
             m_transition_matrix[tuple(diag_indices)] = switch_p
 
             m_transition_matrix[np.diag_indices(n_states)] = 1 - switch_p
 
             return (m_transition_matrix, hmm.emission_model, hmm.initial_distribution)
 
-        return HMM(transition_matrix, GaussianEmissionModel(means, variances), initial_distribution,
-                   mutation_function=mutation_function)
+        return HMM(transition_matrix, GaussianEmissionModel(means, variances), initial_distribution, mutation_function=mutation_function)
 
     @staticmethod
     def inverting_gaussian_clock_hmm(n_states, mixing_p=1, p1=1, angle=0., rate=1, radius=10):
@@ -174,8 +172,7 @@ class HMM:
 
             return (m_transition_matrix, hmm.emission_model, hmm.initial_distribution)
 
-        return HMM(transition_matrix, GaussianEmissionModel(means, variances), initial_distribution,
-                   mutation_function=mutation_function)
+        return HMM(transition_matrix, GaussianEmissionModel(means, variances), initial_distribution, mutation_function=mutation_function)
 
     @staticmethod
     def discrete_clock_hmm(n_states, p1=1.0):
@@ -196,13 +193,11 @@ class HMM:
     def wave_clock_hmm(n_states=21, displacement_center=3, displacement_spread=.3, variance_scale=1., radius=10, angle=0):
         assert n_states % 2 == 1  # this just makes things easier with the center of the hill
 
-        p = np.exp(-1/2 * (np.linspace(-1,1,n_states)/displacement_spread)**2)
+        p = np.exp(-1 / 2 * (np.linspace(-1, 1, n_states) / displacement_spread)**2)
         p /= p.sum()
         p = np.roll(p, shift=(p.shape[0] // 2 + 1))
 
         transition_matrix = np.array([np.roll(p, shift=shift + displacement_center) for shift in range(n_states)])
-
-
 
         initial_distribution = np.zeros(n_states)
         initial_distribution[0] = 1
@@ -221,13 +216,11 @@ class HMM:
     def infinity_shape_hmm(n_states=21, displacement_center=3, displacement_spread=.3, variance_scale=1., a=10, angle=0):
         assert n_states % 2 == 1  # this just makes things easier with the center of the hill
 
-        p = np.exp(-1/2 * (np.linspace(-1,1,n_states)/displacement_spread)**2)
+        p = np.exp(-1 / 2 * (np.linspace(-1, 1, n_states) / displacement_spread)**2)
         p /= p.sum()
         p = np.roll(p, shift=(p.shape[0] // 2 + 1))
 
         transition_matrix = np.array([np.roll(p, shift=shift + displacement_center) for shift in range(n_states)])
-
-
 
         initial_distribution = np.zeros(n_states)
         initial_distribution[0] = 1
@@ -239,7 +232,7 @@ class HMM:
         for i in range(n_states):
             theta = 2 * np.pi * i / n_states
             x_coord = a * np.cos(theta) / (1 + np.sin(theta)**2)
-            y_coord = a * np.cos(theta) * np.sin(theta)/ (1 + np.sin(theta)**2)
+            y_coord = a * np.cos(theta) * np.sin(theta) / (1 + np.sin(theta)**2)
             means[i, :] = np.array([x_coord, y_coord])
 
         return HMM(transition_matrix, GaussianEmissionModel(means, variances), initial_distribution)
@@ -281,4 +274,4 @@ class HMM:
 def simulate_example_data(n=500, dimensionality=10):
     rng = np.random.default_rng()
     states, observations = HMM.gaussian_clock_hmm(high_d_pad=dimensionality).simulate_with_states(n, rng)
-    return observations, states.reshape([-1,1])
+    return observations, states.reshape([-1, 1])
