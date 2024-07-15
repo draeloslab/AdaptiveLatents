@@ -358,7 +358,7 @@ def _deduce_bw_parameters(bw):
     )
 
 
-def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing_scale=50, show_legend=True, show_title=True, red_lines=(), minutes=False, include_behavior=True, include_trendlines=True):
+def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing_scale=50, show_legend=True, show_title=True, red_lines=(), minutes=False, include_behavior=True, include_trendlines=True, red_lines_frames=None, xlim=None):
     colors = ["black"] + [f"C{i}" for i in range(len(brs) - 1)]
     ps = [_deduce_bw_parameters(br.bw) for br in brs]
     keys = set([leaf for tree in ps for leaf in tree.keys()])
@@ -457,6 +457,26 @@ def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing
             x, y = ax[i, 0].transLimits.inverted().transform([x, y])
             ax[i, 0].text(x, y, text, clip_on=True, verticalalignment='top', **kw)
 
+    if xlim is not None:
+        for axis in ax[:, 0]:
+            axis.set_xlim(*xlim)
+
+    for axis in ax[:, 0]:
+        axis.format_coord = lambda x, y: 'x={:g}, y={:g}'.format(x, y)
+
+    # Add red lines for frame numbers if provided
+    if red_lines_frames is not None:
+        print(f"Adding red lines at frame numbers: {red_lines_frames}")  # Debug print
+        for frame in red_lines_frames:
+            for axis in ax[:, 0]:
+                if xlim is None or xlim[0] <= frame <= xlim[0]:
+                    axis.axvline(frame, color='red', linestyle='--', alpha=0.7)
+
+    if minutes:
+        ax[-1, 0].set_xlabel("time (min)")
+    else:
+        ax[-1, 0].set_xlabel("time (s)")
+
     xlim = ax[-1, 0].get_xlim()
     xticks = list(ax[-1, 0].get_xticks())
     xtick_labels = list(ax[-1, 0].get_xticklabels())
@@ -464,20 +484,7 @@ def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing
     ax[-1, 0].set_xticklabels(xtick_labels + [""] * len(set(last_half_times)))
     ax[-1, 0].set_xlim(xlim)
 
-    if minutes:
-        ax[-1, 0].set_xlabel("time (min)")
-    else:
-        ax[-1, 0].set_xlabel("time (s)")
 
-    # ax[0,0].set_xlim(xlim)
-
-    for axis in ax[:, 0]:
-        axis.format_coord = lambda x, y: 'x={:g}, y={:g}'.format(x, y)
-
-    for axis in ax[:, 0]:
-        axis: plt.Axes
-        for line in red_lines:
-            axis.axvline(line, color='red', alpha=.5)
 
     if show_title:
         ax[0, 0].set_title(" ".join(to_print))
