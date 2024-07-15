@@ -16,6 +16,7 @@ dependencies:
   - pynwb
   - scikit-image
   - coverage
+  - yapf
   - dandi
   - fsspec
   - requests

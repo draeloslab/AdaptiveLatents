@@ -24,11 +24,6 @@ pip install -U "jax[cuda12]"
 # test if everything is working
 python workspace/main.py # this should produce a gif in the current working directory
 pytest .
-
-# check test code coverage
-coverage run -m pytest --longrun
-coverage html
-open tests/reports/coverage-html/index.html 2>/dev/null
 ```
 
 
@@ -38,6 +33,16 @@ Our algorithm is implemented in python with some extra packages including: numpy
 We used python version 3.9 and conda to install the libraries listed in the environment file. 
 We provide an environment file for use with conda to create a new environment with these requirements, though we note that jax requires additional setup for GPU integration (https://github.com/google/jax). 
 
+# Development
+```bash
+# check test code coverage
+coverage run -m pytest --longrun
+coverage html
+open tests/reports/coverage-html/index.html 2>/dev/null
+
+# run the yapf formatter
+yapf --in-place --recursive . --exclude 'workspace/datasets/*'
+```
 
 
 ## Refrence
