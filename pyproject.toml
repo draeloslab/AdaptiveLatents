@@ -33,6 +33,11 @@ SPACE_BETWEEN_ENDING_COMMA_AND_CLOSING_BRACKET=false
 COALESCE_BRACKETS=true
 COLUMN_LIMIT=250
 
+[tool.yapfignore]
+ignore_patterns=[
+    "workspace/datasets/*"
+]
+
 [tool.coverage.report]
 exclude_also = [
     # Don't complain if non-runnable code isn't run:
