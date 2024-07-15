@@ -8,8 +8,9 @@ if TYPE_CHECKING:
     import adaptive_latents
     from adaptive_latents import BWRun
 
-def _ellipse_r(a,b,theta):
-    return a*b / np.sqrt((np.cos(theta)*b)**2 + (np.sin(theta)*a)**2)
+
+def _ellipse_r(a, b, theta):
+    return a * b / np.sqrt((np.cos(theta) * b)**2 + (np.sin(theta) * a)**2)
 
 
 def add_2d_bubble(ax, el, center, n_sds, facecolor='#ed6713', name=None, alpha=1., name_theta=45, show_name=True):
@@ -22,7 +23,7 @@ def add_2d_bubble(ax, el, center, n_sds, facecolor='#ed6713', name=None, alpha=1
     center = proj_mat @ center
 
     u, s, v = np.linalg.svd(sig)
-    width, height = np.sqrt(s[0]) * n_sds, np.sqrt(s[1]) * n_sds # note width is always bigger
+    width, height = np.sqrt(s[0]) * n_sds, np.sqrt(s[1]) * n_sds  # note width is always bigger
     angle = atan2(v[0, 1], v[0, 0]) * 360 / (2 * np.pi)
     el = Ellipse((center[0], center[1]), width, height, angle=angle, zorder=8)
     el.set_alpha(alpha)
@@ -42,8 +43,7 @@ def show_bubbles_2d(ax, data, bw, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3
     L = bw.L
     n_obs = np.array(bw.n_obs)
     ax.cla()
-    ax.scatter(data[:, dim_1], data[:, dim_2], s=5, color='#004cff',
-               alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
+    ax.scatter(data[:, dim_1], data[:, dim_2], s=5, color='#004cff', alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
     if tail_length > 0:
         start = max(data.shape[0] - tail_length, 0)
         ax.plot(data[start:, 0], data[start:, 1], linewidth=3, color='#004cff', alpha=.5)
@@ -51,11 +51,11 @@ def show_bubbles_2d(ax, data, bw, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3
     if not no_bubbles:
         for n in reversed(np.arange(A.shape[0])):
             color = '#ed6713'
-            alpha = .4*alpha_coefficient
+            alpha = .4 * alpha_coefficient
             if n in bw.dead_nodes:
                 color = '#000000'
-                alpha = 0.05 *alpha_coefficient
-            add_2d_bubble(ax, L[n], mu[n], n_sds, name=n, facecolor=color,  alpha=alpha, show_name=show_names, name_theta=name_theta)
+                alpha = 0.05 * alpha_coefficient
+            add_2d_bubble(ax, L[n], mu[n], n_sds, name=n, facecolor=color, alpha=alpha, show_name=show_names, name_theta=name_theta)
 
         mask = np.ones(mu.shape[0], dtype=bool)
         mask[n_obs < .1] = False
@@ -67,17 +67,16 @@ def show_bubbles_2d(ax, data, bw, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3
 def _limits(data):
     low = min(data)
     high = max(data)
-    return (high - low)/2, (high + low)/2
+    return (high-low) / 2, (high+low) / 2
 
 
 def use_bigger_lims_from_data(ax, data, padding_proportion=0.05):
-    x_span, x_center = _limits(data[:,0])
+    x_span, x_center = _limits(data[:, 0])
     x_span *= (1 + padding_proportion/2)
     current_xlim = ax.get_xlim()
     ax.set_xlim([min(current_xlim[0], x_center - x_span), max(current_xlim[1], x_center + x_span)])
 
-
-    y_span, y_center = _limits(data[:,1])
+    y_span, y_center = _limits(data[:, 1])
     y_span *= (1 + padding_proportion/2)
     current_ylim = ax.get_ylim()
     ax.set_ylim([min(current_ylim[0], y_center - y_span), max(current_ylim[1], y_center + y_span)])
@@ -99,22 +98,20 @@ def use_bigger_lims(ax, old_lims=None, y=True, x=True):
 
 def show_data_2d(ax, data, bw, n=10):
     ax.cla()
-    ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff',
-               alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
+    ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff', alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
 
-    start = max(data.shape[0] - n,0)
+    start = max(data.shape[0] - n, 0)
     ax.plot(data[start:, 0], data[start:, 1], linewidth=3, color='#004cff', alpha=.5)
     use_bigger_lims_from_data(ax, data)
 
 
 def show_active_bubbles_2d(ax, data, bw, name_theta=45, n_sds=3, history_length=1):
     ax.cla()
-    ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff',
-               alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
+    ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff', alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
     # ax.scatter(data[-1, 0], data[-1, 1], s=10, color='red')
 
     if history_length > 1:
-        start = max(data.shape[0] - history_length,0)
+        start = max(data.shape[0] - history_length, 0)
         ax.plot(data[start:, 0], data[start:, 1], linewidth=3, color='#af05ed', alpha=.5)
 
     to_draw = np.argsort(np.array(bw.alpha))[-3:]
@@ -127,12 +124,11 @@ def show_active_bubbles_2d(ax, data, bw, name_theta=45, n_sds=3, history_length=
 
 def show_active_bubbles_and_connections_2d(ax, data, bw, name_theta=45, n_sds=3, history_length=1):
     ax.cla()
-    ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff',
-               alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
+    ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff', alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
     # ax.scatter(data[-1, 0], data[-1, 1], s=10, color='red')
 
     if history_length > 1:
-        start = max(data.shape[0] - history_length,0)
+        start = max(data.shape[0] - history_length, 0)
         ax.plot(data[start:, 0], data[start:, 1], linewidth=3, color='#af05ed', alpha=.5)
 
     to_draw = np.argsort(np.array(bw.alpha))[-3:]
@@ -142,7 +138,7 @@ def show_active_bubbles_and_connections_2d(ax, data, bw, name_theta=45, n_sds=3,
     for i, n in enumerate(to_draw):
         add_2d_bubble(ax, bw.L[n], bw.mu[n], n_sds, name=n, alpha=opacities[i], name_theta=name_theta)
 
-        if i==2:
+        if i == 2:
             connections = np.array(bw.A[n])
             self_connection = connections[n]
             other_connection = np.array(connections)
@@ -152,7 +148,7 @@ def show_active_bubbles_and_connections_2d(ax, data, bw, name_theta=45, n_sds=3,
             for j, m in enumerate(c_to_draw):
                 if n != m:
                     line = np.array(bw.mu)[[n, m]]
-                    ax.plot(line[:,0], line[:,1], color='k', alpha=1)
+                    ax.plot(line[:, 0], line[:, 1], color='k', alpha=1)
 
 
 def show_A(ax, fig, bw, show_log=False):
@@ -163,7 +159,6 @@ def show_A(ax, fig, bw, show_log=False):
         A = np.log(A)
     img = ax.imshow(A, aspect='equal', interpolation='nearest')
     # fig.colorbar(img)
-
 
     ax.set_title("Transition Matrix (A)")
     ax.set_xlabel("To")
@@ -197,7 +192,7 @@ def show_alpha(ax, br, show_log=False):
     live_nodes = [x for x in np.arange(br.bw.N) if x not in br.bw.dead_nodes]
     ax.set_yticks(live_nodes)
     if len(live_nodes) > 20:
-        ax.set_yticklabels([str(x) if idx % (len(live_nodes)//20) == 0 else "" for idx, x in enumerate(live_nodes)])
+        ax.set_yticklabels([str(x) if idx % (len(live_nodes) // 20) == 0 else "" for idx, x in enumerate(live_nodes)])
     else:
         ax.set_yticklabels([str(x) for x in live_nodes])
     ax.set_ylabel("bubble")
@@ -232,7 +227,7 @@ def show_behavior(ax, br, offset=1):
     ax.cla()
     beh, beh_t = br.output_ds.get_history()
     ax.plot(beh_t[-20:], beh[-20:], linewidth=3, color='k')
-    ax.plot(beh_t[-20:], br.output_offset_variable_history['beh_pred'][offset][-20-offset:-offset], linewidth=3, alpha=.5)
+    ax.plot(beh_t[-20:], br.output_offset_variable_history['beh_pred'][offset][-20 - offset:-offset], linewidth=3, alpha=.5)
     ax.set_title("Behavior")
     ax.set_xticklabels([])
     use_bigger_lims(ax, old_lims, x=False)
@@ -312,7 +307,7 @@ def show_nstep_pdf(ax, br, other_axis, fig, hmm=None, method="br", offset=1, sho
                         mu = emission_model.means[k]
                         sigma = emission_model.covariances[k]
                         displacement = x - mu
-                        pdf_p_vec[k] = 1/(np.sqrt((2*np.pi)**mu.size * np.linalg.det(sigma))) * np.exp(-1/2 * displacement.T @ np.linalg.inv(sigma) @ displacement)
+                        pdf_p_vec[k] = 1 / (np.sqrt((2 * np.pi)**mu.size * np.linalg.det(sigma))) * np.exp(-1 / 2 * displacement.T @ np.linalg.inv(sigma) @ displacement)
 
                     pdf[i, j] = state_p_vec @ np.linalg.matrix_power(hmm.transition_matrix, offset) @ pdf_p_vec
 
@@ -334,7 +329,6 @@ def show_nstep_pdf(ax, br, other_axis, fig, hmm=None, method="br", offset=1, sho
     ax.set_title(f"{offset}-step pred.")
 
 
-
 def _one_sided_ewma(data, com=100):
     import pandas as pd
     return pd.DataFrame(data=dict(data=data)).ewm(com).mean()["data"]
@@ -342,28 +336,31 @@ def _one_sided_ewma(data, com=100):
 
 def _deduce_bw_parameters(bw):
     bw: adaptive_latents.Bubblewrap
-    return dict(dim=bw.d,
-                num=bw.N,
-                seed=bw.seed,
-                M=bw.M,
-                step=bw.step,
-                lam=bw.lam_0,
-                eps=bw.eps,
-                nu=bw.nu,
-                B_thresh=bw.B_thresh,
-                n_thresh=bw.n_thresh,
-                batch=bw.batch,
-                batch_size=bw.batch_size,
-                go_fast=bw.go_fast,
-                copy_row_on_teleport=bw.copy_row_on_teleport,
-                num_grad_q=bw.num_grad_q,
-                backend=bw.backend_note,
-                precision=bw.precision_note,
-                sigma_orig_adjustment = bw.sigma_orig_adjust,
-                )
+    return dict(
+        dim=bw.d,
+        num=bw.N,
+        seed=bw.seed,
+        M=bw.M,
+        step=bw.step,
+        lam=bw.lam_0,
+        eps=bw.eps,
+        nu=bw.nu,
+        B_thresh=bw.B_thresh,
+        n_thresh=bw.n_thresh,
+        batch=bw.batch,
+        batch_size=bw.batch_size,
+        go_fast=bw.go_fast,
+        copy_row_on_teleport=bw.copy_row_on_teleport,
+        num_grad_q=bw.num_grad_q,
+        backend=bw.backend_note,
+        precision=bw.precision_note,
+        sigma_orig_adjustment=bw.sigma_orig_adjust,
+    )
 
 
-def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing_scale=50, show_legend=True, show_title=True, red_lines=(), minutes=False, include_behavior=True, include_trendlines=True, red_lines_frames=None, xlim_start=None, xlim_end=None):
+def compare_metrics(
+    brs, offset, colors=None, show_target_times=False, smoothing_scale=50, show_legend=True, show_title=True, red_lines=(), minutes=False, include_behavior=True, include_trendlines=True, red_lines_frames=None, xlim_start=None, xlim_end=None
+):
     colors = ["black"] + [f"C{i}" for i in range(len(brs) - 1)]
     ps = [_deduce_bw_parameters(br.bw) for br in brs]
     keys = set([leaf for tree in ps for leaf in tree.keys()])
@@ -383,7 +380,7 @@ def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing
     else:
         include_behavior = False
 
-    fig, ax = plt.subplots(figsize=(14, 5), nrows=2+include_behavior, ncols=2, sharex='col', gridspec_kw={'width_ratios': [7, 1]})
+    fig, ax = plt.subplots(figsize=(14, 5), nrows=2 + include_behavior, ncols=2, sharex='col', gridspec_kw={'width_ratios': [7, 1]})
     fig: plt.Figure
     to_write = [[] for _ in range(ax.shape[0])]
     last_half_times = []
@@ -433,7 +430,7 @@ def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing
         to_write[1].append((idx, f"{metrics['entropy']:.3f}", dict(color=c)))
 
         if include_behavior:
-            beh_error = np.squeeze(br.h.beh_error[offset] ** 2)
+            beh_error = np.squeeze(br.h.beh_error[offset]**2)
             c = 'black'
             if colors:
                 c = colors[idx]
@@ -458,7 +455,7 @@ def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing
 
     for i, l in enumerate(to_write):
         for idx, text, kw in l:
-            x, y = .93, .93 - .1 * idx
+            x, y = .93, .93 - .1*idx
             x, y = ax[i, 0].transLimits.inverted().transform([x, y])
             ax[i, 0].text(x, y, text, clip_on=True, verticalalignment='top', **kw)
 
