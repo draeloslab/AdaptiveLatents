@@ -8,6 +8,7 @@ from adaptive_latents import NumpyTimedDataSource
 from skimage.transform import resize
 from pynwb import NWBHDF5IO
 import pathlib
+import pandas as pd
 from abc import ABC, abstractmethod
 
 from contextlib import contextmanager
@@ -61,22 +62,6 @@ class MultiDataset(Dataset):
     @abstractmethod
     def get_sub_datasets(self):
         pass
-
-
-class Low21Dataset(MultiDataset):
-    doi = "https://doi.org/10.17632/hntn6m2pgk.1"
-    automatically_downloadable = True
-    dataset_base_path = DATA_BASE_PATH / 'low21'
-
-    def acquire(self, sub_dataset_identifier=None):
-        if len(list(self.dataset_base_path.glob("*.npy"))) == 0:
-            datahugger.get(self.doi, self.dataset_base_path)
-
-    # def construct(self, sub_dataset_identifier=None):
-    #     pass
-    #
-    # def get_sub_datasets(self):
-    #     pass
 
 
 class Odoherty21Dataset(MultiDataset):
@@ -550,12 +535,73 @@ class Musall19Dataset(Dataset):
 
     def acquire(self):
         if not self.inner_data_path.is_dir():
-            # TODO:
+            # TODO: I think this is actually publicly downloadable
             print(f"""\
-Please ask Anne Draelos where to download the Musal data.
+Please ask Anne Draelos where to download the Musal data.\
 """)
             raise FileNotFoundError()
 
 
+class Naumann24uDataset(MultiDataset):
+    doi = None
+    automatically_downloadable = False
+    dataset_base_path = DATA_BASE_PATH / "naumann24u"
+
+    def _construct(self, sub_dataset_identifier):
+        stim, C = self.acquire(sub_dataset_identifier)
+        stim_df = pd.DataFrame({'sample': stim[:, 0], 'target_neuron': stim[:,2], 'stim_num': stim[:,1]})
+
+        neurons = {}
+        for neuron_id in stim_df['target_neuron']:
+            locations = stim[stim[:,2] == neuron_id, 3:]
+            assert np.all(np.std(locations, axis=0) == 0)
+            neurons[neuron_id] = locations[0,:]
+        neuron_df = pd.DataFrame.from_dict(neurons, orient='index')
+
+        return C, stim_df, neuron_df
+
+    def get_sub_datasets(self):
+        return [
+            "output_020424_ds1",
+            "output_012824_ds3",
+            "output_012824_ds6_fish3",
+        ]
+
+    def acquire(self, sub_dataset_identifier):
+        base = self.dataset_base_path / sub_dataset_identifier
+        if not base.is_dir():
+            print(base)
+            print("""\
+Please ask Anne Draelos how to acquire the Naumann lab dataset we use here. (hint: box)\
+""")
+            raise FileNotFoundError()
+        stim = np.load(base/'photostims.npy')
+
+        c_filename = 'raw_C.txt'
+        if sub_dataset_identifier == 'output_020424_ds1':
+            c_filename = 'analysis_proc_C.txt'
+        C = np.loadtxt(base/c_filename)
+
+        return stim, C
+
 if __name__ == '__main__':
-    pass
+    d = Naumann24uDataset()
+    for sub_dataset in d.get_sub_datasets():
+        print(d.construct(sub_dataset)[0].shape)
+
+"""
+class Low21Dataset(MultiDataset):
+    doi = "https://doi.org/10.17632/hntn6m2pgk.1"
+    automatically_downloadable = True
+    dataset_base_path = DATA_BASE_PATH / 'low21'
+
+    def acquire(self, sub_dataset_identifier=None):
+        if len(list(self.dataset_base_path.glob("*.npy"))) == 0:
+            datahugger.get(self.doi, self.dataset_base_path)
+
+    # def construct(self, sub_dataset_identifier=None):
+    #     pass
+    #
+    # def get_sub_datasets(self):
+    #     pass
+"""
