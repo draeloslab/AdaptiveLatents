@@ -25,6 +25,10 @@ DATA_BASE_PATH = pathlib.Path(__file__).parent.resolve() / 'datasets'
 
 
 class Dataset(ABC):
+    neural_data: NumpyTimedDataSource
+    behavioral_data: NumpyTimedDataSource
+    stimulations = None
+
     @property
     @abstractmethod
     def doi(self):
@@ -39,41 +43,20 @@ class Dataset(ABC):
     def acquire(self, *args, **kwargs):
         pass
 
-    @abstractmethod
-    def construct(self, *args, **kwargs) -> (NumpyTimedDataSource, NumpyTimedDataSource):
-        pass
 
-
-class MultiDataset(Dataset):
-    @abstractmethod
-    def acquire(self, sub_dataset_identifier):
-        "if the class can just get the sub_dataset, it will, but it might also download all of them"
-        pass
-
-    def construct(self, sub_dataset_identifier=None):
-        if sub_dataset_identifier is None:
-            sub_dataset_identifier = self.get_sub_datasets()[0]
-        return self._construct(sub_dataset_identifier)
-
-    @abstractmethod
-    def _construct(self, sub_dataset_identifier):
-        pass
-
-    @abstractmethod
-    def get_sub_datasets(self):
-        pass
-
-
-class Odoherty21Dataset(MultiDataset):
+class Odoherty21Dataset(Dataset):
     doi = 'https://doi.org/10.5281/zenodo.3854034'
     dataset_base_path = DATA_BASE_PATH / "odoherty21"
     automatically_downloadable = True
+    sub_datasets = ('indy_20160407_02.mat',)
 
-    def __init__(self, bin_width=0.03):
+    def __init__(self, bin_width=0.03, sub_dataset_identifier=sub_datasets[0]):
+        self.sub_dataset = sub_dataset_identifier
         self.bin_width = bin_width
+        A, behavior, a_t, beh_t = self.construct(sub_dataset_identifier)
+        self.neural_data = NumpyTimedDataSource(A, a_t)
+        self.behavioral_data = NumpyTimedDataSource(behavior, beh_t)
 
-    def get_sub_datasets(self):
-        return ['indy_20160407_02.mat']
 
     def acquire(self, sub_dataset_identifier):
         if not (self.dataset_base_path / sub_dataset_identifier).is_file():
@@ -86,7 +69,7 @@ class Odoherty21Dataset(MultiDataset):
                 datahugger.get(self.doi, self.dataset_base_path)
         return h5py.File(self.dataset_base_path / sub_dataset_identifier, 'r')
 
-    def _construct(self, sub_dataset_identifier):
+    def construct(self, sub_dataset_identifier):
         fhan = self.acquire(sub_dataset_identifier)
 
         # this is a first pass I'm using to find the first and last spikes
@@ -134,25 +117,24 @@ class Odoherty21Dataset(MultiDataset):
         return A, raw_behavior, bin_centers, t
 
 
-class Schaffer23Datset(MultiDataset):
+class Schaffer23Datset(Dataset):
     doi = 'https://doi.org/10.6084/m9.figshare.23749074'
     dataset_base_path = DATA_BASE_PATH / 'schaffer23'
     automatically_downloadable = True
+    sub_datasets = (
+        '2019_06_28_fly2.nwb', '2019_07_01_fly2.nwb', '2019_08_07_fly2.nwb', '2019_08_14_fly1.nwb',
+        '2019_08_14_fly2.nwb', '2019_08_14_fly3_2.nwb', '2019_08_20_fly2.nwb', '2019_08_20_fly3.nwb',
+        '2019_10_02_fly2.nwb', '2019_10_10_fly3.nwb', '2019_10_14_fly2.nwb', '2019_10_14_fly3.nwb',
+        '2019_10_14_fly4.nwb', '2019_10_18_fly2.nwb', '2019_10_18_fly3.nwb', '2019_10_21_fly1.nwb'
+    )
 
-    def get_sub_datasets(self):
-        return [
-            '2019_06_28_fly2.nwb', '2019_07_01_fly2.nwb', '2019_08_07_fly2.nwb', '2019_08_14_fly1.nwb', '2019_08_14_fly2.nwb', '2019_08_14_fly3_2.nwb', '2019_08_20_fly2.nwb', '2019_08_20_fly3.nwb', '2019_10_02_fly2.nwb', '2019_10_10_fly3.nwb',
-            '2019_10_14_fly2.nwb', '2019_10_14_fly3.nwb', '2019_10_14_fly4.nwb', '2019_10_18_fly2.nwb', '2019_10_18_fly3.nwb', '2019_10_21_fly1.nwb'
-        ]
+    def __init__(self, sub_dataset_identifier=sub_datasets[0]):
+        self.sub_dataset = sub_dataset_identifier
+        A, beh, t, t = self.construct(sub_dataset_identifier)
+        self.neural_data = NumpyTimedDataSource(A,t)
+        self.behavioral_data = NumpyTimedDataSource(beh,t)
 
-    def acquire(self, sub_dataset_identifier):
-        if len(list(self.dataset_base_path.glob("*.nwb"))) == 0:
-            datahugger.get(self.doi, self.dataset_base_path)
-
-        if sub_dataset_identifier is not None:
-            return NWBHDF5IO(self.dataset_base_path / sub_dataset_identifier, mode="r", load_namespaces=True)
-
-    def _construct(self, sub_dataset_identifier):
+    def construct(self, sub_dataset_identifier):
         with self.acquire(sub_dataset_identifier) as fhan:
             file = fhan.read()
             A = file.processing["ophys"].data_interfaces["DfOverF"].roi_response_series['RoiResponseSeries'].data[:]
@@ -160,6 +142,13 @@ class Schaffer23Datset(MultiDataset):
             t = file.processing['behavioral state'].data_interfaces['behavioral state'].timestamps[:]
             # t = file.processing["behavior"].data_interfaces["ball_motion"].timestamps[:]
         return A, beh, t, t
+
+    def acquire(self, sub_dataset_identifier):
+        if len(list(self.dataset_base_path.glob("*.nwb"))) == 0:
+            datahugger.get(self.doi, self.dataset_base_path)
+
+        if sub_dataset_identifier is not None:
+            return NWBHDF5IO(self.dataset_base_path / sub_dataset_identifier, mode="r", load_namespaces=True)
 
 
 class Churchland22Dataset(Dataset):
@@ -170,6 +159,10 @@ class Churchland22Dataset(Dataset):
 
     def __init__(self, bin_width=0.03):
         self.bin_width = bin_width
+        neural_data, hand_position, nerual_t, hand_t = self.construct()
+        self.neural_data = NumpyTimedDataSource(neural_data, nerual_t)
+        self.behavioral_data = NumpyTimedDataSource(hand_position, hand_t)
+
 
     @contextmanager
     def acquire(self):
@@ -239,6 +232,9 @@ class Nason20Dataset(Dataset):
 
     def __init__(self, bin_width=0.15):
         self.bin_width = bin_width
+        a, beh, t, t = self.construct()
+        self.neural_data = NumpyTimedDataSource(a, t)
+        self.behavioral_data = NumpyTimedDataSource(beh, t)
 
     def acquire(self):
         file = self.dataset_base_path / 'OnlineTrainingData.mat'
@@ -293,16 +289,18 @@ Then put it in '{self.dataset_base_path}'.
         return A, beh, t, t
 
 
-class Peyrache15Dataset(MultiDataset):
+class Peyrache15Dataset(Dataset):
     doi = 'http://dx.doi.org/10.6080/K0G15XS1'
     dataset_base_path = DATA_BASE_PATH / 'peyrache15'
     automatically_downloadable = False
+    sub_datasets = ("Mouse12-120806", "Mouse12-120807", "Mouse24-131216")
 
-    def __init__(self, bin_width=0.03):
+    def __init__(self, sub_dataset_identifier=sub_datasets[0], bin_width=0.03):
+        self.sub_dataset = sub_dataset_identifier
         self.bin_width = bin_width
-
-    def get_sub_datasets(self):
-        return ["Mouse12-120806", "Mouse12-120807", "Mouse24-131216"]
+        A, raw_behavior, a_t, beh_t = self.construct(sub_dataset_identifier)
+        self.neural_data = NumpyTimedDataSource(A, a_t)
+        self.behavioral_data = NumpyTimedDataSource(raw_behavior, beh_t)
 
     def acquire(self, sub_dataset_identifier):
         if not (self.dataset_base_path / sub_dataset_identifier).is_dir():
@@ -311,7 +309,7 @@ Please download {sub_dataset_identifier} from {self.doi} and put it in {self.dat
 """)
             raise FileNotFoundError()
 
-    def _construct(self, sub_dataset_identifier):
+    def construct(self, sub_dataset_identifier):
         self.acquire(sub_dataset_identifier)
 
         @save_to_cache("peyrache15_data")
@@ -412,6 +410,10 @@ class Temmar24uDataset(Dataset):
         self.include_acceleration = include_acceleration
         self.bin_width = .05  # in seconds, this is in jgould_first_extraction.mat
 
+        neural_data, behavioral_data, neural_t, behavioral_t = self.construct()
+        self.neural_data = NumpyTimedDataSource(neural_data, neural_t)
+        self.behavioral_data = NumpyTimedDataSource(behavioral_data, behavioral_t)
+
     def acquire(self):
         file = self.dataset_base_path / 'jgould_first_extraction.mat'
         if not file.is_file():
@@ -464,6 +466,10 @@ class Musall19Dataset(Dataset):
         self.cam = cam  # either 1 or 2
         self.video_target_dim = video_target_dim
         self.resize_factor = resize_factor
+
+        A, d, ca_times, t = self.construct()
+        self.neural_data = NumpyTimedDataSource(A, ca_times)
+        self.behavioral_data = NumpyTimedDataSource(d, t)
 
     def construct(self):
         self.acquire()
@@ -542,30 +548,33 @@ Please ask Anne Draelos where to download the Musal data.\
             raise FileNotFoundError()
 
 
-class Naumann24uDataset(MultiDataset):
+class Naumann24uDataset(Dataset):
     doi = None
     automatically_downloadable = False
     dataset_base_path = DATA_BASE_PATH / "naumann24u"
+    sub_datasets = (
+        "output_020424_ds1",
+        "output_012824_ds3",
+        "output_012824_ds6_fish3",
+    )
 
-    def _construct(self, sub_dataset_identifier):
+    def __init__(self, sub_dataset_identifier=sub_datasets[0]):
+        self.sub_dataset = sub_dataset_identifier
+        self.C, self.stimulations, self.neuron_df = self.construct(sub_dataset_identifier)
+        self.neural_data = NumpyTimedDataSource(self.C.T, np.arange(self.C.shape[1]))
+
+    def construct(self, sub_dataset_identifier):
         stim, C = self.acquire(sub_dataset_identifier)
-        stim_df = pd.DataFrame({'sample': stim[:, 0], 'target_neuron': stim[:,2], 'stim_num': stim[:,1]})
+        stim_df = pd.DataFrame({'sample': stim[:, 0], 'target_neuron': stim[:,2]})
 
         neurons = {}
         for neuron_id in stim_df['target_neuron']:
             locations = stim[stim[:,2] == neuron_id, 3:]
             assert np.all(np.std(locations, axis=0) == 0)
             neurons[neuron_id] = locations[0,:]
-        neuron_df = pd.DataFrame.from_dict(neurons, orient='index')
+        neuron_df = pd.DataFrame.from_dict(neurons, orient='index', columns=['x', 'y'])
 
         return C, stim_df, neuron_df
-
-    def get_sub_datasets(self):
-        return [
-            "output_020424_ds1",
-            "output_012824_ds3",
-            "output_012824_ds6_fish3",
-        ]
 
     def acquire(self, sub_dataset_identifier):
         base = self.dataset_base_path / sub_dataset_identifier
@@ -583,11 +592,6 @@ Please ask Anne Draelos how to acquire the Naumann lab dataset we use here. (hin
         C = np.loadtxt(base/c_filename)
 
         return stim, C
-
-if __name__ == '__main__':
-    d = Naumann24uDataset()
-    for sub_dataset in d.get_sub_datasets():
-        print(d.construct(sub_dataset)[0].shape)
 
 """
 class Low21Dataset(MultiDataset):
