@@ -108,9 +108,10 @@ def prosvd_data(input_arr, output_d, init_size, centering=True):
     return np.array(output).reshape((-1, output_d))
 
 
-def prosvd_data_with_Qs(input_arr, output_d, init_size):
+def prosvd_data_with_Qs(input_arr, output_d, init_size, pro_arguments=None):
     # todo: combine this with prosvd_data
-    pro = proSVD(k=output_d)
+    pro_arguments = pro_arguments or {}
+    pro = proSVD(k=output_d, **pro_arguments)
     pro.initialize(input_arr[:init_size].T)
 
     output = []
