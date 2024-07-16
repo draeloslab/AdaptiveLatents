@@ -13,10 +13,10 @@ cache_path: ./al_generated/caches
 default_parameters:
   Bubblewrap:
     num: 200
-    lam: 1e-3
-    nu: 1e-3
-    eps: 1e-3
-    step: 8e-2
+    lam: 1.0e-3
+    nu: 1.0e-3
+    eps: 1.0e-3
+    step: 8.0e-2
     M: 30
     B_thresh: -10
     batch: False
@@ -26,4 +26,4 @@ default_parameters:
     num_grad_q: 1
     copy_row_on_teleport: True
     sigma_orig_adjustment: 0
-    n_thresh: 5e-4
+    n_thresh: 5.0e-4

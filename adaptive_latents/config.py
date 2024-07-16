@@ -47,17 +47,6 @@ def get_config():
     for key in ['bwrun_save_path', 'cache_path']:
         config[key] = pathlib.Path(config[key]).resolve()
 
-    d = config['default_parameters']['Bubblewrap']
-    # this is inelegant
-    for key in d:
-        try:
-            d[key] = float(d[key])
-            if d[key] % 1 == 0:
-                d[key] = int(d[key])
-        except ValueError:
-            d[key] = bool(d[key])
-    d['seed'] = int(d['seed'])
-
     return freeze_recursively(config)
 
 
