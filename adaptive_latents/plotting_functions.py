@@ -469,7 +469,7 @@ def compare_metrics(brs, offset, colors=None, show_target_times=False, smoothing
         print(f"Adding red lines at frame numbers: {red_lines_frames}")  # Debug print
         for frame in red_lines_frames:
             for axis in ax[:, 0]:
-                if xlim is None or xlim[0] <= frame <= xlim[0]:
+                if xlim is None or xlim[0] <= frame <= xlim[1]:
                     axis.axvline(frame, color='red', linestyle='--', alpha=0.7)
 
     if minutes:
