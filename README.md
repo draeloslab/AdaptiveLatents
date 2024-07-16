@@ -35,6 +35,9 @@ We provide an environment file for use with conda to create a new environment wi
 
 # Development
 ```bash
+# check if most tests pass
+pytest . -n 5 # the `-n 5` uses 5 processes; this is nice for a quick check
+
 # check test code coverage
 coverage run -m pytest --longrun
 coverage html
