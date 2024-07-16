@@ -24,15 +24,21 @@ class TestDatasets:
         datasets.Odoherty21Dataset,
         datasets.Schaffer23Datset,
         datasets.Peyrache15Dataset,
+        datasets.Naumann24uDataset,
     ]
 
-    @pytest.mark.parametrize("dataset_class", singleton_datsets)
-    def test_can_load_singletons(self, dataset_class):
-        d = dataset_class()
-        d.construct()
+    @pytest.mark.parametrize("DatasetClass", singleton_datsets)
+    def test_can_load_singletons(self, DatasetClass):
+        d = DatasetClass()
+        assert d.neural_data is not None
+        assert d.behavioral_data is not None
 
-    @pytest.mark.parametrize("dataset_class", mult_datasets)
-    def test_can_load_multis(self, dataset_class):
-        d = dataset_class()
-        for sub_dataset in d.get_sub_datasets():
-            d.construct(sub_dataset_identifier=sub_dataset)
+    @pytest.mark.parametrize("DatasetClass", mult_datasets)
+    def test_can_load_multis(self, DatasetClass):
+        for sub_dataset in DatasetClass.sub_datasets:
+            d = DatasetClass(sub_dataset_identifier=sub_dataset)
+            assert hasattr(d, 'sub_dataset')
+
+            assert d.neural_data is not None
+            assert d.behavioral_data is not None
+            assert d.stimulations is not None
