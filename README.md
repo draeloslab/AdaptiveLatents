@@ -47,25 +47,3 @@ yapf --in-place --recursive .
 
 ## Refrence
 The core Bubblewrap algorithm was initially described here: ['Bubblewrap: Online tiling and real-time flow prediction on neural manifolds'](https://proceedings.neurips.cc/paper/2021/hash/307eb8ee16198da891c521eca21464c1-Abstract.html).
-
-[//]: # (## Refactor plan)
-
-[//]: # (* the bubblewrap class should have a static run method in addition to BWRun)
-
-[//]: # (* defalut_parameters and the default adaptive_latents_config.yaml should be united &#40;with a default?&#41;)
-
-[//]: # (* I should move the filesystem-dependent files to a new repo or at least the scripts folder)
-
-[//]: # (* move the `dataset_plots` notebook to a function)
-
-[//]: # (* general pipeline component interface so we can share a logger?)
-
-[//]: # (  * learn from sklearn?)
-
-[//]: # (* log caching &#40;and make it local&#41;)
-
-[//]: # (* make Indy dataset not have trailing zeros)
-
-[//]: # (* src/ structure)
-
-[//]: # (* hashable TimedDataSource?)
