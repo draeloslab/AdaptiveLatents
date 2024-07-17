@@ -40,7 +40,10 @@ def load_config(path):
 
 def get_config():
     config = load_config(pathlib.Path(files('adaptive_latents')))
-    local_config = load_config(pathlib.Path.cwd())
+    for path in pathlib.Path.cwd().parents:
+        local_config = load_config(path)
+        if len(local_config):
+            break
 
     config = merge_dicts(config, local_config)
 
