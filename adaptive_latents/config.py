@@ -33,7 +33,7 @@ def load_config(file, path_keys):
     with open(file, 'r') as fhan:
         config = yaml.safe_load(fhan)
 
-    for key in path_keys:
+    for key in set(path_keys).intersection(config.keys()):
         config[key] = (file.parent / pathlib.Path(config[key])).resolve()
 
     return config
