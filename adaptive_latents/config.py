@@ -40,7 +40,7 @@ def load_config(file, path_keys):
 
 
 def get_config():
-    path_keys = ['bwrun_save_path', 'cache_path']
+    path_keys = ['bwrun_save_path', 'cache_path', 'animations_path']
     config = load_config(pathlib.Path(files('adaptive_latents')) / CONFIG_FILE_NAME, path_keys)
 
     local_config = {}

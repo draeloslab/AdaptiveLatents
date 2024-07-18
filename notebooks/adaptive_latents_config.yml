@@ -8,6 +8,7 @@ verbose: True
 
 bwrun_save_path: ./al_generated/bw_runs
 cache_path: ./al_generated/caches
+animations_path: ./al_generated/animations
 
 # note that while this configures defaults, they can still be overridden in your code
 default_parameters:
