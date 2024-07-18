@@ -1,14 +1,13 @@
 # todo: this contains state I don't account for in tests
 
 jax_enable_x64: True # this should basically never be false
-jax_platform_name: 'cpu'
+jax_platform_name: 'gpu'
 
 attempt_to_cache: False
 verbose: True
 
 bwrun_save_path: ./al_generated/bw_runs
 cache_path: ./al_generated/caches
-animations_path: ./al_generated/animations
 
 # note that while this configures defaults, they can still be overridden in your code
 default_parameters:
