@@ -31,10 +31,11 @@ class proSVD:
 
         self.n_columns_seen += A_init.shape[1]
 
-    def run_on(self, X):
+    def run_on(self, X, initialization_size=None):
+        initialization_size = initialization_size or X.shape[0]
         if self.Q is None:
-            self.initialize(X[:, :X.shape[0]])
-            X = X[:, X.shape[0]:]
+            self.initialize(X[:, :initialization_size])
+            X = X[:, initialization_size:]
 
         X_reduced = np.zeros((self.k, X.shape[1]))
         for i in np.arange(X.shape[1]):

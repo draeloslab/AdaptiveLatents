@@ -29,34 +29,29 @@ def freeze_recursively(o):
             return o
 
 
-def load_config(path):
-    file = path / CONFIG_FILE_NAME
-    config = {}
-    if file.is_file():
-        with open(file, 'r') as fhan:
-            config = yaml.safe_load(fhan)
+def load_config(file, path_keys):
+    with open(file, 'r') as fhan:
+        config = yaml.safe_load(fhan)
+
+    for key in path_keys:
+        config[key] = (file.parent / pathlib.Path(config[key])).resolve()
+
     return config
 
 
 def get_config():
-    config = load_config(pathlib.Path(files('adaptive_latents')))
-    local_config = load_config(pathlib.Path.cwd())
+    path_keys = ['bwrun_save_path', 'cache_path']
+    config = load_config(pathlib.Path(files('adaptive_latents')) / CONFIG_FILE_NAME, path_keys)
+
+    local_config = {}
+    for path in pathlib.Path.cwd().parents:
+        file = path / CONFIG_FILE_NAME
+        if file.is_file():
+            local_config = load_config(file, path_keys)
+            break
 
     config = merge_dicts(config, local_config)
 
-    for key in ['bwrun_save_path', 'cache_path']:
-        config[key] = pathlib.Path(config[key]).resolve()
-
-    d = config['default_parameters']['Bubblewrap']
-    # this is inelegant
-    for key in d:
-        try:
-            d[key] = float(d[key])
-            if d[key] % 1 == 0:
-                d[key] = int(d[key])
-        except ValueError:
-            d[key] = bool(d[key])
-    d['seed'] = int(d['seed'])
 
     return freeze_recursively(config)
 

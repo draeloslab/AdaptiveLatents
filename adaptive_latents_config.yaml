@@ -1,0 +1,6 @@
+jax_platform_name: 'cpu'
+
+attempt_to_cache: False
+
+bwrun_save_path: ./workspace/al_generated/bw_runs
+cache_path: ./workspace/al_generated/caches
