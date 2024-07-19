@@ -50,6 +50,9 @@ def get_config():
             local_config = load_config(file, path_keys)
             break
 
+    for path in path_keys:
+        print(f"constructing {config[path]}")
+        config[path].mkdir(exist_ok=True, parents=True)
     config = merge_dicts(config, local_config)
 
 
