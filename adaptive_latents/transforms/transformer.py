@@ -22,7 +22,7 @@ class TransformerMixin(ABC):
         """
         super().__init__(**kwargs)
 
-        self.input_streams = PassThroughDict(input_streams or {})
+        self.input_streams = PassThroughDict(input_streams or {0: 'X'})
         self.output_streams = PassThroughDict(output_streams or {})
         self.pipeline_post_fit_hooks = []
         self.log_level = log_level

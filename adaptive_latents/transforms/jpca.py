@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.linalg import block_diag
+from adaptive_latents.transforms import TransformerMixin
 from adaptive_latents.regressions import VanillaOnlineRegressor
 from .utils import save_to_cache, prosvd_data, align_column_spaces
 import tqdm
@@ -8,24 +9,32 @@ from scipy.stats import special_ortho_group
 
 class sjPCA:
     "a streaming implementation of jPCA"
-    def __init__(self, input_d):
+    def __init__(self):
+        self.is_initialized = False
+        self.input_d = None
+        self.H = None
+        self.reg = None
+        self.last_x = None
+        self.last_U = None
+
+    def initialize(self, x):
+        input_d = x.shape[1]
         assert input_d % 2 == 0
         self.input_d = input_d
         self.H = self.make_H(self.input_d)
         self.reg = VanillaOnlineRegressor(input_d=self.H.shape[1], output_d=1, add_intercept=False)
-        self.last_x = None
-        self.last_U = None
+        self.is_initialized = True
+
+        self.last_x = x
 
     def observe(self, x):
-        if self.last_x is None:
-            self.last_x = x
-            return
-
+        assert x.shape[0] == 1
         dx = x - self.last_x
-        rows = self.make_X_tilde(x[None, :]) @ self.H
+        x_tilde = self.make_X_tilde(x)
+        rows = x_tilde @ self.H
         for j in range(self.input_d):
             xx = rows[j]
-            y = dx[j]
+            y = dx[0,j]
             self.reg.observe(xx, y)
 
         self.last_x = x
@@ -87,34 +96,32 @@ class sjPCA:
 
         return X_tilde
 
-    def observe_and_project(self, x):
-        self.observe(x)
+    def project(self, x):
         U = self.get_U()
         return x @ U
 
-    def apply_to_data(self, X, show_tqdm=True):
-        observations = []
-        for i in tqdm.tqdm(range(X.shape[0]), disable=not show_tqdm):
-            observations.append(self.observe_and_project(X[i]))
 
-        return np.array(observations)
+class TransformerSJPCA(TransformerMixin, sjPCA):
+    def partial_fit_transform(self, data, stream=0):
+        if self.input_streams[stream] == 'X':
+            if not self.is_initialized:
+                if not np.any(np.isnan(data)):
+                    self.initialize(data)
+                return np.nan * data
+            else:
+                self.observe(data)
+                return self.project(data)
+        else:
+            return data
 
-
-@save_to_cache("apply_sjpca_and_cache")
-def apply_sjpca_and_cache(input_arr):
-    jp = sjPCA(input_d=input_arr.shape[1])
-    return jp.apply_to_data(input_arr)
-
-
-@save_to_cache("apply_prosvd_and_sjpca_and_cache")
-def _apply_prosvd_and_sjpca_and_cache(input_arr, intermediate_d):
-    input_arr = prosvd_data(input_arr=input_arr, output_d=intermediate_d, init_size=intermediate_d, centering=True)
-    jp = sjPCA(input_d=input_arr.shape[1])
-    return jp.apply_to_data(input_arr)
-
-
-def apply_prosvd_and_sjpca_and_cache(input_arr, intermediate_d, output_d):
-    return _apply_prosvd_and_sjpca_and_cache(input_arr=input_arr, intermediate_d=intermediate_d)[:, :output_d]
+    def transform(self, data, stream=0):
+        if self.input_streams[stream] == 'X':
+            if not self.is_initialized:
+                return np.nan * data
+            else:
+                return self.project(data)
+        else:
+            return data
 
 
 def X_and_X_dot_from_data(X_all):

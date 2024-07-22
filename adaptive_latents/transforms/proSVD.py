@@ -13,6 +13,7 @@ class proSVD:
         self.Q = None
         self.B = None
         self.n_samples_observed = 0
+        self.is_initialized = False
 
     def initialize(self, A_init):
         n, l1 = A_init.shape
@@ -24,6 +25,7 @@ class proSVD:
         self.Q = Q[:, :self.k]
         self.B = B[:self.k, :l1]
         self.n_samples_observed = l1
+        self.is_initialized = True
 
     def add_new_input_channels(self, n):
         self.Q = np.vstack([self.Q, np.zeros(shape=(n, self.Q.shape[1]))])
@@ -74,16 +76,20 @@ class TransformerProSVD(TransformerMixin, proSVD):
 
     def transform(self, data, stream=0):
         if self.input_streams[stream] == 'X':
+            if not self.is_initialized:
+                return np.nan * data
             return self.project(data)
         else:
             return data
 
     def partial_fit_transform(self, data, stream=0):
         if self.input_streams[stream] == 'X':
-            if self.Q is None:
+            if not self.is_initialized:
                 self.init_samples += list(data)
                 if len(self.init_samples) >= self.init_size:
                     self.initialize(np.array(self.init_samples).T)
+                    # return self.transform(data.T, stream).T
+                    # todo: error here
                 return np.nan * data
 
             self.updateSVD(data.T)
