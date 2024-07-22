@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from frozendict import frozendict
+import numpy as np
 
 
 class PassThroughDict(frozendict):
@@ -7,8 +8,8 @@ class PassThroughDict(frozendict):
         return key
 
 
-class Transformer(ABC):
-    def __init__(self, input_streams, output_streams=None):
+class TransformerMixin(ABC):
+    def __init__(self, input_streams=None, output_streams=None, log_level=0, **kwargs):
         """
         Parameters
         ----------
@@ -19,9 +20,12 @@ class Transformer(ABC):
         output_streams: dict[int, int]
             Keys are input streams, values are output streams; this is stream remapping applied after the transformer.
         """
-        self.input_streams = PassThroughDict(input_streams)
+        super().__init__(**kwargs)
+
+        self.input_streams = PassThroughDict(input_streams or {})
         self.output_streams = PassThroughDict(output_streams or {})
         self.pipeline_post_fit_hooks = []
+        self.log_level = log_level
 
     @abstractmethod
     def partial_fit_transform(self, data, stream=0):
@@ -33,14 +37,34 @@ class Transformer(ABC):
         """data should be of shape (n_samples, sample_size)"""
         pass
 
+    def log_for_step(self):
+        pass
+
+
     def offline_fit(self, stream):
         for X in stream:
             self.partial_fit_transform(X)
 
-    def offline_fit_transform(self, generator):
-        for X in generator:
+    def generator_fit_transform(self, iterable):
+        """
+
+        Parameters
+        ----------
+        iterable
+            This will usually be a generator, where each element is a sample from a stream. Each element of the iterator
+             should be a 2-d array.
+
+        Yields
+        -------
+        np.ndarray
+            The processed version of each element of the given iterator.
+        """
+        for X in iterable:
             X = self.partial_fit_transform(X)
             yield X
+
+    def offline_fit_transform(self, iterable):
+        return np.array(list(self.generator_fit_transform(iterable)))
 
     def run_pipeline_post_fit_hooks(self):
         for hook in self.pipeline_post_fit_hooks:
@@ -56,46 +80,9 @@ class Transformer(ABC):
         return [stream, middle_str, self.output_streams[stream]]
 
 
-class Add(Transformer):
-    def __init__(self, to_add, input_streams=None, output_streams=None):
-        input_streams = input_streams or {0: 'X'}
-        super().__init__(input_streams, output_streams)
-        self.to_add = to_add
-
-    def partial_fit_transform(self, data, stream=0):
-        return self.transform(data, stream)
-
-    def transform(self, data, stream=0):
-        if self.input_streams[stream] == 'X':
-            data = data + self.to_add
-        return data
-
-
-class Concatenator(Transformer):
-    def __init__(self, input_streams, output_streams):
-        super().__init__(input_streams, output_streams)
-        self.last_seen = {k: None for k in self.input_streams.keys()}
-
-    def partial_fit_transform(self, data, stream=0):
-        self.partial_fit(data, stream)
-        return self.transform(data, stream)
-
-    def partial_fit(self, data, stream=0):
-        if stream in self.input_streams:
-            self.last_seen[self.input_streams[stream]] = data
-
-    def transform(self, data, stream=0):
-        if stream in self.input_streams:
-            last_seen = dict(self.last_seen)
-            last_seen[self.input_streams[stream]] = data
-            values = filter(lambda x: x is not None, last_seen.values())
-            return np.hstack(list(values))
-        else:
-            return data
-
-class Pipeline(Transformer):
+class Pipeline(TransformerMixin):
     def __init__(self, steps, input_streams=None):
-        self.steps: list[Transformer] = steps
+        self.steps: list[TransformerMixin] = steps
 
         expected_streams = set(k for step in self.steps for k in step.input_streams.keys())
         self.expected_streams = sorted(expected_streams, key=lambda x: str(x))
@@ -137,6 +124,68 @@ class Pipeline(Transformer):
         return super_path
 
 
+class CenteringTransformer(TransformerMixin):
+    def __init__(self, input_streams=None, output_streams=None):
+        input_streams = input_streams or {0: 'X'}
+        super().__init__(input_streams, output_streams)
+
+        self.samples_seen = 0
+        self.center = 0
+
+    def partial_fit_transform(self, data, stream=0):
+        if self.input_streams[stream] == 'X':
+            self.samples_seen += data.shape[0]
+            self.center = self.center + (data.sum(axis=0) - data.shape[0]*self.center) / self.samples_seen
+            return data - self.center
+        else:
+            return data
+
+    def transform(self, data, stream=0):
+        if self.input_streams[stream] == 'X':
+            return data - self.center / self.samples_seen
+        else:
+            return data
+
+
+class AddTransformer(TransformerMixin):
+    def __init__(self, to_add, input_streams=None, output_streams=None):
+        input_streams = input_streams or {0: 'X'}
+        super().__init__(input_streams, output_streams)
+        self.to_add = to_add
+
+    def partial_fit_transform(self, data, stream=0):
+        return self.transform(data, stream)
+
+    def transform(self, data, stream=0):
+        if self.input_streams[stream] == 'X':
+            data = data + self.to_add
+        return data
+
+
+class Concatenator(TransformerMixin):
+    def __init__(self, input_streams, output_streams):
+        super().__init__(input_streams, output_streams)
+        self.last_seen = {k: None for k in self.input_streams.keys()}
+
+    def partial_fit_transform(self, data, stream=0):
+        self.partial_fit(data, stream)
+        return self.transform(data, stream)
+
+    def partial_fit(self, data, stream=0):
+        if stream in self.input_streams:
+            self.last_seen[self.input_streams[stream]] = data
+
+    def transform(self, data, stream=0):
+        if stream in self.input_streams:
+            last_seen = dict(self.last_seen)
+            last_seen[self.input_streams[stream]] = data
+            values = filter(lambda x: x is not None, last_seen.values())
+            return np.hstack(list(values))
+        else:
+            return data
+
+
+
 
 if __name__ == '__main__':
     import numpy as np
@@ -147,14 +196,14 @@ if __name__ == '__main__':
 
     s = np.zeros(6).reshape((2,3))
     p1 = Pipeline([
-        Add(1),
-        Add(1),
+        AddTransformer(1),
+        AddTransformer(1),
         Concatenator(input_streams={0: 'a', 1: 'b'}, output_streams={0: 0, 1: 0}),
-        Add(1, input_streams={1:'X'}),
+        AddTransformer(1, input_streams={1: 'X'}),
     ])
     p2 = Pipeline([
         p1,
-        Add(2, output_streams={0:5}),
+        AddTransformer(2, output_streams={0:5}),
         p1,
     ])
     print(p2.trace_route(0))
