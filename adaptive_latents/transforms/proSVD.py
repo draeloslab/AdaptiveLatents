@@ -77,20 +77,22 @@ class TransformerProSVD(TransformerMixin, proSVD):
     def transform(self, data, stream=0):
         if self.input_streams[stream] == 'X':
             if not self.is_initialized:
-                return np.nan * data
+                return np.nan * np.empty((data.shape[0], self.k))
             return self.project(data)
         else:
             return data
 
     def partial_fit_transform(self, data, stream=0):
         if self.input_streams[stream] == 'X':
+            if np.isnan(data).any():
+                return np.nan * np.empty((data.shape[0], self.k))
             if not self.is_initialized:
                 self.init_samples += list(data)
                 if len(self.init_samples) >= self.init_size:
                     self.initialize(np.array(self.init_samples).T)
                     # return self.transform(data.T, stream).T
                     # todo: error here
-                return np.nan * data
+                return np.nan * np.empty((data.shape[0], self.k))
 
             self.updateSVD(data.T)
 
