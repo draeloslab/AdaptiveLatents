@@ -87,10 +87,10 @@ class TransformerMMICA(TransformerMixin, mmICA):
 
     def partial_fit_transform(self, data, stream=0):
         if self.input_streams[stream] == 'X':
-            if self.p is None:
-                self.set_p(data.shape[1])
             if np.any(np.isnan(data)):
                 return np.nan * data
+            if self.p is None:
+                self.set_p(data.shape[1])
 
             self.processing_queue.append(*data)
             if len(self.processing_queue) >= self.p:

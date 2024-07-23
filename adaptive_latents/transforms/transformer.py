@@ -134,6 +134,8 @@ class CenteringTransformer(TransformerMixin):
 
     def partial_fit_transform(self, data, stream=0):
         if self.input_streams[stream] == 'X':
+            if np.isnan(data).any():
+                return np.nan * data
             self.samples_seen += data.shape[0]
             self.center = self.center + (data.sum(axis=0) - data.shape[0]*self.center) / self.samples_seen
             return data - self.center
@@ -183,44 +185,3 @@ class Concatenator(TransformerMixin):
             return np.hstack(list(values))
         else:
             return data
-
-
-
-
-if __name__ == '__main__':
-    import numpy as np
-
-    # a = Add(2)
-    # print(a.transform(s, stream=2))
-
-
-    s = np.zeros(6).reshape((2,3))
-    p1 = Pipeline([
-        AddTransformer(1),
-        AddTransformer(1),
-        Concatenator(input_streams={0: 'a', 1: 'b'}, output_streams={0: 0, 1: 0}),
-        AddTransformer(1, input_streams={1: 'X'}),
-    ])
-    p2 = Pipeline([
-        p1,
-        AddTransformer(2, output_streams={0:5}),
-        p1,
-    ])
-    print(p2.trace_route(0))
-
-
-    # ss = (s, s)
-    #
-    # print(a.transform(ss))
-    #
-    # print(p1.transform(ss))
-    # #
-    # # p2 = Pipeline([
-    # #     p1,
-    # #     Add(2)
-    # # ])
-    #
-    # # sss = itertools.repeat((s, s), 2)
-    # #
-    # # for r in p1.transform(s):
-    # #     print(r)
