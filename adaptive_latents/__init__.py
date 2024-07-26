@@ -10,5 +10,5 @@ from .bw_run import BWRun, AnimationManager
 from .regressions import VanillaOnlineRegressor, SemiRegularizedRegressor
 from .input_sources import NumpyTimedDataSource
 from . import plotting_functions
-from .transforms import proSVD, sjPCA
+from .transforms import proSVD
 from . import profiling_functions

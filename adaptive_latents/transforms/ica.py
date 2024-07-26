@@ -1,6 +1,6 @@
 import numpy as np
-from adaptive_latents.transforms.transformer import TransformerMixin
-from mmica.solvers import gen_idx, compute_A_idx, compute_A, Huber, Sigmoid
+from adaptive_latents.transforms.transformer import TypicalTransformer
+from mmica.solvers import gen_idx, compute_A_idx, compute_A, Huber, Sigmoid, min_W
 from mmica._utils import python_cg_c, cython_cg_c, python_cg_c_with_extra_info
 
 
@@ -52,7 +52,9 @@ class mmICA:
         self.columns_seen = 0
 
     def observe_new_batch(self, x):
-        _, batch_size = x.shape
+        p, batch_size = x.shape
+        if self.p is None:
+            self.set_p(p)
         y = np.dot(self.W, x)
         u = self.density.ustar(y)
         step = 1. / (self.n + 1)**self.alpha
@@ -64,10 +66,11 @@ class mmICA:
         else:
             u *= step
             self.A += compute_A(u, x)
-        self.W, hit_iters, hit_norms = min_W_with_extra_info(W=self.W, A=self.A, maxiter_cg=self.maxiter_cg, tol=self.tol)
-        if self.hit_iter_history is not None:
-            self.hit_iter_history.append(hit_iters)
-            self.hit_norm_history.append(hit_norms)
+        self.W = min_W(self.W, self.A, self.maxiter_cg)
+        # self.W, hit_iters, hit_norms = min_W_with_extra_info(W=self.W, A=self.A, maxiter_cg=self.maxiter_cg, tol=self.tol)
+        # if self.hit_iter_history is not None:
+        #     self.hit_iter_history.append(hit_iters)
+        #     self.hit_norm_history.append(hit_norms)
 
         # extra added by jgould
         non_gaussianness = self.density.logp(self.W @ x).mean(axis=1)
@@ -80,28 +83,20 @@ class mmICA:
         return self.W @ x
 
 
-class TransformerMMICA(TransformerMixin, mmICA):
+class TransformerMMICA(TypicalTransformer, mmICA):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.processing_queue = []
 
-    def partial_fit_transform(self, data, stream=0):
-        if self.input_streams[stream] == 'X':
-            if np.any(np.isnan(data)):
-                return np.nan * data
-            if self.p is None:
-                self.set_p(data.shape[1])
+    def pre_initialization_fit_for_X(self, X):
+        self.set_p(X.shape[1])
+        self.is_initialized = True
+        self.partial_fit_for_X(X)
 
-            self.processing_queue.append(*data)
-            if len(self.processing_queue) >= self.p:
-                self.observe_new_batch(np.array(self.processing_queue).T)
-            return self.unmix(data.T).T
+    def partial_fit_for_X(self, X):
+        self.processing_queue.extend(X)
+        if len(self.processing_queue) >= self.p:
+            self.observe_new_batch(np.array(self.processing_queue).T)
 
-        else:
-            return data
-
-    def transform(self, data, stream=0):
-        if self.input_streams[stream] == 'X':
-            return self.unmix(data.T).T
-        else:
-            return data
+    def transform_for_X(self, X):
+        return self.unmix(X.T).T

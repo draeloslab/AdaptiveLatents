@@ -94,7 +94,7 @@ def save_to_cache(file, location=CONFIG["cache_path"]):
 @save_to_cache("prosvd_data")
 def prosvd_data(input_arr, output_d, init_size, centering=True):
     # todo: rename this and the sjPCA version to apply_and_cache?
-    pro = proSVD(k=output_d, centering=centering)
+    pro = proSVD(k=output_d)
     pro.initialize(input_arr[:init_size].T)
 
     output = []
