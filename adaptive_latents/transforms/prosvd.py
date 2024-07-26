@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.linalg import rq
-from .transformer import TransformerMixin
+from .transformer import TypicalTransformer
 
 
 class proSVD:
@@ -13,19 +13,18 @@ class proSVD:
         self.Q = None
         self.B = None
         self.n_samples_observed = 0
-        self.is_initialized = False
 
     def initialize(self, A_init):
         n, l1 = A_init.shape
 
         assert l1 >= self.k, "please init with # of cols >= k"
+        assert n >= self.k, "k size doesn't make sense"
 
         Q, B = np.linalg.qr(A_init, mode='reduced')
 
         self.Q = Q[:, :self.k]
-        self.B = B[:self.k, :l1]
+        self.B = B[:self.k, :self.k]
         self.n_samples_observed = l1
-        self.is_initialized = True
 
     def add_new_input_channels(self, n):
         self.Q = np.vstack([self.Q, np.zeros(shape=(n, self.Q.shape[1]))])
@@ -67,35 +66,29 @@ class proSVD:
         return ret
 
 
-class TransformerProSVD(TransformerMixin, proSVD):
-    def __init__(self, k=10, decay_alpha=1, whiten=False, init_size=None, input_streams=None, output_streams=None, log_level=0):
-        input_streams = input_streams or {0: 'X'}
-        self.init_size = init_size or k
+class TransformerProSVD(TypicalTransformer, proSVD):
+    # todo: see if this use of wraps is a good idea
+    # @wraps(TypicalTransformer.__init__)
+    def __init__(self, init_size=None, **kwargs):
+        super().__init__(**kwargs)
+        self.init_size = init_size or self.k
         self.init_samples = []
-        super().__init__(k=k, whiten=whiten, decay_alpha=decay_alpha, input_streams=input_streams, output_streams=output_streams, log_level=log_level)
+        self.is_partially_initialized = False
 
-    def transform(self, data, stream=0):
-        if self.input_streams[stream] == 'X':
-            if not self.is_initialized:
-                return np.nan * np.empty((data.shape[0], self.k))
-            return self.project(data)
+    def pre_initialization_fit_for_X(self, X):
+        if not self.is_partially_initialized:
+            self.init_samples += list(X)
+            if len(self.init_samples) >= self.init_size:
+                self.initialize(np.array(self.init_samples).T)
+                self.is_partially_initialized = True
         else:
-            return data
+            self.updateSVD(X.T)
+        if self.is_partially_initialized and (not self.whiten or np.linalg.matrix_rank(self.B) == self.B.shape[0]):
+            self.is_initialized = True
 
-    def partial_fit_transform(self, data, stream=0):
-        if self.input_streams[stream] == 'X':
-            if np.isnan(data).any():
-                return np.nan * np.empty((data.shape[0], self.k))
-            if not self.is_initialized:
-                self.init_samples += list(data)
-                if len(self.init_samples) >= self.init_size:
-                    self.initialize(np.array(self.init_samples).T)
-                    # return self.transform(data.T, stream).T
-                    # todo: error here
-                return np.nan * np.empty((data.shape[0], self.k))
 
-            self.updateSVD(data.T)
+    def transform_for_X(self, X):
+        return self.project(X.T).T
 
-            return self.transform(data.T, stream).T
-        else:
-            return data
+    def partial_fit_for_X(self, X):
+        self.updateSVD(X.T)

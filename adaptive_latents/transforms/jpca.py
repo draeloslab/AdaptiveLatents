@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.linalg import block_diag
-from adaptive_latents.transforms import TransformerMixin
+from adaptive_latents.transforms.transformer import TypicalTransformer
 from adaptive_latents.regressions import VanillaOnlineRegressor
 from .utils import save_to_cache, prosvd_data, align_column_spaces
 import tqdm
@@ -23,12 +23,10 @@ class sjPCA:
         self.input_d = input_d
         self.H = self.make_H(self.input_d)
         self.reg = VanillaOnlineRegressor(input_d=self.H.shape[1], output_d=1, add_intercept=False)
-        self.is_initialized = True
 
         self.last_x = x
 
     def observe(self, x):
-        assert x.shape[0] == 1
         dx = x - self.last_x
         x_tilde = self.make_X_tilde(x)
         rows = x_tilde @ self.H
@@ -101,27 +99,20 @@ class sjPCA:
         return x @ U
 
 
-class TransformerSJPCA(TransformerMixin, sjPCA):
-    def partial_fit_transform(self, data, stream=0):
-        if self.input_streams[stream] == 'X':
-            if not self.is_initialized:
-                if not np.any(np.isnan(data)):
-                    self.initialize(data)
-                return np.nan * data
-            else:
-                self.observe(data)
-                return self.project(data)
+class TransformerSJPCA(TypicalTransformer, sjPCA):
+    def pre_initialization_fit_for_X(self, X):
+        if self.last_x is None: #  round 1
+            self.initialize(X)
         else:
-            return data
+            self.observe(X)
+            self.is_initialized = True
 
-    def transform(self, data, stream=0):
-        if self.input_streams[stream] == 'X':
-            if not self.is_initialized:
-                return np.nan * data
-            else:
-                return self.project(data)
-        else:
-            return data
+
+    def partial_fit_for_X(self, X):
+        self.observe(X)
+
+    def transform_for_X(self, X):
+        return self.project(X)
 
 
 def X_and_X_dot_from_data(X_all):

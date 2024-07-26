@@ -1,13 +1,14 @@
 import timeit
 import numpy as np
-from adaptive_latents import Bubblewrap, VanillaOnlineRegressor, proSVD, sjPCA
+from adaptive_latents import Bubblewrap, VanillaOnlineRegressor, proSVD
+from adaptive_latents.transforms.jpca import sjPCA
 from adaptive_latents.regressions import SemiRegularizedRegressor
 
 
 def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None, max_steps=10_000):
     # todo: try transposing `obs`
-    psvd = proSVD(prosvd_k, centering=True)
-    jpca = sjPCA(input_d=prosvd_k)
+    psvd = proSVD(prosvd_k)
+    jpca = sjPCA()
 
     bw_params = bw_params if bw_params is not None else {}
     bw_params['go_fast'] = True
@@ -25,8 +26,11 @@ def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None
         o = psvd_input[i]
         if np.any(np.isnan(o)):
             continue
-        o = psvd.update_and_project(o[:, None])
-        o = jpca.observe_and_project(o.flatten())
+        psvd.updateSVD(o[:, None])
+        o = psvd.project(o[:, None]).T
+
+        jpca.observe(o)
+        o = jpca.project(o)
         bw.observe(o)
 
     # initialize the model
@@ -46,12 +50,14 @@ def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None
 
         start_time = timeit.default_timer()
         # prosvd update
-        o = psvd.update_and_project(o[:, None])
+        psvd.updateSVD(o[:, None])
+        o = psvd.project(o[:, None]).T
         end_time = timeit.default_timer()
         times["prosvd"].append(end_time - start_time)
 
         start_time = timeit.default_timer()
-        o = jpca.observe_and_project(o.flatten())
+        jpca.observe(o)
+        o = jpca.project(o)
         end_time = timeit.default_timer()
         times["jpca"].append(end_time - start_time)
 
@@ -81,7 +87,7 @@ def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None
 
 def get_speed_by_time(psvd_input, regression_output, prosvd_k=6, bw_params=None, max_steps=10_000):
     psvd = proSVD(prosvd_k)
-    jpca = sjPCA(input_d=prosvd_k)
+    jpca = sjPCA()
 
     bw_params = bw_params if bw_params is not None else {}
     bw_params['go_fast'] = True
@@ -99,8 +105,11 @@ def get_speed_by_time(psvd_input, regression_output, prosvd_k=6, bw_params=None,
         o = psvd_input[i]
         if np.any(np.isnan(o)):
             continue
-        o = psvd.update_and_project(o[:, None])
-        o = jpca.observe_and_project(o.flatten())
+        psvd.updateSVD(o[:, None])
+        o = psvd.project(o[:, None]).T
+
+        jpca.observe(o)
+        o = jpca.project(o)
         if np.any(np.isnan(o)):
             continue
         bw.observe(o)
@@ -122,9 +131,11 @@ def get_speed_by_time(psvd_input, regression_output, prosvd_k=6, bw_params=None,
             continue
 
         # prosvd update
-        o = psvd.update_and_project(o[:, None])
+        psvd.updateSVD(o[:, None])
+        o = psvd.project(o[:, None]).T
 
-        o = jpca.observe_and_project(o.flatten())
+        jpca.observe(o)
+        o = jpca.project(o)
 
         if np.any(np.isnan(o)):
             continue

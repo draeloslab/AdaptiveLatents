@@ -1,4 +1,3 @@
 from .transformer import TransformerMixin, CenteringTransformer
-from .proSVD import proSVD
-from . import utils
-from .jpca import sjPCA
+from .prosvd import proSVD
+from . import ica, jpca, prosvd, transformer, utils
