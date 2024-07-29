@@ -22,7 +22,7 @@ class TransformerMixin(ABC):
         output_streams: dict[int, int]
             Keys are input streams, values are output streams; this is stream remapping applied after the transformer.
         """
-        self.kwargs = kwargs  # mostly for printing later
+        self.kwargs = kwargs  # mostly for printing later, these should correspond to the estimator
         super().__init__(**kwargs)
         # if input_streams is not None:
         #     self.kwargs.update(input_streams=input_streams)
@@ -33,6 +33,7 @@ class TransformerMixin(ABC):
         self.output_streams = PassThroughDict(output_streams or {})
         self.pipeline_post_fit_hooks = []
         self.log_level = log_level
+        self.log = dict()
 
     @abstractmethod
     def partial_fit(self, data, stream=0):
@@ -48,7 +49,10 @@ class TransformerMixin(ABC):
         self.partial_fit(data, stream)
         return self.transform(data, stream, return_output_stream)
 
-    def log_for_step(self):
+    def log_for_partial_fit(self, data, stream=0):
+        pass
+
+    def log_for_transform(self, data, stream=0):
         pass
 
     def generator_fit_transform(self, sources, return_output_stream=False):
@@ -122,9 +126,8 @@ class TransformerMixin(ABC):
         return [stream, middle_str, self.output_streams[stream]]
 
 
-
 class Pipeline(TransformerMixin):
-    def __init__(self, steps, input_streams=None):
+    def __init__(self, steps, input_streams=None, **kwargs):
         self.steps: list[TransformerMixin] = steps
 
         expected_streams = set(k for step in self.steps for k in step.input_streams.keys())
@@ -132,7 +135,7 @@ class Pipeline(TransformerMixin):
         if input_streams is None:
             input_streams = dict(zip(range(len(self.expected_streams)), self.expected_streams))
 
-        super().__init__(input_streams)
+        super().__init__(input_streams, **kwargs)
 
     def partial_fit(self, data, stream=0):
         self.partial_fit_transform(data, stream)
@@ -193,8 +196,10 @@ class TypicalTransformer(TransformerMixin):
 
             if not self.is_initialized:
                 self.pre_initialization_fit_for_X(data)
+                self.log_for_partial_fit(data, pre_initialization=True)
             else:
                 self.partial_fit_for_X(data)
+                self.log_for_partial_fit(data)
 
     def transform(self, data, stream=0, return_output_stream=False):
         if self.input_streams[stream] == 'X':
@@ -202,6 +207,7 @@ class TypicalTransformer(TransformerMixin):
                 data = np.nan * data
             else:
                 data = self.transform_for_X(data)
+            self.log_for_transform(data)
 
         if return_output_stream:
             return data, self.output_streams[stream]
@@ -216,6 +222,12 @@ class TypicalTransformer(TransformerMixin):
 
     @abstractmethod
     def transform_for_X(self, X):
+        pass
+
+    def log_for_partial_fit(self, data, stream=0, pre_initialization=False):
+        pass
+
+    def log_for_transform(self, data, stream=0, pre_initialization=False):
         pass
 
 

@@ -74,6 +74,7 @@ class TransformerProSVD(TypicalTransformer, proSVD):
         self.init_size = init_size or self.k
         self.init_samples = []
         self.is_partially_initialized = False
+        self.log = {'Q': [], 't': []}
 
     def pre_initialization_fit_for_X(self, X):
         if not self.is_partially_initialized:
@@ -92,3 +93,31 @@ class TransformerProSVD(TypicalTransformer, proSVD):
 
     def partial_fit_for_X(self, X):
         self.updateSVD(X.T)
+
+    def log_for_partial_fit(self, data, stream=0, pre_initialization=False):
+        if not pre_initialization:
+            if self.log_level > 0:
+                self.log['Q'].append(self.Q)
+                self.log['t'].append(data.t)
+
+    def get_Q_stability(self):
+        assert self.log_level > 0
+        Qs = np.array(self.log['Q'])
+        t = np.array(self.log['t'])
+
+        assert len(Qs)
+        dQ = np.linalg.norm(np.diff(Qs, axis=0), axis=1)
+        return dQ, t[1:]
+
+    def plot_Q_stability(self, ax):
+        """
+        Parameters
+        ----------
+        ax: matplotlib.axes.Axes
+            the axes on which to plot the history
+        """
+        dQ, t = self.get_Q_stability()
+        ax.plot(t, dQ)
+        ax.set_xlabel('time (s)')
+        ax.set_ylabel(r'$\Vert dQ_i\Vert$')
+        ax.set_title(f'Change in the columns of proSVD Q over time ({self.Q.shape[0]} -> {self.Q.shape[1]})')

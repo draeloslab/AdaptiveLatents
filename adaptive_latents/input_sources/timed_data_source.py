@@ -14,6 +14,11 @@ class DataSource(ABC):
     def next_sample_time(self):
         pass
 
+    @property
+    @abstractmethod
+    def current_sample_time(self):
+        pass
+
 
 class GeneratorDataSource(DataSource):
     def __init__(self, source):
@@ -22,7 +27,8 @@ class GeneratorDataSource(DataSource):
         else:
             generator = iter(source)
         self.generator = enumerate(generator)
-        self.next_sample = tuple(next(self.generator))
+        self.next_sample = next(self.generator)
+        self.current_time = None
 
     def __iter__(self):
         return self
@@ -37,10 +43,14 @@ class GeneratorDataSource(DataSource):
         except StopIteration:
             self.next_sample = (float('inf'), None)
 
-        return this_sample[1]
+        self.current_time = this_sample[0]
+        return ArrayWithTime(this_sample[1], t=self.current_time)
 
     def next_sample_time(self):
         return self.next_sample[0]
+
+    def current_sample_time(self):
+        return self.current_time
 
 
 class NumpyTimedDataSource:
@@ -51,7 +61,7 @@ class NumpyTimedDataSource:
         if len(a.shape) == 2:
             a = a[:, None, :]
 
-        assert a.shape[0] * a.shape[1] > a.shape[2]
+        # assert a.shape[0] * a.shape[1] > a.shape[2]
 
         self.a = a
         self.t = timepoints if timepoints is not None else np.arange(a.shape[0])
@@ -68,6 +78,7 @@ class NumpyTimedDataSource:
         except IndexError:
             raise StopIteration()
 
+        d = ArrayWithTime(d, t=self.t[self.index])
         self.index += 1
         return d
 
@@ -76,33 +87,34 @@ class NumpyTimedDataSource:
             return float('inf')
         return self.t[self.index + 1]
 
+    def current_sample_time(self):
+        return self.t[self.index]
 
-class _NumpyTimedDataSource(np.ndarray):
+
+class ArrayWithTime(np.ndarray):
     "The idea is to subclass here, but it seems pretty involved."
     # https://numpy.org/doc/stable/user/basics.subclassing.html#slightly-more-realistic-example-attribute-added-to-existing-array
     # https://stackoverflow.com/a/51955094
-    def __new__(cls, input_array, t=None):
+    def __new__(cls, input_array, t):
         obj = np.asarray(input_array).view(cls)
         obj.t = t
         return obj
 
     def __array_finalize__(self, obj):
         if obj is None: return
-        assert len(self.shape) == 3
+        # assert len(self.shape) == 3
 
         if hasattr(obj, 't'):
             self.t = obj.t
-        else:
-            self.t = np.arange(self.shape[0])
 
-        if hasattr(obj, '_new_t_index'):
-            self.t = self.t[obj._new_t_index]
+        # if hasattr(obj, '_new_t_index'):
+        #     self.t = self.t[obj._new_t_index]
 
-    def __getitem__(self, item):
-
-        if isinstance(item, (slice, int)):
-            self._new_t_index = item
-        else:
-            self._new_t_index = item[0]
-        
-        return super().__getitem__(item)
+    # def __getitem__(self, item):
+    #
+    #     if isinstance(item, (slice, int)):
+    #         self._new_t_index = item
+    #     else:
+    #         self._new_t_index = item[0]
+    #
+    #     return super().__getitem__(item)
