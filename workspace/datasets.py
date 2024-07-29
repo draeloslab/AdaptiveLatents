@@ -12,6 +12,7 @@ import pandas as pd
 from abc import ABC, abstractmethod
 import sys
 import warnings
+import scipy.io
 
 from contextlib import contextmanager
 
@@ -601,21 +602,23 @@ class Leventhal24uDataset:
     automatically_downloadable = False
 #
     sub_datasets = (
-        "R0466_20230403_ChoiceEasy_230403_095044",
+        "R0466/R0466_20230403_ChoiceEasy_230403_095044",
         # "R0544_20240625_ChoiceEasy_240625_100738"
     )
 #
     def __init__(self, sub_dataset_identifier=sub_datasets[0], bin_size=0.03):
         self.sub_dataset = sub_dataset_identifier
         self.bin_size = bin_size
-        A, t, spike_times, clusters = self.construct(sub_dataset_identifier)
+        A, t, spike_times, clusters, log_data, trial_data = self.construct(sub_dataset_identifier)
         self.neural_data = NumpyTimedDataSource(A,t)
         self.spike_times = spike_times
         self.spike_clusters = clusters
+        self.log_data = log_data
+        self.trial_data = trial_data
         # self.behavioral_data = NumpyTimedDataSource(beh,t)
 #
     def construct(self, sub_dataset_identifier):
-        spike_times, clusters = self.acquire(sub_dataset_identifier)
+        spike_times, clusters, log_data = self.acquire(sub_dataset_identifier)
 
         for neuron_to_drop in [846]:
             warnings.warn(f"dropping neuron {neuron_to_drop} because I suspect it was an 'other' unit; I need to check this")
@@ -626,7 +629,7 @@ class Leventhal24uDataset:
         unique_clusters = np.unique(clusters)
         n_units = unique_clusters.size
 
-        n_bins = np.ceil(spike_times.max() - spike_times.min() / self.bin_size).astype(int) + 1
+        n_bins = np.ceil((spike_times.max() - spike_times.min()) / self.bin_size).astype(int) + 1
         bin_edges = np.arange(n_bins)*self.bin_size + spike_times.min()
 
         A = np.zeros((n_bins - 1, n_units))
@@ -635,7 +638,16 @@ class Leventhal24uDataset:
 
         bin_centers = np.convolve(bin_edges, [.5,.5], mode='valid')
 
-        return A, bin_centers, spike_times, clusters
+        log_data = log_data['logData']
+
+        expected_trial_data_keys = {'Time', 'Attempt', 'Center', 'Target', 'Tone', 'RT', 'MT', 'pretone', 'outcome', 'SideNP', 'CenterNoseIn', 'SideInToFood'}
+        discovered_trial_data_keys = {k for k, v in log_data.items() if hasattr(v, '__len__') and len(v) == len(log_data['Time'])}
+        assert expected_trial_data_keys.difference(discovered_trial_data_keys) == set()
+        assert discovered_trial_data_keys.difference(expected_trial_data_keys) == set()
+
+        trial_data = pd.DataFrame({key: log_data[key] for key in expected_trial_data_keys})
+
+        return A, bin_centers, spike_times, clusters, log_data, trial_data
 #
     def acquire(self, sub_dataset_identifier):
         subset_base_path = self.dataset_base_path / sub_dataset_identifier
@@ -660,7 +672,9 @@ Please place a copy of '{sub_dataset_identifier}' into '{self.dataset_base_path}
         spike_times = np.load(subset_base_path / 'spike_times.npy').flatten() / sampling_frequency
         clusters = np.load(subset_base_path / 'spike_clusters.npy').flatten()
 
-        return spike_times, clusters
+        log_data = scipy.io.loadmat(subset_base_path.parent / 'logData.mat', squeeze_me=True, simplify_cells=True)
+
+        return spike_times, clusters, log_data
 
         # t = np.fromfile(subset_base_path/'time.dat', dtype='int32') / sampling_frequency
 
