@@ -1,7 +1,7 @@
 from adaptive_latents.transforms.transformer import CenteringTransformer, Pipeline
-from adaptive_latents.transforms.prosvd import TransformerProSVD
-from adaptive_latents.transforms.jpca import TransformerSJPCA
-from adaptive_latents.transforms.ica import TransformerMMICA
+from adaptive_latents.transforms.prosvd import proSVD
+from adaptive_latents.transforms.jpca import sjPCA
+from adaptive_latents.transforms.ica import BaseMMICA
 import tqdm
 
 from datasets import Churchland22Dataset
@@ -14,9 +14,9 @@ if __name__ == '__main__':
     d = Churchland22Dataset()
     pipeline = Pipeline([
         CenteringTransformer(),
-        TransformerProSVD(k=10, init_size=20, whiten=True),
-        TransformerSJPCA(),
-        TransformerMMICA(),
+        proSVD(k=10, init_size=20, whiten=True),
+        sjPCA(),
+        BaseMMICA(),
     ])
     pipeline.offline_fit_transform(d.neural_data)
 

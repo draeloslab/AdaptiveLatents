@@ -1,13 +1,13 @@
 import numpy as np
 from scipy.linalg import block_diag
-from adaptive_latents.transforms.transformer import TypicalTransformer
+from .transformer import TypicalTransformer
 from adaptive_latents.regressions import VanillaOnlineRegressor
-from .utils import save_to_cache, prosvd_data, align_column_spaces
+from .utils import save_to_cache, align_column_spaces
 import tqdm
 from scipy.stats import special_ortho_group
 
 
-class sjPCA:
+class BaseSJPCA:
     "a streaming implementation of jPCA"
     def __init__(self):
         self.is_initialized = False
@@ -99,7 +99,7 @@ class sjPCA:
         return x @ U
 
 
-class TransformerSJPCA(TypicalTransformer, sjPCA):
+class sjPCA(TypicalTransformer, BaseSJPCA):
     def pre_initialization_fit_for_X(self, X):
         if self.last_x is None: #  round 1
             self.initialize(X)

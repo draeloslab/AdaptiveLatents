@@ -3,8 +3,8 @@ import h5py
 import os
 from scipy.io import loadmat
 from tqdm import tqdm
-from adaptive_latents.transforms.utils import save_to_cache, clip, prosvd_data
-from adaptive_latents import NumpyTimedDataSource
+from adaptive_latents.utils import save_to_cache, clip
+from adaptive_latents import NumpyTimedDataSource, proSVD
 from skimage.transform import resize
 from pynwb import NWBHDF5IO
 import pathlib
@@ -530,7 +530,7 @@ class Musall19Dataset(Dataset):
             t = np.arange(Data.shape[0]) / video_sampling_rate
             d = np.array(Data.reshape(Data.shape[0], -1))
             del Data
-            d = prosvd_data(input_arr=d, output_d=video_target_dim, init_size=video_target_dim, centering=False)
+            d = proSVD.apply_and_cache(input_arr=d, output_d=video_target_dim, init_size=video_target_dim)
             t, d = clip(t, d)
 
             #### define times

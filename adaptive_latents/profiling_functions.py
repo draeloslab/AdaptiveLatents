@@ -1,14 +1,15 @@
 import timeit
 import numpy as np
-from adaptive_latents import Bubblewrap, VanillaOnlineRegressor, proSVD
-from adaptive_latents.transforms.jpca import sjPCA
+from adaptive_latents import Bubblewrap, VanillaOnlineRegressor
+from adaptive_latents.prosvd import BaseProSVD
+from .jpca import BaseSJPCA
 from adaptive_latents.regressions import SemiRegularizedRegressor
 
 
 def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None, max_steps=10_000):
     # todo: try transposing `obs`
-    psvd = proSVD(prosvd_k)
-    jpca = sjPCA()
+    psvd = BaseProSVD(prosvd_k)
+    jpca = BaseSJPCA()
 
     bw_params = bw_params if bw_params is not None else {}
     bw_params['go_fast'] = True
@@ -19,8 +20,14 @@ def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None
     prosvd_init = 20
     psvd.initialize(psvd_input[:prosvd_init].T)
 
+    jpca_init = 1
+    o = psvd_input[prosvd_init+1]
+    psvd.updateSVD(o[:, None])
+    o = psvd.project(o[:, None]).T
+    jpca.initialize(o)
+
     # initial observations
-    start_index = prosvd_init
+    start_index = prosvd_init + jpca_init
     end_index = start_index + bw.M
     for i in range(start_index, end_index):
         o = psvd_input[i]
@@ -86,8 +93,8 @@ def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None
 
 
 def get_speed_by_time(psvd_input, regression_output, prosvd_k=6, bw_params=None, max_steps=10_000):
-    psvd = proSVD(prosvd_k)
-    jpca = sjPCA()
+    psvd = BaseProSVD(prosvd_k)
+    jpca = BaseSJPCA()
 
     bw_params = bw_params if bw_params is not None else {}
     bw_params['go_fast'] = True
@@ -98,8 +105,15 @@ def get_speed_by_time(psvd_input, regression_output, prosvd_k=6, bw_params=None,
     prosvd_init = 20
     psvd.initialize(psvd_input[:prosvd_init].T)
 
+
+    jpca_init = 1
+    o = psvd_input[prosvd_init+1]
+    psvd.updateSVD(o[:, None])
+    o = psvd.project(o[:, None]).T
+    jpca.initialize(o)
+
     # initial observations
-    start_index = prosvd_init
+    start_index = prosvd_init + jpca_init
     end_index = start_index + bw.M
     for i in range(start_index, end_index):
         o = psvd_input[i]

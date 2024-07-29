@@ -1,5 +1,5 @@
 import numpy as np
-from adaptive_latents.transforms.transformer import TypicalTransformer
+from .transformer import TypicalTransformer
 from mmica.solvers import gen_idx, compute_A_idx, compute_A, Huber, Sigmoid, min_W
 from mmica._utils import python_cg_c, cython_cg_c, python_cg_c_with_extra_info
 
@@ -16,7 +16,7 @@ def min_W_with_extra_info(W, A, maxiter_cg, tol=1e-10):
     return W, hit_iters, hit_norms
 
 
-class mmICA:
+class BaseMMICA:
     def __init__(self, density='huber', maxiter_cg=10, greedy=0, alpha=.7, track_extra_info=False, tol=1e-10):
         self.alpha = alpha
         self.greedy = greedy
@@ -83,7 +83,7 @@ class mmICA:
         return self.W @ x
 
 
-class TransformerMMICA(TypicalTransformer, mmICA):
+class mmICA(TypicalTransformer, BaseMMICA):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.processing_queue = []

@@ -10,7 +10,7 @@ import warnings
 import time
 from types import SimpleNamespace
 import pathlib
-from .input_sources.timed_data_source import NumpyTimedDataSource
+from .timed_data_source import NumpyTimedDataSource
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
