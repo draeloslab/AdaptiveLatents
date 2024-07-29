@@ -29,19 +29,22 @@ def freeze_recursively(o):
             return o
 
 
-def load_config(file, path_keys):
+def load_config(file, path_keys, use_local=False):
     with open(file, 'r') as fhan:
         config = yaml.safe_load(fhan)
 
     for key in set(path_keys).intersection(config.keys()):
-        config[key] = (file.parent / pathlib.Path(config[key])).resolve()
+        if use_local:
+            config[key] = ('.' / pathlib.Path(config[key])).resolve()
+        else:
+            config[key] = (file.parent / pathlib.Path(config[key])).resolve()
 
     return config
 
 
 def get_config():
     path_keys = ['bwrun_save_path', 'cache_path']
-    config = load_config(pathlib.Path(files('adaptive_latents')) / CONFIG_FILE_NAME, path_keys)
+    config = load_config(pathlib.Path(files('adaptive_latents')) / CONFIG_FILE_NAME, path_keys, use_local=True)
 
     local_config = {}
     for path in pathlib.Path.cwd().parents:
@@ -51,8 +54,10 @@ def get_config():
             break
 
     for path in path_keys:
-        print(f"constructing {config[path]}")
-        config[path].mkdir(exist_ok=True, parents=True)
+        if not config[path].is_dir():
+            print(f"constructing {config[path]}")
+            config[path].mkdir(exist_ok=True, parents=True)
+            # TODO: put a readme in each created directory?
     config = merge_dicts(config, local_config)
 
 
