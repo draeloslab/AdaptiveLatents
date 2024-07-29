@@ -45,6 +45,8 @@ class TransformerMixin(ABC):
         """data should be of shape (n_samples, sample_size)"""
         pass
 
+    # TODO: inverse_transform
+
     def partial_fit_transform(self, data, stream=0, return_output_stream=False):
         self.partial_fit(data, stream)
         return self.transform(data, stream, return_output_stream)
