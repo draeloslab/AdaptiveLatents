@@ -8,7 +8,7 @@ from .bubblewrap import Bubblewrap
 from .bw_run import BWRun, AnimationManager
 from .regressions import VanillaOnlineRegressor, SemiRegularizedRegressor
 from .timed_data_source import NumpyTimedDataSource
-from .prosvd import proSVD
+from .prosvd import proSVD, RandomProjection
 from .ica import mmICA
 from .jpca import sjPCA
 from .transformer import CenteringTransformer, Pipeline

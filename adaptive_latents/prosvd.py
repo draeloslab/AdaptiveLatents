@@ -130,3 +130,25 @@ class proSVD(TypicalTransformer, BaseProSVD):
     def apply_and_cache(cls, input_arr, **kwargs):
         pro = cls(**kwargs)
         return pro.offline_fit_transform(input_arr, convinient_return=True)
+
+
+class RandomProjection(TypicalTransformer):
+    def __init__(self, k=100, **kwargs):
+        super().__init__(**kwargs)
+        self.k = k
+        self.input_d = None
+
+    def pre_initialization_fit_for_X(self, X):
+        self.input_d = X.shape[1]
+        # TODO: how to deal with randomness
+        rng = np.random.default_rng()
+
+        # TODO: other modes?
+        self.U = rng.normal(size=(self.input_d, self.k), scale=1/(self.input_d * self.k))
+        self.is_initialized = True
+
+    def partial_fit_for_X(self, X):
+        return
+
+    def transform_for_X(self, X):
+        return X @ self.U
