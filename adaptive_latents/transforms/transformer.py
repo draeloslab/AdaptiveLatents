@@ -79,7 +79,7 @@ class TransformerMixin(ABC):
 
         sources, streams = zip(*sources)
 
-        sources = [GeneratorDataSource(source) for source in sources]
+        sources = [NumpyTimedDataSource(source) if isinstance(source, np.ndarray) else GeneratorDataSource(source) for source in sources]
 
         sources = list(zip(sources, streams))
 

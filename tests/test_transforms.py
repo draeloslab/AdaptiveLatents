@@ -39,11 +39,11 @@ class TestPerTransformer:
         output = transformer.offline_fit_transform(g)
         assert (~np.isnan(output[-1])).all()
 
-    def test_can_handle_different_sizes(self):
-        pass
-
-    def test_can_reroute_stream(self):
-        pass
+    # def test_can_handle_different_sizes(self):
+    #     pass
+    #
+    # def test_can_reroute_stream(self):
+    #     pass
 
 
 

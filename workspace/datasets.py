@@ -10,6 +10,8 @@ from pynwb import NWBHDF5IO
 import pathlib
 import pandas as pd
 from abc import ABC, abstractmethod
+import sys
+import warnings
 
 from contextlib import contextmanager
 
@@ -592,6 +594,81 @@ Please ask Anne Draelos how to acquire the Naumann lab dataset we use here. (hin
         C = np.loadtxt(base/c_filename)
 
         return stim, C
+
+class Leventhal24uDataset:
+    doi = None
+    dataset_base_path = DATA_BASE_PATH / 'leventhal24u'
+    automatically_downloadable = False
+#
+    sub_datasets = (
+        "R0466_20230403_ChoiceEasy_230403_095044",
+        # "R0544_20240625_ChoiceEasy_240625_100738"
+    )
+#
+    def __init__(self, sub_dataset_identifier=sub_datasets[0], bin_size=0.03):
+        self.sub_dataset = sub_dataset_identifier
+        self.bin_size = bin_size
+        A, t, spike_times, clusters = self.construct(sub_dataset_identifier)
+        self.neural_data = NumpyTimedDataSource(A,t)
+        self.spike_times = spike_times
+        self.spike_clusters = clusters
+        # self.behavioral_data = NumpyTimedDataSource(beh,t)
+#
+    def construct(self, sub_dataset_identifier):
+        spike_times, clusters = self.acquire(sub_dataset_identifier)
+
+        for neuron_to_drop in [846]:
+            warnings.warn(f"dropping neuron {neuron_to_drop} because I suspect it was an 'other' unit; I need to check this")
+            s = clusters != neuron_to_drop
+            spike_times = spike_times[s]
+            clusters = clusters[s]
+
+        unique_clusters = np.unique(clusters)
+        n_units = unique_clusters.size
+
+        n_bins = np.ceil(spike_times.max() - spike_times.min() / self.bin_size).astype(int) + 1
+        bin_edges = np.arange(n_bins)*self.bin_size + spike_times.min()
+
+        A = np.zeros((n_bins - 1, n_units))
+        for i, c in enumerate(unique_clusters):
+            A[:, i] = np.histogram(spike_times[clusters == c], bins=bin_edges)[0]
+
+        bin_centers = np.convolve(bin_edges, [.5,.5], mode='valid')
+
+        return A, bin_centers, spike_times, clusters
+#
+    def acquire(self, sub_dataset_identifier):
+        subset_base_path = self.dataset_base_path / sub_dataset_identifier
+
+        lib_directory = (self.dataset_base_path / 'load-rhd-notebook-python').resolve()
+        if not lib_directory.is_dir():
+            print(f"""\
+Please download (clone) `https://github.com/Intan-Technologies/load-rhd-notebook-python` into {self.dataset_base_path.resolve()}.""")
+
+        info_file = subset_base_path / 'info.rhd'
+        if not info_file.is_file():
+            print(f"""\
+Please place a copy of '{sub_dataset_identifier}' into '{self.dataset_base_path}'.""")
+
+        sys.path.append(str(lib_directory)) # todo: this is really bad
+        import importrhdutilities as rhd
+
+        result, data_present = rhd.load_file(subset_base_path / 'info.rhd')
+        assert not data_present
+        sampling_frequency = result['frequency_parameters']['amplifier_sample_rate']
+
+        spike_times = np.load(subset_base_path / 'spike_times.npy').flatten() / sampling_frequency
+        clusters = np.load(subset_base_path / 'spike_clusters.npy').flatten()
+
+        return spike_times, clusters
+
+        # t = np.fromfile(subset_base_path/'time.dat', dtype='int32') / sampling_frequency
+
+
+
+
+
+
 
 """
 class Low21Dataset(MultiDataset):
