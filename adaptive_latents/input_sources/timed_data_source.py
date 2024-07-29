@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 import types
+import warnings
 
 
 class DataSource(ABC):
@@ -74,3 +75,34 @@ class NumpyTimedDataSource:
         if self.index+1 >= len(self.t):
             return float('inf')
         return self.t[self.index + 1]
+
+
+class _NumpyTimedDataSource(np.ndarray):
+    "The idea is to subclass here, but it seems pretty involved."
+    # https://numpy.org/doc/stable/user/basics.subclassing.html#slightly-more-realistic-example-attribute-added-to-existing-array
+    # https://stackoverflow.com/a/51955094
+    def __new__(cls, input_array, t=None):
+        obj = np.asarray(input_array).view(cls)
+        obj.t = t
+        return obj
+
+    def __array_finalize__(self, obj):
+        if obj is None: return
+        assert len(self.shape) == 3
+
+        if hasattr(obj, 't'):
+            self.t = obj.t
+        else:
+            self.t = np.arange(self.shape[0])
+
+        if hasattr(obj, '_new_t_index'):
+            self.t = self.t[obj._new_t_index]
+
+    def __getitem__(self, item):
+
+        if isinstance(item, (slice, int)):
+            self._new_t_index = item
+        else:
+            self._new_t_index = item[0]
+        
+        return super().__getitem__(item)
