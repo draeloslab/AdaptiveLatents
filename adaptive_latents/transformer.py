@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from adaptive_latents.input_sources.timed_data_source import DataSource, GeneratorDataSource, NumpyTimedDataSource
+from .timed_data_source import DataSource, GeneratorDataSource, NumpyTimedDataSource
 from frozendict import frozendict
 import numpy as np
 import types

@@ -2,14 +2,13 @@ import numpy as np
 import os
 import pickle
 import json
-from adaptive_latents.transforms import proSVD
 from tqdm import tqdm
 import hashlib
 from adaptive_latents.config import CONFIG
-import adaptive_latents
 import inspect
 import warnings
 import functools
+# TODO: depreciate this file
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -91,36 +90,21 @@ def save_to_cache(file, location=CONFIG["cache_path"]):
     return decorator
 
 
-@save_to_cache("prosvd_data")
-def prosvd_data(input_arr, output_d, init_size, centering=True):
-    # todo: rename this and the sjPCA version to apply_and_cache?
-    pro = proSVD(k=output_d)
-    pro.initialize(input_arr[:init_size].T)
-
-    output = []
-    for i in tqdm(range(init_size, len(input_arr))):
-        obs = input_arr[i:i + 1, :]
-        if not np.all(~np.isnan(obs)):
-            output.append(np.nan * output[-1])
-            continue
-
-        output.append(pro.update_and_project(obs.T))
-    return np.array(output).reshape((-1, output_d))
 
 
-def prosvd_data_with_Qs(input_arr, output_d, init_size, pro_arguments=None):
-    # todo: combine this with prosvd_data
-    pro_arguments = pro_arguments or {}
-    pro = proSVD(k=output_d, **pro_arguments)
-    pro.initialize(input_arr[:init_size].T)
-
-    output = []
-    old_Qs = []
-    for i in range(init_size, len(input_arr)):
-        obs = input_arr[i:i + 1, :]
-        old_Qs.append(np.array(pro.Q))
-        output.append(pro.update_and_project(obs.T))
-    return np.array(output).reshape((-1, output_d)), np.array(old_Qs)
+# def prosvd_data_with_Qs(input_arr, output_d, init_size, pro_arguments=None):
+#     # todo: combine this with prosvd_data
+#     pro_arguments = pro_arguments or {}
+#     pro = BaseProSVD(k=output_d, **pro_arguments)
+#     pro.initialize(input_arr[:init_size].T)
+#
+#     output = []
+#     old_Qs = []
+#     for i in range(init_size, len(input_arr)):
+#         obs = input_arr[i:i + 1, :]
+#         old_Qs.append(np.array(pro.Q))
+#         output.append(pro.update_and_project(obs.T))
+#     return np.array(output).reshape((-1, output_d)), np.array(old_Qs)
 
 
 def zscore(input_arr, init_size=6, clip_level=15):
@@ -152,48 +136,48 @@ def zscore(input_arr, init_size=6, clip_level=15):
 # todo: some rank-version of zscore?
 
 
-@save_to_cache("bwrap_alphas")
-def bwrap_alphas(input_arr, bw_params):
-    alphas = []
-    bw = adaptive_latents.Bubblewrap(dim=input_arr.shape[1], **bw_params)
-    for step in range(len(input_arr)):
-        bw.observe(input_arr[step])
+# @save_to_cache("bwrap_alphas")
+# def bwrap_alphas(input_arr, bw_params):
+#     alphas = []
+#     bw = adaptive_latents.Bubblewrap(dim=input_arr.shape[1], **bw_params)
+#     for step in range(len(input_arr)):
+#         bw.observe(input_arr[step])
+#
+#         if step < bw.M:
+#             pass
+#         elif step == bw.M:
+#             bw.init_nodes()
+#             bw.e_step()
+#             bw.grad_Q()
+#         else:
+#             bw.e_step()
+#             bw.grad_Q()
+#
+#             alphas.append(bw.alpha)
+#     return np.array(alphas)
 
-        if step < bw.M:
-            pass
-        elif step == bw.M:
-            bw.init_nodes()
-            bw.e_step()
-            bw.grad_Q()
-        else:
-            bw.e_step()
-            bw.grad_Q()
 
-            alphas.append(bw.alpha)
-    return np.array(alphas)
-
-
-@save_to_cache("bwrap_alphas_ahead")
-def bwrap_alphas_ahead(input_arr, bw_params, nsteps=(1,)):
-    returns = {x: [] for x in nsteps}
-    bw = adaptive_latents.Bubblewrap(dim=input_arr.shape[1], **bw_params)
-    for step in tqdm(range(len(input_arr))):
-        bw.observe(input_arr[step])
-
-        if step < bw.M:
-            pass
-        elif step == bw.M:
-            bw.init_nodes()
-            bw.e_step()
-            bw.grad_Q()
-        else:
-            bw.e_step()
-            bw.grad_Q()
-
-            for step in nsteps:
-                returns[step].append(bw.alpha @ np.linalg.matrix_power(bw.A, step))
-    returns = {x: np.array(returns[x]) for x in returns}
-    return returns
+# @save_to_cache("bwrap_alphas_ahead")
+# def bwrap_alphas_ahead(input_arr, bw_params, nsteps=(1,)):
+#     returns = {x: [] for x in nsteps}
+#     bw = adaptive_latents.Bubblewrap(dim=input_arr.shape[1], **bw_params)
+#     for step in tqdm(range(len(input_arr))):
+#         bw.observe(input_arr[step])
+#
+#         if step < bw.M:
+#             pass
+#         elif step == bw.M:
+#             bw.init_nodes()
+#             bw.e_step()
+#             bw.grad_Q()
+#         else:
+#             bw.e_step()
+#             bw.grad_Q()
+#
+#             for step in nsteps:
+#                 returns[step].append(bw.alpha @ np.linalg.matrix_power(bw.A, step))
+#     returns = {x: np.array(returns[x]) for x in returns}
+#     return returns
 
 
 def clip(*args, maxlen=float("inf")):
@@ -234,8 +218,8 @@ def resample_matched_timeseries(old_timeseries, new_sample_times, old_sample_tim
     return resampled_behavior
 
 
-def center_from_first_n(A, n=100):
-    return A[n:] - A[:n].mean(axis=0)
+# def center_from_first_n(A, n=100):
+#     return A[n:] - A[:n].mean(axis=0)
 
 
 def align_column_spaces(A, B):

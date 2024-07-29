@@ -1,9 +1,10 @@
 import numpy as np
 from scipy.linalg import rq
 from .transformer import TypicalTransformer
+from .utils import save_to_cache
 
 
-class proSVD:
+class BaseProSVD:
     # todo: make this row-major
     def __init__(self, k=10, decay_alpha=1, whiten=False):
         self.k = k
@@ -66,7 +67,9 @@ class proSVD:
         return ret
 
 
-class TransformerProSVD(TypicalTransformer, proSVD):
+
+
+class proSVD(TypicalTransformer, BaseProSVD):
     # todo: see if this use of wraps is a good idea
     # @wraps(TypicalTransformer.__init__)
     def __init__(self, init_size=None, **kwargs):
@@ -121,3 +124,9 @@ class TransformerProSVD(TypicalTransformer, proSVD):
         ax.set_xlabel('time (s)')
         ax.set_ylabel(r'$\Vert dQ_i\Vert$')
         ax.set_title(f'Change in the columns of proSVD Q over time ({self.Q.shape[0]} -> {self.Q.shape[1]})')
+
+    @save_to_cache("prosvd_data")
+    @classmethod
+    def apply_and_cache(cls, input_arr, **kwargs):
+        pro = cls(**kwargs)
+        return pro.offline_fit_transform(input_arr, convinient_return=True)
