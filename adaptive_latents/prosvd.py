@@ -129,7 +129,7 @@ class proSVD(TypicalTransformer, BaseProSVD):
     @classmethod
     def apply_and_cache(cls, input_arr, **kwargs):
         pro = cls(**kwargs)
-        return pro.offline_fit_transform(input_arr, convinient_return=True)
+        return pro.offline_run_on(input_arr, convinient_return=True)
 
 
 class RandomProjection(TypicalTransformer):

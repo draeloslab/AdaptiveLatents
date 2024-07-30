@@ -31,7 +31,7 @@ class TransformerMixin(ABC):
 
         self.input_streams = PassThroughDict(input_streams or {0: 'X'})
         self.output_streams = PassThroughDict(output_streams or {})
-        self.pipeline_post_fit_hooks = []
+        self.mid_run_hooks = []
         self.log_level = log_level
         self.log = dict()
 
@@ -57,7 +57,7 @@ class TransformerMixin(ABC):
     def log_for_transform(self, data, stream=0):
         pass
 
-    def generator_fit_transform(self, sources, return_output_stream=False):
+    def run_on(self, sources, fit=True, return_output_stream=False):
         """
         Parameters
         ----------
@@ -68,6 +68,8 @@ class TransformerMixin(ABC):
             If a list of tuples, the first element of each tuple will be mapped to the stream number in the second element.
         return_output_stream: bool
             Wheither to return the output stream or not. This is false by default to not confuse first-time users.
+        fit: bool
+            Determines if fit_transform or fit is called.
 
         Yields
         -------
@@ -98,15 +100,21 @@ class TransformerMixin(ABC):
                     next_source, next_stream = source, stream
             if not next_time < float('inf'):
                 break
-            yield self.partial_fit_transform(data=next(next_source), stream=next_stream, return_output_stream=return_output_stream)
+            if fit:
+                ret = self.partial_fit_transform(data=next(next_source), stream=next_stream, return_output_stream=return_output_stream)
+            else:
+                ret = self.transform(data=next(next_source), stream=next_stream, return_output_stream=return_output_stream)
 
-        # for X in iterable:
-        #     X = self.partial_fit_transform(X)
-        #     yield X
+            for hook in self.mid_run_hooks:
+                hook(self)
+
+            yield ret
 
     def offline_fit_transform(self, sources, convinient_return=True):
+
+    def offline_run_on(self, sources, fit=True, convinient_return=True):
         outputs = {}
-        for data, stream in self.generator_fit_transform(sources, return_output_stream=True):
+        for data, stream in self.run_on(sources, fit=fit, return_output_stream=True):
             outputs[stream] = outputs.get(stream, []) + [data]
 
         if convinient_return:

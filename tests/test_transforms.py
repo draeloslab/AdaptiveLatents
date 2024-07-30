@@ -17,7 +17,7 @@ class TestTransformer:
             [(NumpyTimedDataSource(np.zeros((10, 3))), 0), (NumpyTimedDataSource(np.zeros((10, 3))), 0), (NumpyTimedDataSource(np.zeros((9, 3))), 1)],
         ]:
             t = CenteringTransformer()
-            t.offline_fit_transform(sources, convinient_return=False)
+            t.offline_run_on(sources, convinient_return=False)
 
 
 @pytest.mark.parametrize('transformer', [
@@ -33,10 +33,10 @@ class TestTransformer:
 class TestPerTransformer:
     def test_can_ignore_nans(self, transformer: TransformerMixin, rng):
         g = (rng.normal(size=(3,6)) * np.nan for _ in range(7))
-        output = transformer.offline_fit_transform(g)
+        output = transformer.offline_run_on(g)
 
         g = (rng.normal(size=(3,6)) for _ in range(20))
-        output = transformer.offline_fit_transform(g)
+        output = transformer.offline_run_on(g)
         assert (~np.isnan(output[-1])).all()
 
     # def test_can_handle_different_sizes(self):
@@ -69,7 +69,7 @@ class TestJPCA:
         X, X_dot, true_variables = al.jpca.generate_circle_embedded_in_high_d(rng, m=10_000, stddev=.01)
 
         jp = sjPCA()
-        X_realigned = jp.offline_fit_transform(X, convinient_return=True)
+        X_realigned = jp.offline_run_on(X, convinient_return=True)
         U = jp.last_U
         assert not np.allclose(U[:, :2], true_variables['C'])
 
