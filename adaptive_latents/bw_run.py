@@ -362,41 +362,28 @@ class BWRun:
 
 
 class AnimationManager:
-    # todo: this could inherit from FileWriter; that might be better design
-    n_rows = 2
-    n_cols = 2
-    fps = 20
-    dpi = 100
-    extension = "mp4"
-    outfile = f"./movie.{extension}"
-    figsize = (10, 10)
-
-    def __init__(self):
-        self.movie_writer = FFMpegFileWriter(fps=self.fps)
-        self.fig, self.ax = plt.subplots(self.n_rows, self.n_cols, figsize=self.figsize, layout='tight', squeeze=False)
-        self.movie_writer.setup(self.fig, self.outfile, dpi=self.dpi)
+    # todo: this could inherit from FileWriter; that might be better design?
+    def __init__(self, filename=None, outdir=None, n_rows=1, n_cols=1, fps=20, dpi=100, extension="mp4", figsize=(10,10)):
+        outdir = outdir or CONFIG['plot_save_path']
+        if filename is None:
+            time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+            filename = f'movie_{time_string}'
+        self.outfile = outdir / f"{filename}.{extension}"
+        self.movie_writer = FFMpegFileWriter(fps=fps)
+        self.fig, self.ax = plt.subplots(n_rows, n_cols, figsize=figsize, layout='tight', squeeze=False)
+        self.movie_writer.setup(self.fig, self.outfile, dpi=dpi)
         self.finished = False
-        self.final_output_location = None
-        self.setup()
 
-    def setup(self):
-        pass
+    def __enter__(self):
+        return self
 
-    def set_final_output_location(self, final_output_location):
-        self.final_output_location = final_output_location
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.finish()
 
     def finish(self):
         if not self.finished:
             self.movie_writer.finish()
-            os.rename(self.outfile, self.final_output_location)
             self.finished = True
 
-    def frame_draw_condition(self, step_number, bw):
-        return True
-
-    def draw_frame(self, step, bw, br):
-        self.custom_draw_frame(step, bw, br)
+    def grab_frame(self):
         self.movie_writer.grab_frame()
-
-    def custom_draw_frame(self, step, bw, br):
-        pass
