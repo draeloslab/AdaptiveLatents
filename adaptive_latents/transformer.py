@@ -3,6 +3,7 @@ from .timed_data_source import DataSource, GeneratorDataSource, NumpyTimedDataSo
 from frozendict import frozendict
 import numpy as np
 import types
+from collections import deque
 
 
 class PassThroughDict(frozendict):
@@ -110,7 +111,6 @@ class TransformerMixin(ABC):
 
             yield ret
 
-    def offline_fit_transform(self, sources, convinient_return=True):
 
     def offline_run_on(self, sources, fit=True, convinient_return=True):
         outputs = {}
@@ -254,6 +254,60 @@ class CenteringTransformer(TypicalTransformer):
 
     def transform_for_X(self, X):
         return X - self.center
+
+
+class KernelSmoother(TypicalTransformer):
+    # TODO: make time aware
+    def __init__(self, kernel_length=5, tau=.9, custom_kernel=None, **kwargs):
+        super().__init__(**kwargs)
+        if custom_kernel is None:
+            delta_t = 1 # todo: make time-aware
+            alpha = 1 - np.exp(-delta_t/tau)
+            kernel = alpha * (1-alpha)**np.arange(kernel_length)[::-1]
+        else:
+            kernel = custom_kernel
+        self.kernel = kernel
+        self.n = len(kernel)
+        self.last_X = None
+        self.history = deque(maxlen=self.n)
+
+    def pre_initialization_fit_for_X(self, X):
+        if self.last_X is not None:
+            self.history.extend(self.last_X)
+        self.last_X = X.copy()
+        if len(self.history) == self.n:
+            self.is_initialized = True
+
+    def partial_fit_for_X(self, X):
+        self.history.extend(self.last_X)
+        self.last_X = X.copy()
+
+    def transform_for_X(self, X):
+        d = self.history.copy()
+        for i, row in enumerate(X):
+            d.append(row)
+            X[i] = self.kernel @ d
+        return X
+
+    def plot_impulse_response(self, ax):
+        """
+        Parameters
+        ----------
+        ax: matplotlib.pyplot.Axes
+            The axis to plot on.
+        """
+
+        impulse_point = 50
+        a = np.zeros((2*impulse_point + 1,1,1))
+        a[impulse_point] = 1
+        b = np.array(self.offline_run_on(a, convinient_return=False)[0])
+        ax.plot(a[:,0,0], '.-', label='original signal')
+        ax.plot(b[:,0,0], '.-', label='smoothed signal')
+        ax.axvline(len(self.kernel), color='k', linestyle='--', label='end of initialization')
+        # ax.axvline(impulse_point + len(self.kernel), color='k', alpha=.25)
+        # ax.axvline(impulse_point, color='k', alpha=.25, label='region of impulse response')
+        ax.fill_between([impulse_point, impulse_point + len(self.kernel)], 1,  color='k', alpha=.1, label='impulse response')
+        ax.legend()
 
 
 # class Concatenator(TransformerMixin):

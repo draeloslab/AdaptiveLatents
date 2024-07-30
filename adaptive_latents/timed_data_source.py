@@ -83,12 +83,14 @@ class NumpyTimedDataSource:
         return d
 
     def next_sample_time(self):
-        if self.index+1 >= len(self.t):
+        if self.index >= len(self.t):
             return float('inf')
-        return self.t[self.index + 1]
+        return self.t[self.index]
 
     def current_sample_time(self):
-        return self.t[self.index]
+        if self.index == 0:
+            return None
+        return self.t[self.index-1]
 
 
 class ArrayWithTime(np.ndarray):
