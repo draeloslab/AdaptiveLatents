@@ -18,7 +18,7 @@ if __name__ == '__main__':
         sjPCA(),
         BaseMMICA(),
     ])
-    pipeline.offline_fit_transform(d.neural_data)
+    pipeline.offline_run_on(d.neural_data)
 
     # x = d.neural_data.a[200:2_000,None,:]
     # output = pipeline.offline_fit_transform(tqdm.tqdm(x))
