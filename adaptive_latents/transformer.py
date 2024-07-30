@@ -32,7 +32,6 @@ class TransformerMixin(ABC):
 
         self.input_streams = PassThroughDict(input_streams or {0: 'X'})
         self.output_streams = PassThroughDict(output_streams or {})
-        self.mid_run_hooks = []
         self.log_level = log_level
         self.log = dict()
 
@@ -105,9 +104,6 @@ class TransformerMixin(ABC):
                 ret = self.partial_fit_transform(data=next(next_source), stream=next_stream, return_output_stream=return_output_stream)
             else:
                 ret = self.transform(data=next(next_source), stream=next_stream, return_output_stream=return_output_stream)
-
-            for hook in self.mid_run_hooks:
-                hook(self)
 
             yield ret
 
