@@ -5,8 +5,10 @@ import warnings
 
 
 class DataSource(ABC):
-    def __new__(cls, source, *args, **kwargs):
-        if isinstance(source, DataSource):
+    def __new__(cls, source=None, *args, **kwargs):
+        # todo: is source=none a bad idea? it's to get deepcopy working
+        if isinstance(source, GeneratorDataSource) or hasattr(source, 'next_sample_time'):
+            # TODO: choose duck typing or inheritance checking here
             return source
         return super().__new__(cls)
 
@@ -53,9 +55,9 @@ class GeneratorDataSource(DataSource):
         return self.current_time
 
 
-class NumpyTimedDataSource:
-    def __init__(self, a, timepoints=None):
-        a = np.array(a)
+class NumpyTimedDataSource(DataSource):
+    def __init__(self, source, timepoints=None):
+        a = np.array(source)
         if len(a.shape) == 1:
             a = a[:, None]
         if len(a.shape) == 2:
@@ -78,7 +80,7 @@ class NumpyTimedDataSource:
         except IndexError:
             raise StopIteration()
 
-        d = ArrayWithTime(d, t=self.t[self.index])
+        d = ArrayWithTime(d.copy(), t=self.t[self.index])
         self.index += 1
         return d
 

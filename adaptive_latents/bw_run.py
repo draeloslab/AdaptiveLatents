@@ -372,13 +372,15 @@ class AnimationManager:
         self.movie_writer = FFMpegFileWriter(fps=fps)
         self.fig, self.ax = plt.subplots(n_rows, n_cols, figsize=figsize, layout='tight', squeeze=False)
         self.movie_writer.setup(self.fig, self.outfile, dpi=dpi)
+        self.seen_frames = 0
         self.finished = False
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.finish()
+        if self.seen_frames:
+            self.finish()
 
     def finish(self):
         if not self.finished:
@@ -387,3 +389,4 @@ class AnimationManager:
 
     def grab_frame(self):
         self.movie_writer.grab_frame()
+        self.seen_frames += 1
