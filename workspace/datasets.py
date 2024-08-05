@@ -602,6 +602,7 @@ class Leventhal24uDataset:
     automatically_downloadable = False
 #
     sub_datasets = (
+        "R0493/R0493_20230720_ChAdvanced_230720_105441",
         "R0466/R0466_20230403_ChoiceEasy_230403_095044",
         # "R0544_20240625_ChoiceEasy_240625_100738"
     )
@@ -609,22 +610,22 @@ class Leventhal24uDataset:
     def __init__(self, sub_dataset_identifier=sub_datasets[0], bin_size=0.03):
         self.sub_dataset = sub_dataset_identifier
         self.bin_size = bin_size
-        A, t, spike_times, clusters, log_data, trial_data = self.construct(sub_dataset_identifier)
-        self.neural_data = NumpyTimedDataSource(A,t)
+        A, t, spike_times, clusters, trial_data, unflattened_trial_data = self.construct(sub_dataset_identifier)
+        self.neural_data = NumpyTimedDataSource(A, t)
         self.spike_times = spike_times
         self.spike_clusters = clusters
-        self.log_data = log_data
         self.trial_data = trial_data
+        self.unflattened_trial_data = unflattened_trial_data
         # self.behavioral_data = NumpyTimedDataSource(beh,t)
 #
     def construct(self, sub_dataset_identifier):
-        spike_times, clusters, log_data = self.acquire(sub_dataset_identifier)
+        spike_times, clusters, trials = self.acquire(sub_dataset_identifier)
 
-        for neuron_to_drop in [846]:
-            warnings.warn(f"dropping neuron {neuron_to_drop} because I suspect it was an 'other' unit; I need to check this")
-            s = clusters != neuron_to_drop
-            spike_times = spike_times[s]
-            clusters = clusters[s]
+        # for neuron_to_drop in [846]:
+        #     warnings.warn(f"dropping neuron {neuron_to_drop} because I suspect it was an 'other' unit; I need to check this")
+        #     s = clusters != neuron_to_drop
+        #     spike_times = spike_times[s]
+        #     clusters = clusters[s]
 
         unique_clusters = np.unique(clusters)
         n_units = unique_clusters.size
@@ -638,16 +639,27 @@ class Leventhal24uDataset:
 
         bin_centers = np.convolve(bin_edges, [.5,.5], mode='valid')
 
-        log_data = log_data['logData']
+        trial_data = pd.DataFrame(trials['trials'])
 
-        expected_trial_data_keys = {'Time', 'Attempt', 'Center', 'Target', 'Tone', 'RT', 'MT', 'pretone', 'outcome', 'SideNP', 'CenterNoseIn', 'SideInToFood'}
-        discovered_trial_data_keys = {k for k, v in log_data.items() if hasattr(v, '__len__') and len(v) == len(log_data['Time'])}
-        assert expected_trial_data_keys.difference(discovered_trial_data_keys) == set()
-        assert discovered_trial_data_keys.difference(expected_trial_data_keys) == set()
+        df = trial_data
 
-        trial_data = pd.DataFrame({key: log_data[key] for key in expected_trial_data_keys})
+        df = df.rename(columns={'tone': 'toneType'})
+        for column in ['timing', 'timestamps']:
+            sub_df = df[column].apply(pd.Series)
+            if column == 'timing':
+                sub_df = sub_df.rename(columns=lambda x: "relative_" + x)
 
-        return A, bin_centers, spike_times, clusters, log_data, trial_data
+            df = pd.concat([df.drop(column, axis=1), sub_df], axis=1)
+        flattened_trial_data = df
+
+        # expected_trial_data_keys = {'Time', 'Attempt', 'Center', 'Target', 'Tone', 'RT', 'MT', 'pretone', 'outcome', 'SideNP', 'CenterNoseIn', 'SideInToFood'}
+        # discovered_trial_data_keys = {k for k, v in log_data.items() if hasattr(v, '__len__') and len(v) == len(log_data['Time'])}
+        # assert expected_trial_data_keys.difference(discovered_trial_data_keys) == set()
+        # assert discovered_trial_data_keys.difference(expected_trial_data_keys) == set()
+        #
+        # trial_data = pd.DataFrame({key: log_data[key] for key in expected_trial_data_keys})
+
+        return A, bin_centers, spike_times, clusters, flattened_trial_data, trial_data
 #
     def acquire(self, sub_dataset_identifier):
         subset_base_path = self.dataset_base_path / sub_dataset_identifier
@@ -672,9 +684,9 @@ Please place a copy of '{sub_dataset_identifier}' into '{self.dataset_base_path}
         spike_times = np.load(subset_base_path / 'spike_times.npy').flatten() / sampling_frequency
         clusters = np.load(subset_base_path / 'spike_clusters.npy').flatten()
 
-        log_data = scipy.io.loadmat(subset_base_path.parent / 'logData.mat', squeeze_me=True, simplify_cells=True)
+        trials = scipy.io.loadmat(subset_base_path.parent / 'trials.mat', squeeze_me=True, simplify_cells=True)
 
-        return spike_times, clusters, log_data
+        return spike_times, clusters, trials
 
         # t = np.fromfile(subset_base_path/'time.dat', dtype='int32') / sampling_frequency
 

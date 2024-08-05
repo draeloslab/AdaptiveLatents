@@ -1,3 +1,4 @@
+import copy
 from abc import ABC, abstractmethod
 from .timed_data_source import DataSource, GeneratorDataSource, NumpyTimedDataSource
 from frozendict import frozendict
@@ -34,6 +35,7 @@ class TransformerMixin(ABC):
         self.output_streams = PassThroughDict(output_streams or {})
         self.log_level = log_level
         self.log = dict()
+        self.mid_run_sources = None
 
     @abstractmethod
     def partial_fit(self, data, stream=0):
@@ -42,7 +44,26 @@ class TransformerMixin(ABC):
 
     @abstractmethod
     def transform(self, data, stream=0, return_output_stream=False):
-        """data should be of shape (n_samples, sample_size)"""
+        """
+        Applies a learned transformation to incoming data.
+
+        Parameters
+        ----------
+        data: any, np.ndarray
+            data can be anything, but for most transformers it will be an array of shape (n_samples, sample_dimension)
+        stream: int
+            The stream the incoming data is coming from; 0 is the default.
+            While this could technically be any hashable value, the convention is to use ints.
+        return_output_stream: bool
+            Whether to return the output stream; this is mostly only useful in pipelines, and so is false by default.
+
+        Returns
+        -------
+        data
+            the processed data
+        stream: int, optional
+            the stream the outputted data should be routed to
+        """
         pass
 
     # TODO: inverse_transform
@@ -67,7 +88,7 @@ class TransformerMixin(ABC):
             If a list of DataSources, each source will be mapped to the equal to its index in the list.
             If a list of tuples, the first element of each tuple will be mapped to the stream number in the second element.
         return_output_stream: bool
-            Wheither to return the output stream or not. This is false by default to not confuse first-time users.
+            Whether to yield the output stream or not. This is false by default to not confuse first-time users.
         fit: bool
             Determines if fit_transform or fit is called.
 
@@ -88,8 +109,10 @@ class TransformerMixin(ABC):
         sources, streams = zip(*sources)
 
         sources = [NumpyTimedDataSource(source) if isinstance(source, np.ndarray) else GeneratorDataSource(source) for source in sources]
+        sources = [copy.deepcopy(source) for source in sources]
 
         sources = list(zip(sources, streams))
+        self.mid_run_sources = sources
 
         while True:  # while-true/break is a code smell, but I want a do-while
             next_time = float('inf')
@@ -99,6 +122,7 @@ class TransformerMixin(ABC):
                     next_time = source_next_time
                     next_source, next_stream = source, stream
             if not next_time < float('inf'):
+                self.mid_run_sources = None # todo: GeneratorExit exception cleanup?
                 break
             if fit:
                 ret = self.partial_fit_transform(data=next(next_source), stream=next_stream, return_output_stream=return_output_stream)
@@ -254,24 +278,26 @@ class CenteringTransformer(TypicalTransformer):
 
 class KernelSmoother(TypicalTransformer):
     # TODO: make time aware
-    def __init__(self, kernel_length=5, tau=.9, custom_kernel=None, **kwargs):
+    def __init__(self, tau=1, kernel_length=None, custom_kernel=None, **kwargs):
         super().__init__(**kwargs)
         if custom_kernel is None:
             delta_t = 1 # todo: make time-aware
             alpha = 1 - np.exp(-delta_t/tau)
+            if kernel_length is None:
+                kernel_length = np.ceil(tau * 5).astype(int)
+
             kernel = alpha * (1-alpha)**np.arange(kernel_length)[::-1]
         else:
             kernel = custom_kernel
         self.kernel = kernel
-        self.n = len(kernel)
         self.last_X = None
-        self.history = deque(maxlen=self.n)
+        self.history = deque(maxlen=len(self.kernel))
 
     def pre_initialization_fit_for_X(self, X):
         if self.last_X is not None:
             self.history.extend(self.last_X)
         self.last_X = X.copy()
-        if len(self.history) == self.n:
+        if len(self.history) == len(self.kernel):
             self.is_initialized = True
 
     def partial_fit_for_X(self, X):
@@ -280,10 +306,11 @@ class KernelSmoother(TypicalTransformer):
 
     def transform_for_X(self, X):
         d = self.history.copy()
+        new_X = np.empty_like(X)  # otherwise we modify the array in-place
         for i, row in enumerate(X):
             d.append(row)
-            X[i] = self.kernel @ d
-        return X
+            new_X[i] = self.kernel @ d
+        return new_X
 
     def plot_impulse_response(self, ax):
         """
@@ -293,7 +320,7 @@ class KernelSmoother(TypicalTransformer):
             The axis to plot on.
         """
 
-        impulse_point = 50
+        impulse_point = len(self.kernel) + 3
         a = np.zeros((2*impulse_point + 1,1,1))
         a[impulse_point] = 1
         b = np.array(self.offline_run_on(a, convinient_return=False)[0])
@@ -302,7 +329,7 @@ class KernelSmoother(TypicalTransformer):
         ax.axvline(len(self.kernel), color='k', linestyle='--', label='end of initialization')
         # ax.axvline(impulse_point + len(self.kernel), color='k', alpha=.25)
         # ax.axvline(impulse_point, color='k', alpha=.25, label='region of impulse response')
-        ax.fill_between([impulse_point, impulse_point + len(self.kernel)], 1,  color='k', alpha=.1, label='impulse response')
+        ax.fill_between([impulse_point, impulse_point + len(self.kernel)-1], 1,  color='k', alpha=.1, label='impulse response')
         ax.legend()
 
 

@@ -1,6 +1,6 @@
 import numpy as np
 import adaptive_latents as al
-from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline
+from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother
 from adaptive_latents.transformer import TransformerMixin
 import pytest
 import itertools
@@ -22,6 +22,7 @@ class TestTransformer:
 
 @pytest.mark.parametrize('transformer', [
     CenteringTransformer(),
+    KernelSmoother(),
     proSVD(k=3, whiten=True),
     sjPCA(),
     mmICA(),
@@ -44,6 +45,16 @@ class TestPerTransformer:
     #
     # def test_can_reroute_stream(self):
     #     pass
+
+    def test_original_matrix_unchanged(self, transformer: TransformerMixin, rng):
+        transformer.offline_run_on(rng.normal(size=(100,6)))
+        # todo: should transformers be able to mutate their inputs?
+
+        for f in (transformer.partial_fit, transformer.transform):
+            A = rng.normal(size=(1,6))
+            A_original = A.copy()
+            f(A)
+            assert np.all(A == A_original)
 
 
 
