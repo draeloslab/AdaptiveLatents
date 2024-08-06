@@ -66,6 +66,10 @@ class BaseProSVD:
             ret = np.linalg.inv(B) @ ret
         return ret
 
+    def get_cov_matrix(self):
+        B = self.B/np.sqrt(self.n_samples_observed)
+        return B @ B.T
+
 
 
 

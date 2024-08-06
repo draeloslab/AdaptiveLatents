@@ -24,7 +24,7 @@ class TransformerMixin(ABC):
         output_streams: dict[int, int]
             Keys are input streams, values are output streams; this is stream remapping applied after the transformer.
         """
-        self.kwargs = kwargs  # mostly for printing later, these should correspond to the estimator
+        self.kwargs = kwargs  # mostly for printing later, these sometimes correspond to the estimator; this works when being used as a mixin
         super().__init__(**kwargs)
         # if input_streams is not None:
         #     self.kwargs.update(input_streams=input_streams)
@@ -36,6 +36,7 @@ class TransformerMixin(ABC):
         self.log_level = log_level
         self.log = dict()
         self.mid_run_sources = None
+        self.frozen = False
 
     @abstractmethod
     def partial_fit(self, data, stream=0):
@@ -67,6 +68,10 @@ class TransformerMixin(ABC):
         pass
 
     # TODO: inverse_transform
+
+    @abstractmethod
+    def freeze(self, b=True):
+        self.frozen = b
 
     def partial_fit_transform(self, data, stream=0, return_output_stream=False):
         self.partial_fit(data, stream)
@@ -188,6 +193,11 @@ class Pipeline(TransformerMixin):
             return data
         return data, self.output_streams[stream]
 
+    def freeze(self, b=True):
+        self.frozen = b
+        for step in self.steps:
+            step.freeze(b)
+
     def trace_route(self, stream):
         super_path = [stream]
 
@@ -217,6 +227,8 @@ class TypicalTransformer(TransformerMixin):
         self.is_initialized = False
 
     def partial_fit(self, data, stream=0):
+        if self.frozen:
+            return
         if self.input_streams[stream] == 'X':
             if np.isnan(data).any():
                 idx = np.isnan(data).any(axis=1)
@@ -242,6 +254,9 @@ class TypicalTransformer(TransformerMixin):
         if return_output_stream:
             return data, self.output_streams[stream]
         return data
+
+    def freeze(self, b=True):
+        self.frozen = b
 
     def pre_initialization_fit_for_X(self, X):
         self.is_initialized = True
@@ -269,11 +284,15 @@ class CenteringTransformer(TypicalTransformer):
         self.center = 0
 
     def partial_fit_for_X(self, X):
-        self.samples_seen += X.shape[0]
-        self.center = self.center + (X.sum(axis=0) - X.shape[0] * self.center) / self.samples_seen
+        if not self.frozen:
+            self.samples_seen += X.shape[0]
+            self.center = self.center + (X.sum(axis=0) - X.shape[0] * self.center) / self.samples_seen
 
     def transform_for_X(self, X):
         return X - self.center
+
+    def freeze(self, b=True):
+        self.frozen = b
 
 
 class KernelSmoother(TypicalTransformer):
@@ -301,8 +320,9 @@ class KernelSmoother(TypicalTransformer):
             self.is_initialized = True
 
     def partial_fit_for_X(self, X):
-        self.history.extend(self.last_X)
-        self.last_X = X.copy()
+        if not self.frozen:
+            self.history.extend(self.last_X)
+            self.last_X = X.copy()
 
     def transform_for_X(self, X):
         d = self.history.copy()
@@ -311,6 +331,9 @@ class KernelSmoother(TypicalTransformer):
             d.append(row)
             new_X[i] = self.kernel @ d
         return new_X
+
+    def freeze(self, b=True):
+        self.frozen = b
 
     def plot_impulse_response(self, ax):
         """

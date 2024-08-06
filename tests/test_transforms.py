@@ -1,8 +1,11 @@
+import copy
+
 import numpy as np
 import adaptive_latents as al
 from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother
 from adaptive_latents.transformer import TransformerMixin
 import pytest
+import copy
 import itertools
 
 
@@ -55,6 +58,37 @@ class TestPerTransformer:
             A_original = A.copy()
             f(A)
             assert np.all(A == A_original)
+
+    def test_partial_fit_transform_decomposes_correctly(self, transformer: TransformerMixin, rng):
+        for batch in rng.normal(size=(10,2,6)): # multiple batches to check initialization
+            t1 = transformer
+            t2 = copy.deepcopy(transformer)
+
+            o1 = t1.partial_fit_transform(batch)
+
+            t2.partial_fit(batch)
+            o2 = t2.transform(batch)
+
+            assert np.array_equal(o1, o2, equal_nan=True)
+
+    def test_freezing_works_correctly(self, transformer: TransformerMixin, rng):
+        transformer.freeze(False)
+        for batch in rng.normal(size=(10,2,6)):
+            transformer.partial_fit(batch)
+        t2 = copy.deepcopy(transformer)
+
+        transformer.freeze(True)
+        for batch in rng.normal(size=(10,2,6)):
+            transformer.partial_fit(batch)
+            assert np.array_equal(transformer.transform(batch), t2.transform(batch))
+
+        transformer.freeze(False)
+        for batch in rng.normal(size=(10,2,6)):
+            transformer.partial_fit(batch)
+            assert not np.array_equal(transformer.transform(batch), t2.transform(batch))
+
+
+
 
 
 
