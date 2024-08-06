@@ -13,14 +13,23 @@ def _ellipse_r(a, b, theta):
     return a * b / np.sqrt((np.cos(theta) * b)**2 + (np.sin(theta) * a)**2)
 
 
-def add_2d_bubble(ax, el, center, n_sds, facecolor='#ed6713', name=None, alpha=1., name_theta=45, show_name=True):
-    el = np.linalg.inv(el)
 
-    sig = el.T @ el
+def add_2d_bubble(ax, cov, center, passed_sig=False, **kwargs):
+    if not passed_sig:
+        el = np.linalg.inv(cov)
+        sig = el.T @ el
+    else:
+        sig = cov
     proj_mat = np.eye(sig.shape[0])[:2, :]
     sig = proj_mat @ sig @ proj_mat.T
-
     center = proj_mat @ center
+    add_2d_bubble_from_sig(ax, sig, center, **kwargs)
+
+
+
+def add_2d_bubble_from_sig(ax, sig, center, n_sds=3, facecolor='#ed6713', name=None, alpha=1., name_theta=45, show_name=True):
+    assert center.size == 2
+    assert sig.shape == (2,2)
 
     u, s, v = np.linalg.svd(sig)
     width, height = np.sqrt(s[0]) * n_sds, np.sqrt(s[1]) * n_sds  # note width is always bigger
@@ -35,7 +44,6 @@ def add_2d_bubble(ax, el, center, n_sds, facecolor='#ed6713', name=None, alpha=1
         theta1 = name_theta - angle
         r = _ellipse_r(width / 2, height / 2, theta1 / 180 * np.pi)
         ax.text(center[0] + r * np.cos(name_theta / 180 * np.pi), center[1] + r * np.sin(name_theta / 180 * np.pi), name, clip_on=True)
-
 
 def show_bubbles_2d(ax, data, bw, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45, show_names=True, tail_length=0, no_bubbles=False):
     A = bw.A
