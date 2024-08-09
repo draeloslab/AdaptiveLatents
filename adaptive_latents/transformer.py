@@ -113,8 +113,9 @@ class TransformerMixin(ABC):
 
         sources, streams = zip(*sources)
 
-        sources = [NumpyTimedDataSource(source) if isinstance(source, np.ndarray) else GeneratorDataSource(source) for source in sources]
-        sources = [copy.deepcopy(source) for source in sources]
+        # TODO: think more about if this should be a deep copy or not
+        # or if NumpyTimedDataSource should not be both the data structure and iterator
+        sources = [NumpyTimedDataSource(copy.deepcopy(source)) if isinstance(source, np.ndarray) else GeneratorDataSource(source) for source in sources]
 
         sources = list(zip(sources, streams))
         self.mid_run_sources = sources

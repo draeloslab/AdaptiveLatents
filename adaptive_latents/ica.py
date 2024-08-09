@@ -87,6 +87,7 @@ class mmICA(TypicalTransformer, BaseMMICA):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.processing_queue = []
+        self.log = {'W': [], 't': []}
 
     def pre_initialization_fit_for_X(self, X):
         self.set_p(X.shape[1])
@@ -97,6 +98,11 @@ class mmICA(TypicalTransformer, BaseMMICA):
         self.processing_queue.extend(X)
         if len(self.processing_queue) >= self.p:
             self.observe_new_batch(np.array(self.processing_queue).T)
+
+    def log_for_partial_fit(self, data, stream=0, pre_initialization=False):
+        if not pre_initialization and self.input_streams[stream] == 'X' and self.log_level >= 1:
+            self.log['W'].append(self.W.copy())
+            self.log['t'].append(data.t)
 
     def transform_for_X(self, X):
         return self.unmix(X.T).T

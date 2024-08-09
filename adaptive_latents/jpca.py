@@ -2,7 +2,8 @@ import numpy as np
 from scipy.linalg import block_diag
 from .transformer import TypicalTransformer
 from adaptive_latents.regressions import VanillaOnlineRegressor
-from .utils import save_to_cache, align_column_spaces
+from .utils import principle_angles
+import warnings
 import tqdm
 from scipy.stats import special_ortho_group
 
@@ -62,8 +63,8 @@ class BaseSJPCA:
             # assert np.allclose(np.imag(u2),0)
             U[:, i * 2] = np.real(u1)
             U[:, i*2 + 1] = np.real(u2)
-            if self.last_U is not None and np.all(~np.isnan(self.last_U)):
-                U[:, (i * 2):(i*2 + 2)], _ = align_column_spaces(U[:, (i * 2):(i*2 + 2)], self.last_U[:, (i * 2):(i*2 + 2)])
+            # if self.last_U is not None and np.all(~np.isnan(self.last_U)):
+            #     U[:, (i * 2):(i*2 + 2)], _ = align_column_spaces(U[:, (i * 2):(i*2 + 2)], self.last_U[:, (i * 2):(i*2 + 2)])
         self.last_U = U
         return U
 
@@ -100,6 +101,10 @@ class BaseSJPCA:
 
 
 class sjPCA(TypicalTransformer, BaseSJPCA):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.log = {'U': [], 't':[]}
+
     def pre_initialization_fit_for_X(self, X):
         if self.last_x is None: #  round 1
             self.initialize(X)
@@ -114,6 +119,49 @@ class sjPCA(TypicalTransformer, BaseSJPCA):
     def transform_for_X(self, X):
         return self.project(X)
 
+    def log_for_partial_fit(self, data, stream=0, pre_initialization=False):
+        if not pre_initialization and self.input_streams[stream] == 'X' and self.log_level >= 1:
+            self.log['U'].append(self.get_U())
+            self.log['t'].append(data.t)
+
+    def get_distance_from_subspace_over_time(self, subspace):
+        assert self.log_level >= 1
+        n = self.log['U'][0].shape[0]
+        m = len(self.log['U'])
+        distances = np.empty((m, n//2))
+        for j, U in enumerate(self.log['U']):
+            if np.any(np.isnan(U)):
+                distances[j,:] = np.nan
+                continue
+            for plane_idx in range(n//2):
+                sub_U = U[:, plane_idx*2: (plane_idx + 1)*2]
+                distances[j, plane_idx] = np.abs(principle_angles(sub_U, subspace)).sum()
+        # todo: divide by pi to normalize to 1
+        return distances, np.array(self.log['t'])
+
+    def get_U_stability(self):
+        assert self.log_level > 0
+        Us = np.array(self.log['U'])
+        t = np.array(self.log['t'])
+
+        assert len(Us)
+        dU = np.linalg.norm(np.diff(Us, axis=0), axis=1)[:,::2]
+        return dU, t[1:]
+
+    def plot_U_stability(self, ax):
+        """
+        Parameters
+        ----------
+        ax: matplotlib.axes.Axes
+            the axes on which to plot the history
+        """
+        dU, t = self.get_U_stability()
+        ax.plot(t, dU)
+        ax.set_xlabel('time (s)')
+        ax.set_ylabel(r'$\Vert dU_{2i}\Vert$')
+        ax.set_title(f"Numerical change in the bases of the planes of sjPCA")
+
+
 
 def X_and_X_dot_from_data(X_all):
     """note: this is technically off-by-one for the way I normally think about it, but it's causal"""
@@ -124,7 +172,7 @@ def X_and_X_dot_from_data(X_all):
 
 
 def generate_circle_embedded_in_high_d(rng, m=1000, n=4, stddev=1, shape=(10, 10)):
-    t = np.linspace(0, m / 50 * np.pi * 2, m + 1)
+    t = np.linspace(0, (m / 10) * np.pi * 2, m + 1)
     circle = np.column_stack([np.cos(t), np.sin(t)]) @ np.diag(shape)
     C = special_ortho_group(dim=n, seed=rng).rvs()[:, :2]
     X_all = (circle @ C.T) + rng.normal(size=(m + 1, n)) * stddev

@@ -234,3 +234,7 @@ def align_column_spaces(A, B):
 def column_space_distance(Q1, Q2):
     Q1_rotated, Q2 = align_column_spaces(Q1, Q2)
     return np.linalg.norm(Q1_rotated - Q2)
+
+def principle_angles(Q1, Q2):
+    _, s, _ = np.linalg.svd(Q1.T @ Q2)
+    return np.acos(s)

@@ -23,7 +23,7 @@ class DataSource(ABC):
 
 
 class GeneratorDataSource(DataSource):
-    def __init__(self, source):
+    def __init__(self, source, dt=1):
         if isinstance(source, types.GeneratorType):
             generator = source
         else:
@@ -31,6 +31,7 @@ class GeneratorDataSource(DataSource):
         self.generator = enumerate(generator)
         self.next_sample = next(self.generator)
         self.current_time = None
+        self.dt = dt
 
     def __iter__(self):
         return self
@@ -46,7 +47,7 @@ class GeneratorDataSource(DataSource):
             self.next_sample = (float('inf'), None)
 
         self.current_time = this_sample[0]
-        return ArrayWithTime(this_sample[1], t=self.current_time)
+        return ArrayWithTime(this_sample[1], t=self.current_time * self.dt)
 
     def next_sample_time(self):
         return self.next_sample[0]

@@ -87,6 +87,9 @@ class TestPerTransformer:
             transformer.partial_fit(batch)
             assert not np.array_equal(transformer.transform(batch), t2.transform(batch))
 
+    # todo: test if wrapping generator data sources works correctly
+    # todo: test if the appropriate logs are called for all iterations and all transformers
+
 
 
 
