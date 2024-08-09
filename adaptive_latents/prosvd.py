@@ -105,12 +105,15 @@ class proSVD(TypicalTransformer, BaseProSVD):
         if not pre_initialization:
             if self.log_level > 0:
                 self.log['Q'].append(self.Q)
-                self.log['t'].append(data.t)
+                self.log['t'].append(data.t) # todo: make this work again
 
     def get_Q_stability(self):
         assert self.log_level > 0
         Qs = np.array(self.log['Q'])
-        t = np.array(self.log['t'])
+
+        t = np.arange(Qs.shape[0])
+        if 't' in self.log:
+            t = np.array(self.log['t'])
 
         assert len(Qs)
         dQ = np.linalg.norm(np.diff(Qs, axis=0), axis=1)
@@ -131,7 +134,7 @@ class proSVD(TypicalTransformer, BaseProSVD):
 
     @save_to_cache("prosvd_data")
     @classmethod
-    def apply_and_cache(cls, input_arr, **kwargs):
+    def offline_run_on_and_cache(cls, input_arr, **kwargs):
         pro = cls(**kwargs)
         return pro.offline_run_on(input_arr, convinient_return=True)
 
