@@ -29,4 +29,5 @@ dependencies:
   - pip:
      - jax
      - datahugger
+     - python-picard
      - "git+https://github.com/Jonathan-Gould/mmica"
