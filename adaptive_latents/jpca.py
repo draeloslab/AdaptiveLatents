@@ -136,7 +136,7 @@ class sjPCA(TypicalTransformer, BaseSJPCA):
             for plane_idx in range(n//2):
                 sub_U = U[:, plane_idx*2: (plane_idx + 1)*2]
                 distances[j, plane_idx] = np.abs(principle_angles(sub_U, subspace)).sum()
-        # todo: divide by pi to normalize to 1
+        # todo: divide by pi to normalize to 1?
         return distances, np.array(self.log['t'])
 
     def get_U_stability(self):
