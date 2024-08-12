@@ -5,24 +5,22 @@ import numpy as np
 
 @pytest.fixture(params=["nearest_n", "vanilla", "vanilla_regularized"])
 def base_reg_maker(request):
-    match request.param:
-        case "nearest_n":
-            return NearestNeighborRegressor
-        case "vanilla":
-            return VanillaOnlineRegressor
-        case "vanilla_regularized":
-            return SemiRegularizedRegressor
+    if request.param == "nearest_n":
+        return NearestNeighborRegressor
+    elif request.param == "vanilla":
+        return VanillaOnlineRegressor
+    elif request.param == "vanilla_regularized":
+        return SemiRegularizedRegressor
 
 
 @pytest.fixture(params=["no autoregression", "autoregression 0", "autoregression 2"])
 def reg_maker(request, base_reg_maker):
-    match request.param:
-        case "no autoregression":
-            return base_reg_maker
-        case "autoregression 0":
-            return auto_regression_decorator(base_reg_maker, n_steps=0)
-        case "autoregression 2":
-            return auto_regression_decorator(base_reg_maker, n_steps=2)
+    if request.param == "no autoregression":
+        return base_reg_maker
+    elif request.param == "autoregression 0":
+        return auto_regression_decorator(base_reg_maker, n_steps=0)
+    elif request.param == "autoregression 2":
+        return auto_regression_decorator(base_reg_maker, n_steps=2)
 
 
 def test_can_run_nd(reg_maker, rng):
