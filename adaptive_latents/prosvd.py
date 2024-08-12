@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.linalg import rq
 from .transformer import TypicalTransformer
-from .utils import save_to_cache
+from .utils import save_to_cache, principle_angles
 
 
 class BaseProSVD:
@@ -106,6 +106,17 @@ class proSVD(TypicalTransformer, BaseProSVD):
             if self.log_level > 0:
                 self.log['Q'].append(self.Q)
                 self.log['t'].append(data.t) # todo: make this work again
+
+    def get_distance_from_subspace_over_time(self, subspace):
+        assert self.log_level >= 1
+        m = len(self.log['Q'])
+        distances = np.empty(m)
+        for j, Q in enumerate(self.log['Q']):
+            if np.any(np.isnan(Q)):
+                distances[j] = np.nan
+                continue
+            distances[j] = np.abs(principle_angles(Q, subspace)).sum()
+        return distances, np.array(self.log['t'])
 
     def get_Q_stability(self):
         assert self.log_level > 0
