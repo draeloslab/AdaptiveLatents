@@ -28,6 +28,8 @@ dependencies:
   - pip
   - pip:
      - jax
+     - jaxlib
      - datahugger
+     - matlabengine # todo: this might be removable
      - python-picard
      - "git+https://github.com/Jonathan-Gould/mmica"

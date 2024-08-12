@@ -82,16 +82,15 @@ class BaseSJPCA:
     @staticmethod
     def make_X_tilde(X, order='C'):
         m, n = X.shape
-        match order:
-            case 'C':
-                X_tilde = np.zeros(shape=(m * n, n * n))
-                for i in range(m):
-                    for j in range(n):
-                        X_tilde[i*n + j, j * n:(j+1) * n] = X[i]
-            case 'F':
-                X_tilde = block_diag(*[X] * n)
-            case _:
-                raise Exception("Input must be 'C' or 'F'")
+        if order == 'C':
+            X_tilde = np.zeros(shape=(m * n, n * n))
+            for i in range(m):
+                for j in range(n):
+                    X_tilde[i * n + j, j * n:(j + 1) * n] = X[i]
+        elif order == 'F':
+            X_tilde = block_diag(*[X] * n)
+        else:
+            raise Exception("Input must be 'C' or 'F'")
 
         return X_tilde
 

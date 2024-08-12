@@ -297,27 +297,26 @@ def show_nstep_pdf(ax, br, other_axis, fig, hmm=None, method="br", offset=1, sho
     pdf = np.zeros(shape=(density, density))
     for i in range(density):
         for j in range(density):
-            match method:
-                case "br":
-                    x = np.array([x_bins[i] + x_bins[i + 1], y_bins[j] + y_bins[j + 1]]) / 2
-                    b_values = bw.logB_jax(x, bw.mu, bw.L, bw.L_diag)
-                    pdf[i, j] = bw.alpha @ np.linalg.matrix_power(bw.A, offset) @ np.exp(b_values)
-                case "hmm":
-                    emission_model: adaptive_latents.input_sources.hmm_simulation.GaussianEmissionModel = hmm.emission_model
-                    node_history, _ = br.output_ds.get_history()
-                    current_node = node_history[-1]
-                    state_p_vec = np.zeros(emission_model.means.shape[0])
-                    state_p_vec[current_node] = 1
+            if method == 'br':
+                x = np.array([x_bins[i] + x_bins[i + 1], y_bins[j] + y_bins[j + 1]]) / 2
+                b_values = bw.logB_jax(x, bw.mu, bw.L, bw.L_diag)
+                pdf[i, j] = bw.alpha @ np.linalg.matrix_power(bw.A, offset) @ np.exp(b_values)
+            elif method == 'hmm':
+                emission_model: adaptive_latents.input_sources.hmm_simulation.GaussianEmissionModel = hmm.emission_model
+                node_history, _ = br.output_ds.get_history()
+                current_node = node_history[-1]
+                state_p_vec = np.zeros(emission_model.means.shape[0])
+                state_p_vec[current_node] = 1
 
-                    x = np.array([x_bins[i] + x_bins[i + 1], y_bins[j] + y_bins[j + 1]]) / 2
-                    pdf_p_vec = np.zeros(emission_model.means.shape[0])
-                    for k in range(pdf_p_vec.size):
-                        mu = emission_model.means[k]
-                        sigma = emission_model.covariances[k]
-                        displacement = x - mu
-                        pdf_p_vec[k] = 1 / (np.sqrt((2 * np.pi)**mu.size * np.linalg.det(sigma))) * np.exp(-1 / 2 * displacement.T @ np.linalg.inv(sigma) @ displacement)
+                x = np.array([x_bins[i] + x_bins[i + 1], y_bins[j] + y_bins[j + 1]]) / 2
+                pdf_p_vec = np.zeros(emission_model.means.shape[0])
+                for k in range(pdf_p_vec.size):
+                    mu = emission_model.means[k]
+                    sigma = emission_model.covariances[k]
+                    displacement = x - mu
+                    pdf_p_vec[k] = 1 / (np.sqrt((2 * np.pi)**mu.size * np.linalg.det(sigma))) * np.exp(-1 / 2 * displacement.T @ np.linalg.inv(sigma) @ displacement)
 
-                    pdf[i, j] = state_p_vec @ np.linalg.matrix_power(hmm.transition_matrix, offset) @ pdf_p_vec
+                pdf[i, j] = state_p_vec @ np.linalg.matrix_power(hmm.transition_matrix, offset) @ pdf_p_vec
 
     # these might control the colors
     # cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T, vmin=min(vmin, pdf.min()), vmax=max(vmax, pdf.max()))
