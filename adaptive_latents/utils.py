@@ -223,6 +223,7 @@ def resample_matched_timeseries(old_timeseries, new_sample_times, old_sample_tim
 
 
 def align_column_spaces(A, B):
+    # https://simonensemble.github.io/posts/2018-10-27-orthogonal-procrustes/
     # R = argmin(lambda omega: norm(omega @ A - B))
     A, B = A.T, B.T
     C = A @ B.T
