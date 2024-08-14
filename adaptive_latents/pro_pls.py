@@ -1,8 +1,8 @@
 import numpy as np
 import scipy.linalg
-rng = np.random.default_rng()
-
-
+import adaptive_latents as al
+import matplotlib.pyplot as plt
+from sklearn.cross_decomposition import PLSRegression
 
 class BaseProPLS:
     def __init__(self, k=10, decay_alpha=1):
@@ -25,8 +25,11 @@ class BaseProPLS:
         self.n_samples_observed = 0
         self.update(x, y) # TODO: check semantics of initialization
 
-    # def add_new_input_channels(self, n):
-    #     self.Q = np.vstack([self.Q, np.zeros(shape=(n, self.Q.shape[1]))])
+    def add_new_input_channels(self, n_x=0, n_y=0):
+        if n_x:
+            self.u = np.vstack([self.u, np.zeros(shape=(n_x, self.u.shape[1]))])
+        if n_y:
+            self.vh = np.hstack([self.vh, np.zeros((self.vh.shape[0], n_y))])
 
     def update(self, x, y):
         # decompose x into parallel and orthogonal components
@@ -80,76 +83,76 @@ class BaseProPLS:
 
         return tuple(filter(lambda z: z is not None, [x_proj, y_proj]))
 
+    def get_cross_covariance(self):
+        return self.u @ self.s @ self.vh
 
 
 
 def row_version():
+    rng = np.random.default_rng()
     base_d = 5
     high_d = (10, 9)
     n_points = 100
-    max_rank = 6
     X = rng.normal(size=(n_points, base_d))
     Y = rng.normal(size=(n_points, base_d))
 
     X = np.hstack([X, np.zeros((n_points, high_d[0] - base_d))])
     Y = np.hstack([Y, np.zeros((n_points, high_d[1] - base_d))])
 
-    cov_old_way = np.zeros(high_d)
 
-    u, s, vh = np.zeros((high_d[0], max_rank)), np.zeros((max_rank, max_rank)), np.zeros((max_rank, high_d[1]))
     step = 3
+
+    pls = BaseProPLS(k=5)
     for i in range(0,n_points,step):
         x = X[i:i+step]
         y = Y[i:i+step]
 
-        cov_old_way = cov_old_way + x.T @ y
+        if i == 0:
+            pls.initialize(x, y)
+        else:
+            pls.update(x, y)
 
-        x_hat = x @ u
-        x_orth = x - x_hat @ u.T
-        r_x_orth, q_x_orth = scipy.linalg.rq(x_orth, mode='economic')
+    assert np.allclose(X.T@Y, pls.get_cross_covariance())
 
-        y_hat = y @ vh.T
-        y_orth = y - y_hat @ vh
-        r_y_orth, q_y_orth = scipy.linalg.rq(y_orth, mode='economic')
+def actually_works():
+    rng = np.random.default_rng()
+    high_d = (10, 9)
+    n_points = 1000
+    common_d = 2
 
+    X = rng.normal(size=(n_points, high_d[0]))
+    Y = rng.normal(size=(n_points, high_d[1]))
 
-        new_u = np.hstack([u, q_x_orth.T])
-        new_s = np.block([
-            [s + x_hat.T@y_hat, x_hat.T@r_y_orth],
-            [r_x_orth.T@y_hat, r_x_orth.T@r_y_orth]
-        ])
-        new_vh = np.vstack([vh, q_y_orth])
+    common = rng.normal(size=(n_points, common_d))
+    snr = 1
 
-        u_tilde, s_tilde, vh_tilde = np.linalg.svd(new_s)
-        new_u = (new_u @ u_tilde)[:,:max_rank]
-        new_s = np.diag(s_tilde[:max_rank])
-        new_vh = (vh_tilde @ new_vh)[:max_rank]
+    Y[:,:common_d] = (snr * common + rng.normal(size=(n_points, common_d)))/np.sqrt(1 + snr**2)
+    X[:,:common_d] = (snr * common + rng.normal(size=(n_points, common_d)))/np.sqrt(1 + snr**2)
 
-        if not 'align':
-            u = new_u
-            s = new_s
-            vh = new_vh
-        elif 'align':
-            result = np.linalg.svd(new_u.T @ u)
-            R_u = result[0] @ result[2]
-            u = new_u @ R_u
+    x_common_basis = np.eye(high_d[0])[:,:common_d]
 
-            result = np.linalg.svd(new_vh @ vh.T)
-            R_v = result[2].T @ result[0].T
-            vh = R_v @ new_vh
+    pls = BaseProPLS(k=2)
 
-            s = R_u.T @ new_s @ R_v.T
+    step = 1
+    errors = []
+    for i in range(0,n_points,step):
+        x = X[i:i+step]
+        y = Y[i:i+step]
 
+        if i == 0:
+            pls.initialize(x, y)
+        else:
+            pls.update(x, y)
 
-        # old_u, old_s, old_vh = np.linalg.svd(cov_old_way)
-        # print(old_s)
-        # print(np.diag(new_s))
+        errors.append(np.abs(al.utils.principle_angles(pls.u, x_common_basis)).sum())
+    plt.plot(errors)
 
+    sk_pls = PLSRegression(n_components=pls.k).fit(X, Y)
+    offline_error = np.abs(al.utils.principle_angles(sk_pls.x_weights_, x_common_basis)).sum()
+    plt.axhline(offline_error, color='k', linestyle='--')
 
-
-        # print(np.linalg.norm(cov_old_way - (u@s)@v.T))
-    assert np.allclose(X.T@Y, cov_old_way)
-    assert np.allclose(X.T@Y, u@s@vh)
+    plt.semilogy()
+    plt.show()
 
 
 
@@ -164,6 +167,7 @@ def align_to(A, B):
 
 
 def column_version():
+    rng = np.random.default_rng()
     base_d = 5
     high_d = 10
     n_points = 100
@@ -222,5 +226,5 @@ def column_version():
     assert np.allclose(X@Y.T, (u@s)@v.T)
 
 if __name__ == '__main__':
-    row_version()
+    actually_works()
     column_version()
