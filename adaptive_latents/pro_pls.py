@@ -32,44 +32,44 @@ class BaseProPLS:
 
     def update(self, x, y):
         # decompose x into parallel and orthogonal components
-        x_hat = x @ self.u
-        x_orth = x - x_hat @ self.u.T
+        x_along = x @ self.u
+        x_orth = x - x_along @ self.u.T
         r_x_orth, q_x_orth = scipy.linalg.rq(x_orth, mode='economic')
 
         # decompose y into parallel and orthogonal components
-        y_hat = y @ self.vh.T
-        y_orth = y - y_hat @ self.vh
+        y_along = y @ self.vh.T
+        y_orth = y - y_along @ self.vh
         r_y_orth, q_y_orth = scipy.linalg.rq(y_orth, mode='economic')
 
         # decay old s information
-        new_s = self.s * self.decay_alpha
+        s_new = self.s * self.decay_alpha
 
         # construct the new svd
-        new_u = np.hstack([self.u, q_x_orth.T])
-        new_s = np.block([
-            [new_s + x_hat.T@y_hat, x_hat.T@r_y_orth],
-            [r_x_orth.T@y_hat, r_x_orth.T@r_y_orth]
+        u_new = np.hstack([self.u, q_x_orth.T])
+        s_new = np.block([
+            [s_new + x_along.T@y_along, x_along.T@r_y_orth],
+            [r_x_orth.T@y_along, r_x_orth.T@r_y_orth]
         ])
-        new_vh = np.vstack([self.vh, q_y_orth])
+        vh_new = np.vstack([self.vh, q_y_orth])
 
         # diagonalize the new svd
-        u_tilde, s_tilde, vh_tilde = np.linalg.svd(new_s, full_matrices=False)
+        u_rotation, s_new, vh_rotation = np.linalg.svd(s_new, full_matrices=False)
 
         # drop the smallest-covariance dimensions from our new svd
-        new_u = (new_u @ u_tilde)[:,:self.k]
-        new_s = np.diag(s_tilde[:self.k])
-        new_vh = (vh_tilde @ new_vh)[:self.k]
+        u_new = u_new @ u_rotation[:,:self.k]
+        s_new = np.diag(s_new[:self.k])
+        vh_new = vh_rotation[:self.k] @ vh_new
 
-        # align the new svd to the previous u and vh matrices
-        result = np.linalg.svd(new_u.T @ self.u)
-        R_u = result[0] @ result[2]
-        self.u = new_u @ R_u
+        # align the new svd to the previous u and vh matrices with orthogonal procrustes
+        temp = np.linalg.svd(u_new[:self.k])  # `u_new[:self.k] == u_new.T @ self.u`
+        u_stabilizing_rotation = temp[0] @ temp[2]
+        self.u = u_new @ u_stabilizing_rotation
 
-        result = np.linalg.svd(new_vh @ self.vh.T)
-        R_v = result[2].T @ result[0].T
-        self.vh = R_v @ new_vh
+        temp = np.linalg.svd(vh_new[:, :self.k])  # `vh_new[:, :self.k] == vh_new @ self.vh.T`
+        vh_stabilizing_rotation = temp[2].T @ temp[0].T
+        self.vh = vh_stabilizing_rotation @ vh_new
 
-        self.s = R_u.T @ new_s @ R_v.T
+        self.s = u_stabilizing_rotation.T @ s_new @ vh_stabilizing_rotation.T
 
         # update the number of samples observed
         self.n_samples_observed *= self.decay_alpha

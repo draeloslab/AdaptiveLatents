@@ -12,66 +12,84 @@ class BaseProSVD:
         self.whiten = whiten
 
         self.Q = None
-        self.B = None
+        self.R = None
         self.n_samples_observed = 0
 
-    def initialize(self, A_init):
-        n, l1 = A_init.shape
+    def initialize(self, x):
+        sample_d, n_samples = x.shape
 
-        assert l1 >= self.k, "please init with # of cols >= k"
-        assert n >= self.k, "k size doesn't make sense"
+        assert n_samples >= self.k, "please init with # of cols >= k"
+        assert sample_d >= self.k, "k size doesn't make sense"
 
-        Q, B = np.linalg.qr(A_init, mode='reduced')
+        Q, R = np.linalg.qr(x, mode='reduced')
 
-        self.Q = Q[:, :self.k]
-        self.B = B[:self.k, :self.k]
-        self.n_samples_observed = l1
+        self.Q = Q[:, :self.k]  # TODO: why isn't Q square here?
+        self.R = R[:self.k, :self.k]
+        self.n_samples_observed = n_samples
 
     def add_new_input_channels(self, n):
         self.Q = np.vstack([self.Q, np.zeros(shape=(n, self.Q.shape[1]))])
 
-    def updateSVD(self, A):
-        C = self.Q.T @ A
-        A_perp = A - self.Q @ C
-        Q_perp, B_perp = np.linalg.qr(A_perp, mode='reduced')
+    def updateSVD(self, x):
+        x_along = self.Q.T @ x
+        x_orth = x - self.Q @ x_along
+        x_orth_q, x_orth_r = np.linalg.qr(x_orth, mode='reduced')
 
-        Q_hat = np.concatenate((self.Q, Q_perp), axis=1)
+        q_new = np.hstack([self.Q, x_orth_q])
+        r_new = np.block([
+            [self.R,                                         x_along],
+            [np.zeros((x_orth_r.shape[0], self.R.shape[1])), x_orth_r]
+        ])
 
-        B_prev = np.concatenate((self.B, C), axis=1)
-        tmp = np.zeros((B_perp.shape[0], self.B.shape[1]))
-        tmp = np.concatenate((tmp, B_perp), axis=1)
-        B_hat = np.concatenate((B_prev, tmp), axis=0)
+        u_high_d, diag_high_d, vh_high_d = np.linalg.svd(r_new, full_matrices=False)
 
-        U, diag, V = np.linalg.svd(B_hat, full_matrices=False)
+        u_low_d = u_high_d[:,:self.k]
+        vh_low_d = vh_high_d[:,:self.k]
+        diag_low_d = diag_high_d[:self.k]
 
-        diag *= self.decay_alpha
+        diag_low_d *= self.decay_alpha
 
-        Mu = U[:self.k, :self.k]  # same as Mu = self.Q.T @ Q_hat @ U[:, :self.k]
+        # if 'alignment_method' == 'procrustean':
 
-        U_tilda, _, V_tilda_T = np.linalg.svd(Mu, full_matrices=False)
-        Tu = U_tilda @ V_tilda_T
-        Gu_1 = U[:, :self.k] @ Tu.T
+        # The new basis is `q_new @ u_low_d`; to align it to `X` we would do the SVD of `X.T @ (q_new @ u_low_d)`.
+        # Since we want to align to `self.Q`, we would usually use `self.Q.T @ q_new @ u_low_d`, but we can simplify
+        # because (self.Q.T @ q_new) has a lot of cancellations (see their definitions).
+        temp = np.linalg.svd(u_low_d[:self.k, :], full_matrices=False)
+        u_stabilizing_rotation = temp[0] @ temp[2]
+        u_low_d_stabilized = u_low_d @ u_stabilizing_rotation.T
 
-        Gv_1, Tv = rq(V[:, :self.k])
+        # TODO: we don't actually stabilize anything here, I think this can be dropped
+        vh_low_d_stabilized, vh_stabilizing_rotation = rq(vh_low_d)
 
-        self.Q = Q_hat @ Gu_1
-        self.B = Tu @ np.diag(diag[:self.k]) @ Tv.T
+        # elif 'alignment_method' == 'Baker 2012':
+        #     # Baker refers to e.g. https://doi.org/10.1016/j.laa.2011.07.018
+        #     u_low_d_stabilized, u_stabilizing_rotation = rq(u_low_d)
+        #     vh_low_d_stabilized, vh_stabilizing_rotation = rq(vh_low_d)
+        # elif 'alignment_method' == 'sequential KLT':
+        #     # KLT is in the original proSVD code, not sure what the source is
+        #     u_low_d_stabilized = u_low_d
+        #     u_stabilizing_rotation = u_low_d.T @ u_low_d  # identity matrix
+        #
+        #     vh_low_d_stabilized = vh_low_d
+        #     vh_stabilizing_rotation = vh_low_d.T @ vh_low_d
+
+        self.Q = q_new @ u_low_d_stabilized
+        self.R = u_stabilizing_rotation @ np.diag(diag_low_d) @ vh_stabilizing_rotation.T
 
         self.n_samples_observed *= self.decay_alpha
-        self.n_samples_observed += A.shape[1]
+        self.n_samples_observed += x.shape[1]
 
-    def project(self, A):
-        ret = self.Q.T @ A
+    def project(self, x):
+        ret = self.Q.T @ x
         if self.whiten:
             # todo: this can be sped up with lapack.dtrtri or linalg.solve
-            B = self.B/np.sqrt(self.n_samples_observed)
-            ret = np.linalg.inv(B) @ ret
+            R = self.R / np.sqrt(self.n_samples_observed)
+            ret = np.linalg.inv(R) @ ret
         return ret
 
     def get_cov_matrix(self):
-        B = self.B/np.sqrt(self.n_samples_observed)
-        return B @ B.T
-
+        R = self.R / np.sqrt(self.n_samples_observed)
+        return R @ R.T
 
 
 
@@ -93,7 +111,7 @@ class proSVD(TypicalTransformer, BaseProSVD):
                 self.is_partially_initialized = True
         else:
             self.updateSVD(X.T)
-        if self.is_partially_initialized and (not self.whiten or np.linalg.matrix_rank(self.B) == self.B.shape[0]):
+        if self.is_partially_initialized and (not self.whiten or np.linalg.matrix_rank(self.R) == self.R.shape[0]):
             self.is_initialized = True
 
 
