@@ -368,7 +368,7 @@ class AnimationManager:
         if filename is None:
             time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
             filename = f'movie_{time_string}'
-        self.outfile = outdir / f"{filename}.{extension}"
+        self.outfile = pathlib.Path(outdir).resolve() / f"{filename}.{extension}"
         self.movie_writer = FFMpegFileWriter(fps=fps)
         self.fig, self.ax = plt.subplots(n_rows, n_cols, figsize=figsize, layout='tight', squeeze=False)
         self.movie_writer.setup(self.fig, self.outfile, dpi=dpi)

@@ -176,8 +176,9 @@ class TestProSVD:
     def test_adding_colums_doesnt_hurt(self, rng):
         assert self.probabilistically_check_adding_channels_works(rng)[0] > .5
 
-    def test_n_samples_works_with_decay_alpha(self):
-        assert False
+    # TODO:
+    # def test_n_samples_works_with_decay_alpha(self):
+    #     assert False
 
 
 class TestProPLS:

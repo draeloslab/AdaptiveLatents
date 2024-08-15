@@ -1,40 +1,34 @@
-from adaptive_latents import Bubblewrap, BWRun, AnimationManager, SemiRegularizedRegressor, CONFIG
-from adaptive_latents.input_sources.hmm_simulation import simulate_example_data
-import adaptive_latents.plotting_functions as pfs
+from adaptive_latents import CONFIG, AnimationManager, Pipeline, CenteringTransformer, proSVD, sjPCA
+from adaptive_latents.jpca import generate_circle_embedded_in_high_d
+import numpy as np
 
 
-def main(output_directory=CONFIG['bwrun_save_path'], steps_to_run=None, make_animation=True):
-    # set make_animation to `False` to run much faster
-    obs, beh = simulate_example_data(dimensionality=2)
+def main(output_directory=CONFIG['plot_save_path'], steps_to_run=None):
+    rng = np.random.default_rng(0)
+    input_data, _, _ = generate_circle_embedded_in_high_d(rng, m=steps_to_run)
 
-    # define the adaptive_latents object
-    bw = Bubblewrap(dim=obs.shape[1])
+    pro = proSVD(k=4)
 
-    # define the (optional) method to regress the HMM state from `bw.alpha`
-    reg = SemiRegularizedRegressor(input_d=bw.N, output_d=1)
+    p = Pipeline([
+        CenteringTransformer(),
+        pro,
+        sjPCA()
+    ])
 
-    class CustomAnimation(AnimationManager):
-        n_rows = 1
-        n_cols = 1
-        fps = 10
-        figsize = (15, 10)
-        extension = "mp4"
+    with AnimationManager(fps=20, outdir=output_directory) as am:
+        transformed_data = np.zeros((input_data.shape[0], pro.k))
 
-        def custom_draw_frame(self, step, bw: Bubblewrap, br: BWRun):
-            historical_observations, _ = br.input_ds.get_history()
+        for i, output in enumerate(p.run_on(input_data)):
+            if np.isnan(output).any():
+                transformed_data[i] = np.nan
+                continue
 
-            pfs.show_bubbles_2d(self.ax[0, 0], historical_observations, bw, alpha_coefficient=.5)
-            self.ax[0, 0].set_title(f"Step {step}")
+            transformed_data[i] = output
 
-        def frame_draw_condition(self, step_number, bw):
-            return step_number % 5 == 0
+            am.ax[0, 0].cla()
+            am.ax[0, 0].scatter(transformed_data[:i, 0], transformed_data[:i, 1])
+            am.grab_frame()
 
-    am = CustomAnimation() if make_animation else False
-
-    # define the object to coordinate all the other objects
-    br = BWRun(bw=bw, in_ds=obs, out_ds=beh, behavior_regressor=reg, animation_manager=am, show_tqdm=True, output_directory=output_directory)
-
-    br.run(bw_step_limit=steps_to_run, save_bw_history=False)
 
 
 if __name__ == '__main__':
