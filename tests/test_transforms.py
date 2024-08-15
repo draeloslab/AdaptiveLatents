@@ -3,6 +3,8 @@ import numpy as np
 import adaptive_latents as al
 from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother, proPLS
 from adaptive_latents.transformer import TransformerMixin
+from adaptive_latents.jpca import generate_circle_embedded_in_high_d
+from adaptive_latents.utils import column_space_distance
 import pytest
 import copy
 import itertools
@@ -119,7 +121,7 @@ class TestJPCA:
                 assert np.linalg.norm(np.real(np.linalg.eigvals(sksym))) < 1e-14
 
     def test_works_on_circular_data(self, rng):
-        X, X_dot, true_variables = al.jpca.generate_circle_embedded_in_high_d(rng, m=10_000, stddev=.01)
+        X, X_dot, true_variables = generate_circle_embedded_in_high_d(rng, m=10_000, stddev=.01)
 
         jp = sjPCA()
         X_realigned = jp.offline_run_on(X, convinient_return=True)
@@ -167,14 +169,21 @@ class TestProSVD:
             ideal_basis[0, 0] = 1
             ideal_basis[-1, 1] = 1
 
-            errors[0].append(al.utils.column_space_distance(psvd1.Q, ideal_basis, method='aligned_diff'))
-            errors[1].append(al.utils.column_space_distance(psvd2.Q, ideal_basis, method='aligned_diff'))
+            errors[0].append(column_space_distance(psvd1.Q, ideal_basis, method='aligned_diff'))
+            errors[1].append(column_space_distance(psvd2.Q, ideal_basis, method='aligned_diff'))
         errors = np.array(errors)
         diff = errors[0] - errors[1]
         return (errors[0] - errors[1] > 0).mean(), diff.mean()
 
     def test_adding_colums_doesnt_hurt(self, rng):
         assert self.probabilistically_check_adding_channels_works(rng)[0] > .5
+
+    def test_can_find_subspace(self, rng):
+        X, _, true_variables = generate_circle_embedded_in_high_d(rng, m=500, n=8, stddev=1)
+        pro = proSVD(k=3)
+        pro.offline_run_on(X)
+
+        assert column_space_distance(pro.Q, true_variables['C']) < 0.05
 
     # TODO:
     # def test_n_samples_works_with_decay_alpha(self):
@@ -219,7 +228,7 @@ class TestProPLS:
 
         pls.offline_run_on([X, Y])
 
-        assert al.utils.column_space_distance(pls.u, x_common_basis) < 0.155
+        assert column_space_distance(pls.u, x_common_basis) < 0.155
 
 
 def test_utils_run(rng):
