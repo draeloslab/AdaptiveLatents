@@ -107,7 +107,7 @@ class proSVD(TypicalTransformer, BaseProSVD):
         if not pre_initialization:
             if self.log_level > 0:
                 self.log['Q'].append(self.Q)
-                self.log['t'].append(data.t) # todo: make this work again
+                self.log['t'].append(data.t)
 
     def get_distance_from_subspace_over_time(self, subspace):
         assert self.log_level >= 1
