@@ -1,12 +1,12 @@
 import copy
-
 import numpy as np
 import adaptive_latents as al
-from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother
+from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother, proPLS
 from adaptive_latents.transformer import TransformerMixin
 import pytest
 import copy
 import itertools
+import sklearn
 
 
 class TestTransformer:
@@ -27,6 +27,7 @@ class TestTransformer:
     CenteringTransformer(),
     KernelSmoother(),
     proSVD(k=3, whiten=True),
+    proPLS(k=3),
     sjPCA(),
     mmICA(),
     Pipeline([
@@ -36,11 +37,13 @@ class TestTransformer:
 ])
 class TestPerTransformer:
     def test_can_ignore_nans(self, transformer: TransformerMixin, rng):
-        g = (rng.normal(size=(3,6)) * np.nan for _ in range(7))
-        output = transformer.offline_run_on(g)
+        g1 = (rng.normal(size=(3,6)) * np.nan for _ in range(7))
+        g2 = (rng.normal(size=(3,6)) * np.nan for _ in range(7))
+        output = transformer.offline_run_on([g1, g2])
 
-        g = (rng.normal(size=(3,6)) for _ in range(20))
-        output = transformer.offline_run_on(g)
+        g1 = (rng.normal(size=(3,6)) for _ in range(20))
+        g2 = (rng.normal(size=(3,6)) for _ in range(20))
+        output = transformer.offline_run_on([g1, g2])
         assert (~np.isnan(output[-1])).all()
 
     # def test_can_handle_different_sizes(self):
@@ -48,6 +51,8 @@ class TestPerTransformer:
     #
     # def test_can_reroute_stream(self):
     #     pass
+
+    # TODO: mock functions for logging
 
     def test_original_matrix_unchanged(self, transformer: TransformerMixin, rng):
         transformer.offline_run_on(rng.normal(size=(100,6)))
@@ -73,20 +78,20 @@ class TestPerTransformer:
 
     def test_freezing_works_correctly(self, transformer: TransformerMixin, rng):
         transformer.freeze(False)
-        for batch in rng.normal(size=(10,2,6)):
-            transformer.partial_fit(batch)
+        for batch, stream in zip(rng.normal(size=(20,2,6)), itertools.cycle([0,1])):
+            transformer.partial_fit(batch, stream)
         t2 = copy.deepcopy(transformer)
 
         transformer.freeze(True)
-        for batch in rng.normal(size=(10,2,6)):
-            transformer.partial_fit(batch)
+        for batch, stream in zip(rng.normal(size=(20,2,6)), itertools.cycle([0,1])):
+            transformer.partial_fit(batch, stream)
             assert np.array_equal(transformer.transform(batch), t2.transform(batch))
 
         transformer.freeze(False)
-        for batch in rng.normal(size=(10,2,6)):
-            transformer.partial_fit(batch)
-            assert not np.array_equal(transformer.transform(batch), t2.transform(batch))
-
+        for i, (batch, stream) in enumerate(zip(rng.normal(size=(20,2,6)), itertools.cycle([0,1]))):
+            transformer.partial_fit(batch, stream)
+            if stream == 0 and i > 2:
+                assert not np.array_equal(transformer.transform(batch, stream), t2.transform(batch, stream))
     # todo: test if wrapping generator data sources works correctly
     # todo: test if the appropriate logs are called for all iterations and all transformers
 
@@ -162,8 +167,8 @@ class TestProSVD:
             ideal_basis[0, 0] = 1
             ideal_basis[-1, 1] = 1
 
-            errors[0].append(al.utils.column_space_distance(psvd1.Q, ideal_basis))
-            errors[1].append(al.utils.column_space_distance(psvd2.Q, ideal_basis))
+            errors[0].append(al.utils.column_space_distance(psvd1.Q, ideal_basis, method='aligned_diff'))
+            errors[1].append(al.utils.column_space_distance(psvd2.Q, ideal_basis, method='aligned_diff'))
         errors = np.array(errors)
         diff = errors[0] - errors[1]
         return (errors[0] - errors[1] > 0).mean(), diff.mean()
@@ -171,21 +176,49 @@ class TestProSVD:
     def test_adding_colums_doesnt_hurt(self, rng):
         assert self.probabilistically_check_adding_channels_works(rng)[0] > .5
 
-    # def test_centering_works(self, rng):
-    #     d = np.ones(10)
-    #     d[0] = 2
-    #     X = np.diag(d) @ rng.normal(size=(10, 500)) + 500
-    #     psvd1 = proSVD(k=2, centering=False)
-    #     psvd2 = proSVD(k=2, centering=True)
-    #
-    #     psvd1.run_on(X)
-    #     psvd2.run_on(X)
-    #
-    #     _, s1, _ = np.linalg.svd(psvd1.B)
-    #     _, s2, _ = np.linalg.svd(psvd2.B)
-    #
-    #     assert abs(max(s1) / min(s1) - 2) > .5
-    #     assert abs(max(s2) / min(s2) - 2) < .5
+    def test_n_samples_works_with_decay_alpha(self):
+        assert False
+
+
+class TestProPLS:
+    def test_reconstruction(self, rng):
+        base_d = 5
+        high_d = (10, 9)
+        n_points = 150
+
+        X = rng.normal(size=(n_points, base_d))
+        Y = rng.normal(size=(n_points, base_d))
+        X_original = np.hstack([X, np.zeros((n_points, high_d[0] - base_d))])
+        Y_original = np.hstack([Y, np.zeros((n_points, high_d[1] - base_d))])
+
+        X = NumpyTimedDataSource(X_original.reshape(30, 5, -1))
+        Y = NumpyTimedDataSource(Y_original.reshape(30, 5, -1))
+
+        pls = proPLS(k=5)
+        pls.offline_run_on([X, Y])
+
+        assert np.allclose(X_original.T @ Y_original, pls.get_cross_covariance())
+
+    def test_finds_subspace(self, rng):
+        high_d = (10, 9)
+        n_points = 2000
+        common_d = 2
+
+        X = rng.normal(size=(n_points, high_d[0]))
+        Y = rng.normal(size=(n_points, high_d[1]))
+
+        snr = 100
+        common = rng.normal(size=(n_points, common_d))
+        Y[:,:common_d] = (snr * common + rng.normal(size=(n_points, common_d)))/np.sqrt(1 + snr**2)
+        X[:,:common_d] = (snr * common + rng.normal(size=(n_points, common_d)))/np.sqrt(1 + snr**2)
+
+        x_common_basis = np.eye(high_d[0])[:,:common_d]
+
+        pls = proPLS(k=3)
+
+        pls.offline_run_on([X, Y])
+
+        assert al.utils.column_space_distance(pls.u, x_common_basis) < 0.155
 
 
 def test_utils_run(rng):

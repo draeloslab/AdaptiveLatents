@@ -273,7 +273,7 @@ class TypicalTransformer(TransformerMixin):
     def log_for_partial_fit(self, data, stream=0, pre_initialization=False):
         pass
 
-    def log_for_transform(self, data, stream=0, pre_initialization=False):
+    def log_for_transform(self, data, stream=0):
         pass
 
 

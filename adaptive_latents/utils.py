@@ -232,10 +232,18 @@ def align_column_spaces(A, B):
     return (R @ A).T, (B).T
 
 
-def column_space_distance(Q1, Q2):
-    Q1_rotated, Q2 = align_column_spaces(Q1, Q2)
-    return np.linalg.norm(Q1_rotated - Q2)
-
 def principle_angles(Q1, Q2):
     _, s, _ = np.linalg.svd(Q1.T @ Q2)
     return np.arccos(s)
+
+def column_space_distance(Q1, Q2, method='angles'):
+    # for Q in Q1, Q2:
+    #     assert np.allclose(Q.T @ Q, np.eye(Q.shape[1]))
+
+    if method == 'angles':
+        return np.abs(principle_angles(Q1, Q2)).sum()
+    elif method == 'aligned_diff':
+        Q1_rotated, Q2 = align_column_spaces(Q1, Q2)
+        return np.linalg.norm(Q1_rotated - Q2)
+    else:
+        raise ValueError()

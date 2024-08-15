@@ -56,6 +56,8 @@ class BaseProSVD:
 
         self.Q = Q_hat @ Gu_1
         self.B = Tu @ np.diag(diag[:self.k]) @ Tv.T
+
+        self.n_samples_observed *= self.decay_alpha
         self.n_samples_observed += A.shape[1]
 
     def project(self, A):

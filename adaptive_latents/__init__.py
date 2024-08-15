@@ -11,6 +11,7 @@ from .timed_data_source import NumpyTimedDataSource
 from .prosvd import proSVD, RandomProjection
 from .ica import mmICA
 from .jpca import sjPCA
+from .pro_pls import proPLS
 from .transformer import CenteringTransformer, Pipeline, KernelSmoother
 from . import plotting_functions
 from . import profiling_functions
