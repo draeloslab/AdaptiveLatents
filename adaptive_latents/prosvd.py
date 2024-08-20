@@ -74,7 +74,7 @@ class BaseProSVD:
         #     vh_stabilizing_rotation = vh_low_d.T @ vh_low_d
 
         self.Q = q_new @ u_low_d_stabilized
-        self.R = u_stabilizing_rotation @ np.diag(diag_low_d) @ vh_stabilizing_rotation.T
+        self.R = (u_stabilizing_rotation * diag_low_d) @ vh_stabilizing_rotation.T
 
         self.n_samples_observed *= self.decay_alpha
         self.n_samples_observed += x.shape[1]
