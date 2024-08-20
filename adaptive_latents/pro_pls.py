@@ -57,7 +57,7 @@ class BaseProPLS:
 
         # drop the smallest-covariance dimensions from our new svd
         u_new = u_new @ u_rotation[:,:self.k]
-        s_new = np.diag(s_new[:self.k])
+        s_new = s_new[:self.k]
         vh_new = vh_rotation[:self.k] @ vh_new
 
         # align the new svd to the previous u and vh matrices with orthogonal procrustes
@@ -69,7 +69,7 @@ class BaseProPLS:
         vh_stabilizing_rotation = temp[2].T @ temp[0].T
         self.vh = vh_stabilizing_rotation @ vh_new
 
-        self.s = u_stabilizing_rotation.T @ s_new @ vh_stabilizing_rotation.T
+        self.s = (u_stabilizing_rotation.T * s_new) @ vh_stabilizing_rotation.T
 
         # update the number of samples observed
         self.n_samples_observed *= self.decay_alpha
