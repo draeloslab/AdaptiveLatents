@@ -3,6 +3,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - python=3.9
   - numpy
   - matplotlib
   - scikit-learn
@@ -31,6 +32,7 @@ dependencies:
      - jax
      - jaxlib
      - datahugger
-     - matlabengine # todo: this might be removable
      - python-picard
      - "git+https://github.com/Jonathan-Gould/mmica"
+     - matlabengine # todo: this might be removable
+     # cd /usr/local/MATLAB/R*/extern/engines/python && pip install .

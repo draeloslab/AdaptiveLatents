@@ -96,7 +96,7 @@ class TestPerTransformer:
                 assert not np.array_equal(transformer.transform(batch, stream), t2.transform(batch, stream))
     # todo: test if wrapping generator data sources works correctly
     # todo: test if the appropriate logs are called for all iterations and all transformers
-
+    # todo: test if execution one-by-one or in a pipeline makes a difference
 
 
 

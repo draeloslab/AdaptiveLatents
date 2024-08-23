@@ -95,6 +95,10 @@ class NumpyTimedDataSource(DataSource):
             return None
         return self.t[self.index-1]
 
+    @staticmethod
+    def from_nwb_timeseries(timeseries):
+        return NumpyTimedDataSource(timeseries.data[:], timeseries.timestamps[:])
+
 
 class ArrayWithTime(np.ndarray):
     "The idea is to subclass here, but it seems pretty involved."
