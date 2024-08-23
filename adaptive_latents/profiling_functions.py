@@ -23,7 +23,7 @@ def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None
     jpca_init = 1
     o = psvd_input[prosvd_init+1]
     psvd.updateSVD(o[:, None])
-    o = psvd.project(o[:, None]).T
+    o = psvd.project_down(o[:, None]).T
     jpca.initialize(o)
 
     # initial observations
@@ -34,7 +34,7 @@ def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None
         if np.any(np.isnan(o)):
             continue
         psvd.updateSVD(o[:, None])
-        o = psvd.project(o[:, None]).T
+        o = psvd.project_down(o[:, None]).T
 
         jpca.observe(o)
         o = jpca.project(o)
@@ -58,7 +58,7 @@ def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None
         start_time = timeit.default_timer()
         # prosvd update
         psvd.updateSVD(o[:, None])
-        o = psvd.project(o[:, None]).T
+        o = psvd.project_down(o[:, None]).T
         end_time = timeit.default_timer()
         times["prosvd"].append(end_time - start_time)
 
@@ -109,7 +109,7 @@ def get_speed_by_time(psvd_input, regression_output, prosvd_k=6, bw_params=None,
     jpca_init = 1
     o = psvd_input[prosvd_init+1]
     psvd.updateSVD(o[:, None])
-    o = psvd.project(o[:, None]).T
+    o = psvd.project_down(o[:, None]).T
     jpca.initialize(o)
 
     # initial observations
@@ -120,7 +120,7 @@ def get_speed_by_time(psvd_input, regression_output, prosvd_k=6, bw_params=None,
         if np.any(np.isnan(o)):
             continue
         psvd.updateSVD(o[:, None])
-        o = psvd.project(o[:, None]).T
+        o = psvd.project_down(o[:, None]).T
 
         jpca.observe(o)
         o = jpca.project(o)
@@ -146,7 +146,7 @@ def get_speed_by_time(psvd_input, regression_output, prosvd_k=6, bw_params=None,
 
         # prosvd update
         psvd.updateSVD(o[:, None])
-        o = psvd.project(o[:, None]).T
+        o = psvd.project_down(o[:, None]).T
 
         jpca.observe(o)
         o = jpca.project(o)

@@ -11,6 +11,21 @@ class PassThroughDict(frozendict):
     def __missing__(self, key):
         return key
 
+    def inverse_map(self, key):
+        if key not in self.values():
+            return key
+
+        values = [k for k, v in self.items() if v == key]
+        if len(values) == 0:
+            raise IndexError('Key has no inverse.')
+        elif len(values) > 1:
+            raise IndexError('Key has too many inverses.')
+        elif key not in self.keys():
+            raise IndexError('Key has too many inverses (one of which is an implicit passthrough).')
+        else:
+            return values[0]
+
+
 
 class TransformerMixin(ABC):
     def __init__(self, input_streams=None, output_streams=None, log_level=0, **kwargs):
@@ -35,7 +50,7 @@ class TransformerMixin(ABC):
         self.output_streams = PassThroughDict(output_streams or {})
         self.log_level = log_level
         self.log = dict()
-        self.mid_run_sources = None
+        self.mid_run_sources = None  # todo: remove this?
         self.frozen = False
 
     @abstractmethod
@@ -67,8 +82,11 @@ class TransformerMixin(ABC):
         """
         pass
 
-    # TODO: inverse_transform
+    def inverse_transform(self, data, stream=0, return_output_stream=False):
+        raise NotImplementedError()
 
+    # TODO: this is abstract to force developers to remember to use "freeze", but that's is also covered in the
+    #  tests; maybe delete it?
     @abstractmethod
     def freeze(self, b=True):
         self.frozen = b
@@ -78,9 +96,6 @@ class TransformerMixin(ABC):
         return self.transform(data, stream, return_output_stream)
 
     def log_for_partial_fit(self, data, stream=0):
-        pass
-
-    def log_for_transform(self, data, stream=0):
         pass
 
     def run_on(self, sources, fit=True, return_output_stream=False):
@@ -137,6 +152,8 @@ class TransformerMixin(ABC):
 
             yield ret
 
+        self.mid_run_sources = []
+
 
     def offline_run_on(self, sources, fit=True, convinient_return=True):
         outputs = {}
@@ -189,10 +206,22 @@ class Pipeline(TransformerMixin):
         stream = self.input_streams[stream]
         for step in self.steps:
             data, stream = step.transform(data, stream=stream, return_output_stream=True)
+        stream = self.output_streams[stream]
 
         if not return_output_stream:
             return data
-        return data, self.output_streams[stream]
+        return data, stream
+
+    def inverse_transform(self, data, stream=0, return_output_stream=False):
+        stream = self.output_streams.inverse_map(stream)
+        for step in self.steps[::-1]:
+            data, stream = step.inverse_transform(data, stream=stream, return_output_stream=True)
+        stream = self.input_streams.inverse_map(stream)
+
+        if not return_output_stream:
+            return data
+
+        return data, stream
 
     def freeze(self, b=True):
         self.frozen = b
@@ -250,10 +279,22 @@ class TypicalTransformer(TransformerMixin):
                 data = np.nan * data
             else:
                 data = self.transform_for_X(data)
-            self.log_for_transform(data)
+
+        stream = self.output_streams[stream]
+        if return_output_stream:
+            return data, stream
+        return data
+
+    def inverse_transform(self, data, stream=0, return_output_stream=False):
+        stream = self.output_streams.inverse_map(stream)
+        if self.input_streams[stream] == 'X':
+            if not self.is_initialized or np.isnan(data).any():
+                data = np.nan * data
+            else:
+                data = self.inverse_transform_for_X(data)
 
         if return_output_stream:
-            return data, self.output_streams[stream]
+            return data, stream
         return data
 
     def freeze(self, b=True):
@@ -270,11 +311,12 @@ class TypicalTransformer(TransformerMixin):
     def transform_for_X(self, X):
         pass
 
+    def inverse_transform_for_X(self, X):
+        raise NotImplementedError()
+
     def log_for_partial_fit(self, data, stream=0, pre_initialization=False):
         pass
 
-    def log_for_transform(self, data, stream=0):
-        pass
 
 
 class CenteringTransformer(TypicalTransformer):
@@ -291,6 +333,9 @@ class CenteringTransformer(TypicalTransformer):
 
     def transform_for_X(self, X):
         return X - self.center
+
+    def inverse_transform_for_X(self, X):
+        return X + self.center
 
     def freeze(self, b=True):
         self.frozen = b

@@ -79,13 +79,19 @@ class BaseProSVD:
         self.n_samples_observed *= self.decay_alpha
         self.n_samples_observed += x.shape[1]
 
-    def project(self, x):
+    def project_down(self, x):
         ret = self.Q.T @ x
         if self.whiten:
             # todo: this can be sped up with lapack.dtrtri or linalg.solve
             R = self.R / np.sqrt(self.n_samples_observed)
             ret = np.linalg.inv(R) @ ret
         return ret
+
+    def project_up(self, x):
+        if self.whiten:
+            R = self.R / np.sqrt(self.n_samples_observed)
+            x = R @ x
+        return self.Q @ x
 
     def get_cov_matrix(self):
         R = self.R / np.sqrt(self.n_samples_observed)
@@ -116,7 +122,10 @@ class proSVD(TypicalTransformer, BaseProSVD):
 
 
     def transform_for_X(self, X):
-        return self.project(X.T).T
+        return self.project_down(X.T).T
+
+    def inverse_transform_for_X(self, X):
+        return self.project_up(X.T).T
 
     def partial_fit_for_X(self, X):
         self.updateSVD(X.T)

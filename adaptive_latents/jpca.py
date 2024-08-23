@@ -94,9 +94,11 @@ class BaseSJPCA:
 
         return X_tilde
 
-    def project(self, x):
+    def project(self, x, project_up=False):
         U = self.get_U()
-        return x @ U
+        return x @ (U if not project_up else U.T)
+
+
 
 
 class sjPCA(TypicalTransformer, BaseSJPCA):
@@ -117,6 +119,9 @@ class sjPCA(TypicalTransformer, BaseSJPCA):
 
     def transform_for_X(self, X):
         return self.project(X)
+
+    def inverse_transform_for_X(self, X):
+        return self.project(X, project_up=True)
 
     def log_for_partial_fit(self, data, stream=0, pre_initialization=False):
         if not pre_initialization and self.input_streams[stream] == 'X' and self.log_level >= 1:

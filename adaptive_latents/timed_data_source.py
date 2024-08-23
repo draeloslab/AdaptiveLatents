@@ -33,9 +33,6 @@ class GeneratorDataSource(DataSource):
         self.current_time = None
         self.dt = dt
 
-    def __iter__(self):
-        return self
-
     def __next__(self):
         if self.next_sample[0] == float('inf'):
             raise StopIteration()
@@ -71,9 +68,6 @@ class NumpyTimedDataSource(DataSource):
         assert len(self.t) == len(self.a)
 
         self.index = 0
-
-    def __iter__(self):
-        return self
 
     def __next__(self):
         try:
