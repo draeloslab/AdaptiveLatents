@@ -2,7 +2,7 @@ import numpy as np
 from scipy.linalg import block_diag
 from .transformer import TypicalTransformer
 from adaptive_latents.regressions import VanillaOnlineRegressor
-from .utils import principle_angles
+from .utils import principle_angles, align_column_spaces
 import warnings
 import tqdm
 from scipy.stats import special_ortho_group
@@ -20,7 +20,7 @@ class BaseSJPCA:
 
     def initialize(self, x):
         input_d = x.shape[1]
-        assert input_d % 2 == 0
+        # assert input_d % 2 == 0
         self.input_d = input_d
         self.H = self.make_H(self.input_d)
         self.reg = VanillaOnlineRegressor(input_d=self.H.shape[1], output_d=1, add_intercept=False)
@@ -63,8 +63,8 @@ class BaseSJPCA:
             # assert np.allclose(np.imag(u2),0)
             U[:, i * 2] = np.real(u1)
             U[:, i*2 + 1] = np.real(u2)
-            # if self.last_U is not None and np.all(~np.isnan(self.last_U)):
-            #     U[:, (i * 2):(i*2 + 2)], _ = align_column_spaces(U[:, (i * 2):(i*2 + 2)], self.last_U[:, (i * 2):(i*2 + 2)])
+            if self.last_U is not None and np.all(~np.isnan(self.last_U)):
+                U[:, (i * 2):(i*2 + 2)], _ = align_column_spaces(U[:, (i * 2):(i*2 + 2)], self.last_U[:, (i * 2):(i*2 + 2)])
         self.last_U = U
         return U
 

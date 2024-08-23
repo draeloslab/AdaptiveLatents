@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 import sys
 import warnings
 import scipy.io
+import copy
 
 from contextlib import contextmanager
 
@@ -45,6 +46,38 @@ class Dataset(ABC):
     @abstractmethod
     def acquire(self, *args, **kwargs):
         pass
+
+
+class DandiDataset(Dataset):
+    automatically_downloadable = True
+
+    @property
+    @abstractmethod
+    def dandiset_id(self):
+        pass
+
+    @property
+    @abstractmethod
+    def version_id(self):
+        pass
+
+    @contextmanager
+    def acquire(self, asset_path):
+        # https://pynwb.readthedocs.io/en/latest/tutorials/advanced_io/streaming.html
+        with DandiAPIClient() as client:
+            asset = client.get_dandiset(self.dandiset_id, version_id=self.version_id).get_asset_by_path(asset_path)
+            s3_url = asset.get_content_url(follow_redirects=1, strip_query=True)
+
+        fs = fsspec.filesystem("http")
+        fs = CachingFileSystem(
+            fs=fs,
+            cache_storage=[DATA_BASE_PATH / "nwb_cache"],
+        )
+
+        with fs.open(s3_url, "rb") as f:
+            with h5py.File(f) as file:
+                fhan = NWBHDF5IO(file=file)
+                yield fhan
 
 
 class Odoherty21Dataset(Dataset):
@@ -154,7 +187,7 @@ class Schaffer23Datset(Dataset):
             return NWBHDF5IO(self.dataset_base_path / sub_dataset_identifier, mode="r", load_namespaces=True)
 
 
-class Churchland22Dataset(Dataset):
+class Churchland22Dataset(DandiDataset):
     doi = 'https://doi.org/10.48324/dandi.000128/0.220113.0400'
     dandiset_id = '000128'
     version_id = '0.220113.0400'
@@ -166,27 +199,8 @@ class Churchland22Dataset(Dataset):
         self.neural_data = NumpyTimedDataSource(neural_data, nerual_t)
         self.behavioral_data = NumpyTimedDataSource(hand_position, hand_t)
 
-
-    @contextmanager
-    def acquire(self):
-        # https://pynwb.readthedocs.io/en/latest/tutorials/advanced_io/streaming.html
-        with DandiAPIClient() as client:
-            asset = client.get_dandiset(self.dandiset_id, version_id=self.version_id).get_asset_by_path('sub-Jenkins/sub-Jenkins_ses-full_desc-train_behavior+ecephys.nwb')
-            s3_url = asset.get_content_url(follow_redirects=1, strip_query=True)
-
-        fs = fsspec.filesystem("http")
-        fs = CachingFileSystem(
-            fs=fs,
-            cache_storage=[DATA_BASE_PATH / "nwb_cache"],
-        )
-
-        with fs.open(s3_url, "rb") as f:
-            with h5py.File(f) as file:
-                fhan = NWBHDF5IO(file=file)
-                yield fhan
-
     def construct(self,):
-        with self.acquire() as fhan:
+        with self.acquire('sub-Jenkins/sub-Jenkins_ses-full_desc-train_behavior+ecephys.nwb') as fhan:
             nwb_in = fhan.read()
             units = nwb_in.units.to_dataframe()
             hand_pos = np.array(nwb_in.processing['behavior'].data_interfaces['hand_pos'].data)
@@ -225,6 +239,102 @@ class Churchland22Dataset(Dataset):
         bin_centers = np.convolve(bin_edges, [.5, .5], 'valid')
 
         return A, hand_pos, bin_centers, hand_t
+
+
+class TostadoMarcos24Dataset(DandiDataset):
+    doi = 'https://dandiarchive.org/dandiset/001046/draft'
+    dandiset_id = '001046'
+    version_id = 'draft'
+    automatically_downloadable = True
+    sub_datasets = ['27', '26', '28']
+
+    def __init__(self, sub_dataset_identifier=sub_datasets[0], bin_size=0.03):
+        self.sub_dataset = sub_dataset_identifier
+        self.bin_size = bin_size
+        self.tx, self.vocalizations, self.neural_data, self.behavioral_data = self.construct(self.sub_dataset)
+
+    def construct(self, sub_dataset_identifier):
+        with self.acquire(f"sub-Finch-z-r12r13-21-held-in-calib/sub-Finch-z-r12r13-21-held-in-calib_ses-202106{sub_dataset_identifier}.nwb") as fhan:
+            nwb = fhan.read()
+            # TODO: make it possible to pass around TimeSeries with the HDF5 dereferenced
+            tx = nwb.acquisition['tx'].data[:]
+            tx_t = nwb.acquisition['tx'].timestamps[:]
+            vocalizations = NumpyTimedDataSource.from_nwb_timeseries(nwb.acquisition['vocalizations'])
+            trials = nwb.intervals['trials'].to_dataframe()
+
+
+        # make FR matrix for neural data
+        dt_s = np.diff(tx_t)
+        dt = np.median(dt_s)
+        assert dt_s.std() / dt < .0001
+
+        bins = np.linspace(tx_t[0], tx_t[-1], int((tx_t[-1] - tx_t[0]) // self.bin_size) + 1)
+        A = np.empty(shape=(bins.size - 1, tx.shape[1]))
+        for i in range(A.shape[1]):
+            counts, _ = np.histogram(tx_t[tx[:, i].nonzero()[0]], bins=bins)
+            A[:, i] = counts
+        t = np.convolve([.5, .5], bins, 'valid')
+        neural_data = NumpyTimedDataSource(A, t)
+
+        # make spectrogram matrix
+        times = []
+        spectral_data = []
+        for idx, row in trials.iterrows():
+            times.extend(row['spectrogram_times'] + row['start_time'])
+            spectral_data.extend(row['spectrogram_values'].T)
+
+        spectral_data = np.array(spectral_data)
+        times = np.array(times)
+        behavioral_data = NumpyTimedDataSource(spectral_data, times)
+
+        return tx, vocalizations, neural_data, behavioral_data
+
+    def play_audio(self):
+        import IPython.display as ipd
+        x = self.vocalizations.a.flatten()
+        t = self.vocalizations.t.flatten()
+        return ipd.Audio(x, rate=round(1 / np.median(np.diff(t))))
+
+    def plot_recalculated_spectrogram(self, ax):
+        import scipy.signal as ss
+
+        x = self.vocalizations.a.flatten()
+        t = self.vocalizations.t.flatten()
+
+        dt = np.median(np.diff(t))
+        Fs = 1 / dt
+
+        window_length_in_s = .01
+        window_length_in_samples = int(window_length_in_s // dt)
+        window = ss.windows.tukey(window_length_in_samples)
+        SFT = ss.ShortTimeFFT(win=window, hop=window_length_in_samples, fs=Fs)
+
+        Sx = SFT.stft(x)
+
+        N = len(t)
+        # fig1, ax1 = plt.subplots(figsize=(6., 4.))  # enlarge plot a bit
+        t_lo, t_hi = SFT.extent(N)[:2]  # time range of plot
+        ax.set(xlabel=f"Time $t$ in seconds ({SFT.p_num(N)} slices, " +
+                       rf"$\Delta t = {SFT.delta_t:g}\,$s)",
+                ylabel=f"Freq. $f$ in Hz ({SFT.f_pts} bins, " +
+                       rf"$\Delta f = {SFT.delta_f:g}\,$Hz)",
+                xlim=(t_lo, t_hi))
+
+        im1 = ax.imshow((abs(Sx)), origin='lower', aspect='auto',
+                         extent=SFT.extent(N), cmap='viridis')
+
+        for t0_, t1_ in [(t_lo, SFT.lower_border_end[0] * SFT.T),
+                         (SFT.upper_border_begin(N)[0] * SFT.T, t_hi)]:
+            ax.axvspan(t0_, t1_, color='w', linewidth=0, alpha=.2)
+
+        for t_ in [0, N * SFT.T]:  # mark signal borders with vertical line:
+            ax.axvline(t_, color='y', linestyle='--', alpha=0.5)
+
+        fig = ax.get_figure()
+        fig.colorbar(im1, label="Magnitude $|S_x(t, f)|$")
+        fig.tight_layout()
+
+
 
 
 class Nason20Dataset(Dataset):
@@ -692,7 +802,8 @@ Please place a copy of '{sub_dataset_identifier}' into '{self.dataset_base_path}
 
 
 
-
+if __name__ == '__main__':
+    TostadoMarcos24Dataset()
 
 
 

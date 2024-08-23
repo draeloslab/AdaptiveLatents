@@ -363,14 +363,18 @@ class BWRun:
 
 class AnimationManager:
     # todo: this could inherit from FileWriter; that might be better design?
-    def __init__(self, filename=None, outdir=None, n_rows=1, n_cols=1, fps=20, dpi=100, extension="mp4", figsize=(10,10)):
+    def __init__(self, filename=None, outdir=None, n_rows=1, n_cols=1, fps=20, dpi=100, extension="mp4", figsize=(10,10), projection='2d', make_axs=True):
         outdir = outdir or CONFIG['plot_save_path']
         if filename is None:
             time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
             filename = f'movie_{time_string}'
         self.outfile = pathlib.Path(outdir).resolve() / f"{filename}.{extension}"
         self.movie_writer = FFMpegFileWriter(fps=fps)
-        self.fig, self.ax = plt.subplots(n_rows, n_cols, figsize=figsize, layout='tight', squeeze=False)
+        if make_axs:
+            # TODO: rename ax to axs
+            self.fig, self.ax = plt.subplots(n_rows, n_cols, figsize=figsize, layout='tight', squeeze=False, subplot_kw={'projection': projection})
+        else:
+            self.fig = plt.figure(figsize=figsize, layout='tight')
         self.movie_writer.setup(self.fig, self.outfile, dpi=dpi)
         self.seen_frames = 0
         self.finished = False
