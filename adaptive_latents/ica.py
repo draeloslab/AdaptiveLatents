@@ -82,6 +82,9 @@ class BaseMMICA:
     def unmix(self, x):
         return self.W @ x
 
+    def remix(self, x):
+        return np.linalg.inv(self.W) @ x
+
 
 class mmICA(TypicalTransformer, BaseMMICA):
     def __init__(self, **kwargs):
@@ -106,3 +109,6 @@ class mmICA(TypicalTransformer, BaseMMICA):
 
     def transform_for_X(self, X):
         return self.unmix(X.T).T
+
+    def inverse_transform_for_X(self, X):
+        return self.remix(X.T).T

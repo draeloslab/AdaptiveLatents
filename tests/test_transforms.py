@@ -1,4 +1,3 @@
-import copy
 import numpy as np
 import adaptive_latents as al
 from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother, proPLS
@@ -8,7 +7,6 @@ from adaptive_latents.utils import column_space_distance
 import pytest
 import copy
 import itertools
-import sklearn
 
 
 class TestTransformer:
@@ -94,9 +92,21 @@ class TestPerTransformer:
             transformer.partial_fit(batch, stream)
             if stream == 0 and i > 2:
                 assert not np.array_equal(transformer.transform(batch, stream), t2.transform(batch, stream))
+
+    def test_inverse_transform_works(self, transformer, rng):
+        g1 = (rng.normal(size=(3, 6)) for _ in range(20))
+        g2 = (rng.normal(size=(3, 6)) for _ in range(20))
+        transformer.offline_run_on([g1, g2])
+        try:
+            output = transformer.inverse_transform(transformer.transform(rng.normal(size=(3,6))))
+            assert output.shape == (3,6)
+        except NotImplementedError:
+            pass
+
     # todo: test if wrapping generator data sources works correctly
     # todo: test if the appropriate logs are called for all iterations and all transformers
     # todo: test if execution one-by-one or in a pipeline makes a difference
+    # todo: try all of the input streams programatically
 
 
 

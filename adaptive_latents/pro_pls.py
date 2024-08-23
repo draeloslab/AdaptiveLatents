@@ -75,16 +75,20 @@ class BaseProPLS:
         self.n_samples_observed *= self.decay_alpha
         self.n_samples_observed += x.shape[0]
 
-    def project(self, *, x=None, y=None):
+    def project(self, *, x=None, y=None, project_up=False):
         x_proj = None
         y_proj = None
 
         if x is not None:
-            x_proj = x @ self.u
+            x_proj = x @ (self.u if not project_up else self.u.T)
         if y is not None:
-            y_proj = y @ self.vh.T
+            y_proj = y @ (self.vh.T if not project_up else self.vh)
 
-        return tuple(filter(lambda z: z is not None, [x_proj, y_proj]))
+        if x_proj is not None:
+            if y_proj is not None:
+                return x_proj, y_proj
+            return x_proj
+        return y_proj
 
     def get_cross_covariance(self):
         return self.u @ self.s @ self.vh
@@ -132,10 +136,27 @@ class proPLS(TransformerMixin, BaseProPLS):
                 elif stream_label == 'Y':
                     data = self.project(y=data)
 
-            self.log_for_transform(data)
+        stream = self.output_streams[stream]
 
         if return_output_stream:
-            return data, self.output_streams[stream]
+            return data, stream
+        return data
+
+    def inverse_transform(self, data, stream=0, return_output_stream=False):
+        stream = self.output_streams.inverse_map(stream)
+
+        stream_label = self.input_streams[stream]
+        if stream_label in ('X', 'Y'):
+            if not self.is_initialized or np.isnan(data).any():
+                data = np.nan * data
+            else:
+                if stream_label == 'X':
+                    data = self.project(x=data, project_up=True)
+                elif stream_label == 'Y':
+                    data = self.project(y=data, project_up=True)
+
+        if return_output_stream:
+            return data, stream
         return data
 
     def freeze(self, b=True):
@@ -148,9 +169,6 @@ class proPLS(TransformerMixin, BaseProPLS):
                 self.log['u'].append(self.u)
                 self.log['vh'].append(self.vh)
                 self.log['t'].append(data.t)
-
-    def log_for_transform(self, data, stream=0):
-        pass
 
     def get_distance_from_subspace_over_time(self, subspace, variable='X'):
         assert self.log_level >= 1

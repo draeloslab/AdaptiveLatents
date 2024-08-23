@@ -363,7 +363,7 @@ class BWRun:
 
 class AnimationManager:
     # todo: this could inherit from FileWriter; that might be better design?
-    def __init__(self, filename=None, outdir=None, n_rows=1, n_cols=1, fps=20, dpi=100, extension="mp4", figsize=(10,10), projection='2d', make_axs=True):
+    def __init__(self, filename=None, outdir=None, n_rows=1, n_cols=1, fps=20, dpi=100, extension="mp4", figsize=(10,10), projection='rectilinear', make_axs=True):
         outdir = outdir or CONFIG['plot_save_path']
         if filename is None:
             time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
