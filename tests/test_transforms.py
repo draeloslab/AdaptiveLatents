@@ -1,6 +1,6 @@
 import numpy as np
 import adaptive_latents as al
-from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother, proPLS
+from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother, proPLS, Bubblewrap
 from adaptive_latents.transformer import TransformerMixin
 from adaptive_latents.jpca import generate_circle_embedded_in_high_d
 from adaptive_latents.utils import column_space_distance
@@ -9,7 +9,7 @@ import copy
 import itertools
 
 
-class TestTransformer:
+class TestAbstractTransformer:
     def test_can_handle_input_formats(self):
         for sources in [
             np.zeros((10,3)),
@@ -30,6 +30,7 @@ class TestTransformer:
     proPLS(k=3),
     sjPCA(),
     mmICA(),
+    Bubblewrap(dim=6, num=50),
     Pipeline([
         CenteringTransformer(),
         proSVD(k=4, whiten=False),
@@ -107,6 +108,7 @@ class TestPerTransformer:
     # todo: test if the appropriate logs are called for all iterations and all transformers
     # todo: test if execution one-by-one or in a pipeline makes a difference
     # todo: try all of the input streams programatically
+    # todo: test if time is passed through appropriately
 
 
 

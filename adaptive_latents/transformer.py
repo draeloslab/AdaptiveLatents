@@ -46,7 +46,7 @@ class TransformerMixin(ABC):
         # if output_streams is not None:
         #     self.kwargs.update(output_streams=output_streams)
 
-        self.input_streams = PassThroughDict(input_streams or {0: 'X'})
+        self.input_streams = PassThroughDict(input_streams or {0: 'X'})  # TODO: remove this default
         self.output_streams = PassThroughDict(output_streams or {})
         self.log_level = log_level
         self.log = dict()
