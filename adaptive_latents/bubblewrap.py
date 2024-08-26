@@ -6,12 +6,14 @@ from jax import nn, random
 import jax
 import warnings
 from adaptive_latents.config import use_config_defaults
+from adaptive_latents.transformer import TransformerMixin
+from adaptive_latents.timed_data_source import ArrayWithTime
 
 # todo: make this a parameter?
 epsilon = 1e-10
 
 
-class Bubblewrap:
+class BaseBubblewrap:
     @use_config_defaults
     # note the defaults in this signature are overridden by the defaults in adaptive_latents_config
     def __init__(self, dim, num=1000, seed=42, M=30, lam=1, nu=1e-2, eps=3e-2, B_thresh=1e-4, step=1e-6, n_thresh=5e-4, batch=False, batch_size=1, go_fast=False, copy_row_on_teleport=True, num_grad_q=1, sigma_orig_adjustment=0):
@@ -494,3 +496,43 @@ def update_cov(cov, last, curr, mean, n):
     curro = get_mus(curr)
     f = (n-1) / n
     return f * (cov+lastm) + (1-f) * curro - currm
+
+
+class Bubblewrap(TransformerMixin, BaseBubblewrap):
+    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
+        # partial fit
+        if self.input_streams[stream] == 'X' and not numpy.isnan(data).any():
+            output = []
+            for i in range(len(data)):
+                self.observe(data[i])
+
+                if self.is_initialized:
+                    self.e_step()
+                    self.grad_Q()
+                elif self.obs.n_obs > self.M:
+                    self.init_nodes()
+
+                # transform
+                if self.is_initialized:
+                    o = numpy.array(self.alpha)
+                else:
+                    o = numpy.zeros(self.N) * numpy.nan
+                output.append(o)
+
+            if isinstance(data, ArrayWithTime):
+                data = ArrayWithTime(output, data.t)
+
+        stream = self.output_streams[stream]
+        if return_output_stream:
+            return data, stream
+        return data
+
+
+    def partial_fit(self, data, stream=0):
+        raise NotImplementedError()
+
+    def transform(self, data, stream=0, return_output_stream=False):
+        raise NotImplementedError()
+
+    def freeze(self, b=True):
+        raise NotImplementedError()
