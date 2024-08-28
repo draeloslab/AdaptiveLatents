@@ -65,6 +65,7 @@ class BaseSJPCA:
             U[:, i*2 + 1] = np.real(u2)
             if self.last_U is not None and np.all(~np.isnan(self.last_U)):
                 U[:, (i * 2):(i*2 + 2)], _ = align_column_spaces(U[:, (i * 2):(i*2 + 2)], self.last_U[:, (i * 2):(i*2 + 2)])
+                # TODO: also permute planes?
         self.last_U = U
         return U
 

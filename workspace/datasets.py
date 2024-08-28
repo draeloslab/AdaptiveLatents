@@ -14,6 +14,7 @@ import sys
 import warnings
 import scipy.io
 import copy
+import matplotlib
 
 from contextlib import contextmanager
 
@@ -31,7 +32,7 @@ DATA_BASE_PATH = pathlib.Path(__file__).parent.resolve() / 'datasets'
 class Dataset(ABC):
     neural_data: NumpyTimedDataSource
     behavioral_data: NumpyTimedDataSource
-    stimulations = None
+    opto_stimulations = None
 
     @property
     @abstractmethod
@@ -673,21 +674,25 @@ class Naumann24uDataset(Dataset):
 
     def __init__(self, sub_dataset_identifier=sub_datasets[0]):
         self.sub_dataset = sub_dataset_identifier
-        self.C, self.stimulations, self.neuron_df = self.construct(sub_dataset_identifier)
+        self.C, self.opto_stimulations, self.neuron_df, self.visual_stimuli = self.construct(sub_dataset_identifier)
         self.neural_data = NumpyTimedDataSource(self.C.T, np.arange(self.C.shape[1]))
 
     def construct(self, sub_dataset_identifier):
-        stim, C = self.acquire(sub_dataset_identifier)
-        stim_df = pd.DataFrame({'sample': stim[:, 0], 'target_neuron': stim[:,2]})
+        visual_stimuli, optical_stimulations, C = self.acquire(sub_dataset_identifier)
+
+        visual_stimuli_df = pd.DataFrame({'sample': visual_stimuli[:,0], 'l_angle': visual_stimuli[:,2], 'r_angle': visual_stimuli[:,3]})
+
+        optical_stimulation_df = pd.DataFrame({'sample': optical_stimulations[:, 0], 'target_neuron': optical_stimulations[:,2]})
 
         neurons = {}
-        for neuron_id in stim_df['target_neuron']:
-            locations = stim[stim[:,2] == neuron_id, 3:]
+        for neuron_id in optical_stimulation_df['target_neuron']:
+            locations = optical_stimulations[optical_stimulations[:,2] == neuron_id, 3:]
             assert np.all(np.std(locations, axis=0) == 0)
             neurons[neuron_id] = locations[0,:]
         neuron_df = pd.DataFrame.from_dict(neurons, orient='index', columns=['x', 'y'])
 
-        return C, stim_df, neuron_df
+
+        return C, optical_stimulation_df, neuron_df, visual_stimuli_df
 
     def acquire(self, sub_dataset_identifier):
         base = self.dataset_base_path / sub_dataset_identifier
@@ -697,14 +702,25 @@ class Naumann24uDataset(Dataset):
 Please ask Anne Draelos how to acquire the Naumann lab dataset we use here. (hint: box)\
 """)
             raise FileNotFoundError()
-        stim = np.load(base/'photostims.npy')
+        optical_stimulations = np.load(base/'photostims.npy')
+        visual_stimuli = np.loadtxt(base/'stimmed.txt')
 
         c_filename = 'raw_C.txt'
         if sub_dataset_identifier == 'output_020424_ds1':
             c_filename = 'analysis_proc_C.txt'
         C = np.loadtxt(base/c_filename)
 
-        return stim, C
+        return visual_stimuli, optical_stimulations, C
+
+    def plot_colors(self, ax):
+        theta = np.linspace(0, 360)
+        ax.scatter(np.cos(theta * np.pi / 180), np.sin(theta * np.pi / 180), c=self.a2c(theta))
+        ax.axis('equal')
+
+    @staticmethod
+    def a2c(a):
+        a = (a + 30) % 360
+        return matplotlib.cm.ScalarMappable(matplotlib.colors.Normalize(vmin=0, vmax=360), cmap=matplotlib.cm.hsv).to_rgba(a)
 
 class Leventhal24uDataset:
     doi = None

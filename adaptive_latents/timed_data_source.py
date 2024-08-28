@@ -13,12 +13,11 @@ class DataSource(ABC):
         return super().__new__(cls)
 
     @abstractmethod
-    def next_sample_time(self):
+    def next_sample_time(self) -> float:
         pass
 
-    @property
     @abstractmethod
-    def current_sample_time(self):
+    def current_sample_time(self) -> float:
         pass
 
 
@@ -32,6 +31,9 @@ class GeneratorDataSource(DataSource):
         self.next_sample = next(self.generator)
         self.current_time = None
         self.dt = dt
+
+    def __iter__(self):
+        return self
 
     def __next__(self):
         if self.next_sample[0] == float('inf'):
@@ -68,6 +70,11 @@ class NumpyTimedDataSource(DataSource):
         assert len(self.t) == len(self.a)
 
         self.index = 0
+
+    def __iter__(self):
+        # TODO: maybe this class shouldn't be both an iterable and its own iterator
+        self.index = 0
+        return self
 
     def __next__(self):
         try:

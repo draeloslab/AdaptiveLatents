@@ -25,8 +25,8 @@ def main(output_directory=CONFIG['plot_save_path'], steps_to_run=None):
 
             transformed_data[i] = output
 
-            am.ax[0, 0].cla()
-            am.ax[0, 0].scatter(transformed_data[:i, 0], transformed_data[:i, 1])
+            am.axs[0, 0].cla()
+            am.axs[0, 0].scatter(transformed_data[:i, 0], transformed_data[:i, 1])
             am.grab_frame()
 
 

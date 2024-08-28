@@ -372,7 +372,7 @@ class AnimationManager:
         self.movie_writer = FFMpegFileWriter(fps=fps)
         if make_axs:
             # TODO: rename ax to axs
-            self.fig, self.ax = plt.subplots(n_rows, n_cols, figsize=figsize, layout='tight', squeeze=False, subplot_kw={'projection': projection})
+            self.fig, self.axs = plt.subplots(n_rows, n_cols, figsize=figsize, layout='tight', squeeze=False, subplot_kw={'projection': projection})
         else:
             self.fig = plt.figure(figsize=figsize, layout='tight')
         self.movie_writer.setup(self.fig, self.outfile, dpi=dpi)
