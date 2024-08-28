@@ -56,6 +56,8 @@ class TransformerMixin(ABC):
     @abstractmethod
     def partial_fit(self, data, stream=0):
         """data should be of shape (n_samples, sample_size)"""
+        # TODO: return here
+        # TODO: implement common functionality here
         pass
 
     @abstractmethod
@@ -132,7 +134,7 @@ class TransformerMixin(ABC):
         # or if NumpyTimedDataSource should not be both the data structure and iterator
         sources = [NumpyTimedDataSource(copy.deepcopy(source)) if isinstance(source, np.ndarray) else GeneratorDataSource(source) for source in sources]
 
-        sources = list(zip(sources, streams))
+        sources = list(zip(map(iter, sources), streams))
         self.mid_run_sources = sources
 
         while True:  # while-true/break is a code smell, but I want a do-while

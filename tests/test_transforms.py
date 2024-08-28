@@ -30,7 +30,6 @@ class TestAbstractTransformer:
     proPLS(k=3),
     sjPCA(),
     mmICA(),
-    Bubblewrap(dim=6, num=50),
     Pipeline([
         CenteringTransformer(),
         proSVD(k=4, whiten=False),

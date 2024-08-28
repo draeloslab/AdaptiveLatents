@@ -41,4 +41,4 @@ class TestDatasets:
 
             assert d.neural_data is not None
             assert d.behavioral_data is not None
-            assert d.stimulations is not None
+            assert d.opto_stimulations is not None

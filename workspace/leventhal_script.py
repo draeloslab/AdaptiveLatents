@@ -33,8 +33,8 @@ def make_video():
     tq = tqdm(total=start+video_time)
 
     with AnimationManager(fps=40, n_rows=2, n_cols=2) as am:
-        traj_ax: plt.Axes = am.ax[0, 0]
-        timing_ax: plt.Axes = am.ax[1, 0]
+        traj_ax: plt.Axes = am.axs[0, 0]
+        timing_ax: plt.Axes = am.axs[1, 0]
 
         outputs = [[],[],[],[],[],[]]
         for row in d.neural_data:
@@ -54,25 +54,25 @@ def make_video():
 
 
                 i1, i2 = 0, 1
-                am.ax[0,0].cla()
-                am.ax[0,0].scatter(outputs[i1], outputs[i2], alpha=.999 ** np.arange(len(outputs[0]))[::-1], linewidth=0, s=5)
-                am.ax[0,0].plot(outputs[i1][-10:], outputs[i2][-10:])
-                am.ax[0, 0].axis('equal')
-                am.ax[0, 0].set_title(f'latent {i1} vs latent {i2}')
+                am.axs[0,0].cla()
+                am.axs[0,0].scatter(outputs[i1], outputs[i2], alpha=.999 ** np.arange(len(outputs[0]))[::-1], linewidth=0, s=5)
+                am.axs[0,0].plot(outputs[i1][-10:], outputs[i2][-10:])
+                am.axs[0, 0].axis('equal')
+                am.axs[0, 0].set_title(f'latent {i1} vs latent {i2}')
 
                 i1, i2 = 2, 3
-                am.ax[0,1].cla()
-                am.ax[0, 1].scatter(outputs[i1], outputs[i2], alpha=.999 ** np.arange(len(outputs[0]))[::-1], linewidth=0, s=5)
-                am.ax[0, 1].plot(outputs[i1][-10:], outputs[i2][-10:])
-                am.ax[0, 1].axis('equal')
-                am.ax[0, 1].set_title(f'latent {i1} vs latent {i2}')
+                am.axs[0,1].cla()
+                am.axs[0, 1].scatter(outputs[i1], outputs[i2], alpha=.999 ** np.arange(len(outputs[0]))[::-1], linewidth=0, s=5)
+                am.axs[0, 1].plot(outputs[i1][-10:], outputs[i2][-10:])
+                am.axs[0, 1].axis('equal')
+                am.axs[0, 1].set_title(f'latent {i1} vs latent {i2}')
 
                 i1, i2 = 4, 5
-                am.ax[1,1].cla()
-                am.ax[1,1].scatter(outputs[i1], outputs[i2], alpha=.999 ** np.arange(len(outputs[0]))[::-1], linewidth=0, s=5)
-                am.ax[1,1].plot(outputs[i1][-10:], outputs[i2][-10:])
-                am.ax[1, 1].axis('equal')
-                am.ax[1, 1].set_title(f'latent {i1} vs latent {i2}')
+                am.axs[1,1].cla()
+                am.axs[1,1].scatter(outputs[i1], outputs[i2], alpha=.999 ** np.arange(len(outputs[0]))[::-1], linewidth=0, s=5)
+                am.axs[1,1].plot(outputs[i1][-10:], outputs[i2][-10:])
+                am.axs[1, 1].axis('equal')
+                am.axs[1, 1].set_title(f'latent {i1} vs latent {i2}')
 
 
                 timing_ax.cla()
