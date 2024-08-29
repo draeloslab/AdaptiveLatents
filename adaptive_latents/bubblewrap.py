@@ -6,7 +6,7 @@ from jax import nn, random
 import jax
 import warnings
 from adaptive_latents.config import use_config_defaults
-from adaptive_latents.transformer import TransformerMixin
+from adaptive_latents.transformer import DecoupledTransformer
 from adaptive_latents.timed_data_source import ArrayWithTime
 
 # todo: make this a parameter?
@@ -498,7 +498,7 @@ def update_cov(cov, last, curr, mean, n):
     return f * (cov+lastm) + (1-f) * curro - currm
 
 
-class Bubblewrap(TransformerMixin, BaseBubblewrap):
+class Bubblewrap(DecoupledTransformer, BaseBubblewrap):
     def partial_fit_transform(self, data, stream=0, return_output_stream=False):
         # partial fit
         if self.input_streams[stream] == 'X' and not numpy.isnan(data).any():
@@ -528,7 +528,7 @@ class Bubblewrap(TransformerMixin, BaseBubblewrap):
         return data
 
 
-    def partial_fit(self, data, stream=0):
+    def _partial_fit(self, data, stream=0):
         raise NotImplementedError()
 
     def transform(self, data, stream=0, return_output_stream=False):

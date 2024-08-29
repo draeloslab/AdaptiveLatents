@@ -18,7 +18,7 @@ def main(output_directory=CONFIG['plot_save_path'], steps_to_run=None):
     with AnimationManager(fps=20, outdir=output_directory) as am:
         transformed_data = np.zeros((input_data.shape[0], pro.k))
 
-        for i, output in enumerate(p.run_on(input_data)):
+        for i, output in enumerate(p.streaming_run_on(input_data)):
             if np.isnan(output).any():
                 transformed_data[i] = np.nan
                 continue

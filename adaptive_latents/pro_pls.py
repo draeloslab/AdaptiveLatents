@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.linalg
-from adaptive_latents.transformer import TransformerMixin
+from adaptive_latents.transformer import DecoupledTransformer
 from adaptive_latents.utils import column_space_distance
 
 class BaseProPLS:
@@ -94,7 +94,7 @@ class BaseProPLS:
         return self.u @ self.s @ self.vh
 
 
-class proPLS(TransformerMixin, BaseProPLS):
+class proPLS(DecoupledTransformer, BaseProPLS):
     def __init__(self, input_streams=None, **kwargs):
         input_streams = input_streams or {0: 'X', 1: 'Y'}
         super().__init__(input_streams=input_streams,**kwargs)
@@ -102,7 +102,7 @@ class proPLS(TransformerMixin, BaseProPLS):
         self.last_seen = {}
         self.is_initialized = False
 
-    def partial_fit(self, data, stream=0):
+    def _partial_fit(self, data, stream=0):
         if self.frozen:
             return
         stream_label = self.input_streams[stream]
