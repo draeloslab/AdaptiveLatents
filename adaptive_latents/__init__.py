@@ -16,3 +16,4 @@ from .transformer import CenteringTransformer, Pipeline, KernelSmoother
 from . import plotting_functions
 from . import profiling_functions
 from . import utils
+from . import input_sources

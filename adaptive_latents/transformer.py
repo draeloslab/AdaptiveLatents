@@ -26,8 +26,7 @@ class PassThroughDict(frozendict):
             return values[0]
 
 
-
-class TransformerMixin(ABC):
+class StreamingTransformer(ABC):
     def __init__(self, input_streams=None, output_streams=None, log_level=0, **kwargs):
         """
         Parameters
@@ -39,6 +38,8 @@ class TransformerMixin(ABC):
         output_streams: dict[int, int]
             Keys are input streams, values are output streams; this is stream remapping applied after the transformer.
         """
+
+        # TODO: get consistent printing
         self.kwargs = kwargs  # mostly for printing later, these sometimes correspond to the estimator; this works when being used as a mixin
         super().__init__(**kwargs)
         # if input_streams is not None:
@@ -46,24 +47,15 @@ class TransformerMixin(ABC):
         # if output_streams is not None:
         #     self.kwargs.update(output_streams=output_streams)
 
-        self.input_streams = PassThroughDict(input_streams or {0: 'X'})  # TODO: remove this default
+        self.input_streams = PassThroughDict(input_streams or {})
         self.output_streams = PassThroughDict(output_streams or {})
         self.log_level = log_level
         self.log = dict()
-        self.mid_run_sources = None  # todo: remove this?
-        self.frozen = False
 
     @abstractmethod
-    def partial_fit(self, data, stream=0):
-        """data should be of shape (n_samples, sample_size)"""
-        # TODO: return here
-        # TODO: implement common functionality here
-        pass
-
-    @abstractmethod
-    def transform(self, data, stream=0, return_output_stream=False):
+    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
         """
-        Applies a learned transformation to incoming data.
+        Learns and appplies a transformation to incoming data.
 
         Parameters
         ----------
@@ -84,23 +76,14 @@ class TransformerMixin(ABC):
         """
         pass
 
-    def inverse_transform(self, data, stream=0, return_output_stream=False):
-        raise NotImplementedError()
+    def trace_route(self, stream):
+        middle_str = str(self) if stream in self.input_streams else ""
+        if stream == self.output_streams[stream]:
+            return middle_str
+        return [stream, middle_str, self.output_streams[stream]]
 
-    # TODO: this is abstract to force developers to remember to use "freeze", but that's is also covered in the
-    #  tests; maybe delete it?
-    @abstractmethod
-    def freeze(self, b=True):
-        self.frozen = b
 
-    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
-        self.partial_fit(data, stream)
-        return self.transform(data, stream, return_output_stream)
-
-    def log_for_partial_fit(self, data, stream=0):
-        pass
-
-    def run_on(self, sources, fit=True, return_output_stream=False):
+    def streaming_run_on(self, sources, return_output_stream=False):
         """
         Parameters
         ----------
@@ -111,8 +94,6 @@ class TransformerMixin(ABC):
             If a list of tuples, the first element of each tuple will be mapped to the stream number in the second element.
         return_output_stream: bool
             Whether to yield the output stream or not. This is false by default to not confuse first-time users.
-        fit: bool
-            Determines if fit_transform or fit is called.
 
         Yields
         -------
@@ -135,7 +116,6 @@ class TransformerMixin(ABC):
         sources = [NumpyTimedDataSource(copy.deepcopy(source)) if isinstance(source, np.ndarray) else GeneratorDataSource(source) for source in sources]
 
         sources = list(zip(map(iter, sources), streams))
-        self.mid_run_sources = sources
 
         while True:  # while-true/break is a code smell, but I want a do-while
             next_time = float('inf')
@@ -145,24 +125,20 @@ class TransformerMixin(ABC):
                     next_time = source_next_time
                     next_source, next_stream = source, stream
             if not next_time < float('inf'):
-                self.mid_run_sources = None # todo: GeneratorExit exception cleanup?
                 break
-            if fit:
-                ret = self.partial_fit_transform(data=next(next_source), stream=next_stream, return_output_stream=return_output_stream)
-            else:
-                ret = self.transform(data=next(next_source), stream=next_stream, return_output_stream=return_output_stream)
 
-            yield ret
-
-        self.mid_run_sources = []
+            yield self.partial_fit_transform(data=next(next_source), stream=next_stream, return_output_stream=return_output_stream)
 
 
-    def offline_run_on(self, sources, fit=True, convinient_return=True):
+    def offline_run_on(self, sources, convinient_return=True):
         outputs = {}
-        for data, stream in self.run_on(sources, fit=fit, return_output_stream=True):
+        for data, stream in self.streaming_run_on(sources, return_output_stream=True):
             outputs[stream] = outputs.get(stream, []) + [data]
 
         if convinient_return:
+            if 0 not in outputs:
+                raise Exception("No outputs were routed to stream 0.")
+
             data = outputs[0]
             while data and np.isnan(data[0]).any():
                 data.pop(0)
@@ -174,16 +150,45 @@ class TransformerMixin(ABC):
         kwargs = ', '.join(f'{k}={v}' for k, v in self.kwargs.items())
         return f"{self.__class__.__name__}({kwargs})"
 
-    def trace_route(self, stream):
-        middle_str = str(self) if stream in self.input_streams else ""
-        if stream == self.output_streams[stream]:
-            return middle_str
-        return [stream, middle_str, self.output_streams[stream]]
+
+class DecoupledTransformer(StreamingTransformer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.frozen = False
+
+    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
+        self.partial_fit(data, stream)
+        return self.transform(data, stream, return_output_stream)
+
+    def partial_fit(self, data, stream=0):
+        if self.frozen:
+            return
+        self._partial_fit(data, stream)
+        self.log_for_partial_fit(data, stream)
+
+    @abstractmethod
+    def _partial_fit(self, data, stream):
+        """data should be of shape (n_samples, sample_size)"""
+        # TODO: implement common functionality here
+        pass
+
+    @abstractmethod
+    def transform(self, data, stream=0, return_output_stream=False):
+        pass
+
+    def freeze(self, b=True):
+        self.frozen = b
+
+    def inverse_transform(self, data, stream=0, return_output_stream=False):
+        raise NotImplementedError()
+
+    def log_for_partial_fit(self, data, stream=0):
+        pass
 
 
-class Pipeline(TransformerMixin):
+class Pipeline(DecoupledTransformer):
     def __init__(self, steps, input_streams=None, **kwargs):
-        self.steps: list[TransformerMixin] = steps
+        self.steps: list[DecoupledTransformer] = steps
 
         expected_streams = set(k for step in self.steps for k in step.input_streams.keys())
         self.expected_streams = sorted(expected_streams, key=lambda x: str(x))
@@ -192,7 +197,7 @@ class Pipeline(TransformerMixin):
 
         super().__init__(input_streams, **kwargs)
 
-    def partial_fit(self, data, stream=0):
+    def _partial_fit(self, data, stream=0):
         self.partial_fit_transform(data, stream)
 
     def partial_fit_transform(self, data, stream=0, return_output_stream=False):
@@ -200,9 +205,10 @@ class Pipeline(TransformerMixin):
         for step in self.steps:
             data, stream = step.partial_fit_transform(data, stream=stream, return_output_stream=True)
 
+        stream = self.output_streams[stream]
         if not return_output_stream:
             return data
-        return data, self.output_streams[stream]
+        return data, stream
 
     def transform(self, data, stream=0, return_output_stream=False):
         stream = self.input_streams[stream]
@@ -252,15 +258,13 @@ class Pipeline(TransformerMixin):
         return f"{self.__class__.__name__}([{', '.join(str(s) for s in self.steps)}]{', ' + kwargs if kwargs else ''})"
 
 
-class TypicalTransformer(TransformerMixin):
+class TypicalTransformer(DecoupledTransformer):
     def __init__(self, input_streams=None, output_streams=None, **kwargs):
         input_streams = input_streams or {0: 'X'}
         super().__init__(input_streams, output_streams, **kwargs)
         self.is_initialized = False
 
-    def partial_fit(self, data, stream=0):
-        if self.frozen:
-            return
+    def _partial_fit(self, data, stream=0):
         if self.input_streams[stream] == 'X':
             if np.isnan(data).any():
                 idx = np.isnan(data).any(axis=1)
@@ -270,10 +274,8 @@ class TypicalTransformer(TransformerMixin):
 
             if not self.is_initialized:
                 self.pre_initialization_fit_for_X(data)
-                self.log_for_partial_fit(data, pre_initialization=True)
             else:
                 self.partial_fit_for_X(data)
-                self.log_for_partial_fit(data)
 
     def transform(self, data, stream=0, return_output_stream=False):
         if self.input_streams[stream] == 'X':
@@ -315,9 +317,6 @@ class TypicalTransformer(TransformerMixin):
 
     def inverse_transform_for_X(self, X):
         raise NotImplementedError()
-
-    def log_for_partial_fit(self, data, stream=0, pre_initialization=False):
-        pass
 
 
 

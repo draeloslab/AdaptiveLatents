@@ -1,7 +1,7 @@
 import numpy as np
 import adaptive_latents as al
 from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother, proPLS, Bubblewrap
-from adaptive_latents.transformer import TransformerMixin
+from adaptive_latents.transformer import DecoupledTransformer, StreamingTransformer
 from adaptive_latents.jpca import generate_circle_embedded_in_high_d
 from adaptive_latents.utils import column_space_distance
 import pytest
@@ -9,21 +9,8 @@ import copy
 import itertools
 
 
-class TestAbstractTransformer:
-    def test_can_handle_input_formats(self):
-        for sources in [
-            np.zeros((10,3)),
-            np.zeros((5, 2, 3)),
-            (np.zeros((2,3)) for _ in range(5)),
-            [np.zeros((10, 3))],
-            [(np.zeros((10, 3)), 1)],
-            [(NumpyTimedDataSource(np.zeros((10, 3))), 0), (NumpyTimedDataSource(np.zeros((10, 3))), 0), (NumpyTimedDataSource(np.zeros((9, 3))), 1)],
-        ]:
-            t = CenteringTransformer()
-            t.offline_run_on(sources, convinient_return=False)
-
-
-@pytest.mark.parametrize('transformer', [
+def streaming_transformers():
+    return [
     CenteringTransformer(),
     KernelSmoother(),
     proSVD(k=3, whiten=True),
@@ -32,11 +19,47 @@ class TestAbstractTransformer:
     mmICA(),
     Pipeline([
         CenteringTransformer(),
-        proSVD(k=4, whiten=False),
+        proSVD(k=3, whiten=False),
     ])
-])
-class TestPerTransformer:
-    def test_can_ignore_nans(self, transformer: TransformerMixin, rng):
+]
+
+
+class TestStreamingTransformer:
+    transformer = CenteringTransformer()
+
+    def test_streaming_run_on(self, valid_sources):
+        for source in valid_sources:
+            self.transformer.streaming_run_on(source)
+
+    def test_offline_run_on(self, valid_sources):
+        for source in valid_sources:
+            self.transformer.offline_run_on(source, convinient_return=False)
+
+    def test_trace_route(self):
+        self.transformer.trace_route(stream=0)
+
+    @pytest.fixture
+    def valid_sources(self):
+        return [
+            np.zeros((10, 3)),
+            np.zeros((5, 2, 3)),
+            (np.zeros((2,3)) for _ in range(5)),
+            [np.zeros((10, 3))],
+            [(np.zeros((10, 3)), 1)],
+            [(NumpyTimedDataSource(np.zeros((10, 3))), 0), (NumpyTimedDataSource(np.zeros((10, 3))), 0), (NumpyTimedDataSource(np.zeros((9, 3))), 1)],
+        ]
+
+
+@pytest.mark.parametrize('transformer', streaming_transformers())
+class TestPerStreamingTransformer:
+    def test_can_fit_transform(self, transformer: StreamingTransformer):
+        transformer.partial_fit_transform(np.zeros((10,3)))
+
+
+exampled_decoupled_transformers = filter(lambda x: isinstance(x, DecoupledTransformer), streaming_transformers())
+@pytest.mark.parametrize('transformer', exampled_decoupled_transformers)
+class TestPerDecoupledTransformer:
+    def test_can_ignore_nans(self, transformer: DecoupledTransformer, rng):
         g1 = (rng.normal(size=(3,6)) * np.nan for _ in range(7))
         g2 = (rng.normal(size=(3,6)) * np.nan for _ in range(7))
         output = transformer.offline_run_on([g1, g2])
@@ -46,50 +69,43 @@ class TestPerTransformer:
         output = transformer.offline_run_on([g1, g2])
         assert (~np.isnan(output[-1])).all()
 
-    # def test_can_handle_different_sizes(self):
-    #     pass
-    #
-    # def test_can_reroute_stream(self):
-    #     pass
 
-    # TODO: mock functions for logging
-
-    def test_original_matrix_unchanged(self, transformer: TransformerMixin, rng):
+    def test_original_matrix_unchanged(self, transformer: DecoupledTransformer, rng):
         transformer.offline_run_on(rng.normal(size=(100,6)))
         # todo: should transformers be able to mutate their inputs?
 
-        for f in (transformer.partial_fit, transformer.transform):
+        for f in (transformer._partial_fit, transformer.transform):
             A = rng.normal(size=(1,6))
             A_original = A.copy()
             f(A)
             assert np.all(A == A_original)
 
-    def test_partial_fit_transform_decomposes_correctly(self, transformer: TransformerMixin, rng):
+    def test_partial_fit_transform_decomposes_correctly(self, transformer: DecoupledTransformer, rng):
         for batch in rng.normal(size=(10,2,6)): # multiple batches to check initialization
             t1 = transformer
             t2 = copy.deepcopy(transformer)
 
             o1 = t1.partial_fit_transform(batch)
 
-            t2.partial_fit(batch)
+            t2._partial_fit(batch)
             o2 = t2.transform(batch)
 
             assert np.array_equal(o1, o2, equal_nan=True)
 
-    def test_freezing_works_correctly(self, transformer: TransformerMixin, rng):
+    def test_freezing_works_correctly(self, transformer: DecoupledTransformer, rng):
         transformer.freeze(False)
         for batch, stream in zip(rng.normal(size=(20,2,6)), itertools.cycle([0,1])):
-            transformer.partial_fit(batch, stream)
+            transformer._partial_fit(batch, stream)
         t2 = copy.deepcopy(transformer)
 
         transformer.freeze(True)
         for batch, stream in zip(rng.normal(size=(20,2,6)), itertools.cycle([0,1])):
-            transformer.partial_fit(batch, stream)
+            transformer._partial_fit(batch, stream)
             assert np.array_equal(transformer.transform(batch), t2.transform(batch))
 
         transformer.freeze(False)
         for i, (batch, stream) in enumerate(zip(rng.normal(size=(20,2,6)), itertools.cycle([0,1]))):
-            transformer.partial_fit(batch, stream)
+            transformer._partial_fit(batch, stream)
             if stream == 0 and i > 2:
                 assert not np.array_equal(transformer.transform(batch, stream), t2.transform(batch, stream))
 
@@ -103,11 +119,12 @@ class TestPerTransformer:
         except NotImplementedError:
             pass
 
-    # todo: test if wrapping generator data sources works correctly
-    # todo: test if the appropriate logs are called for all iterations and all transformers
-    # todo: test if execution one-by-one or in a pipeline makes a difference
-    # todo: try all of the input streams programatically
-    # todo: test if time is passed through appropriately
+    # TODO: test if wrapping generator data sources works correctly
+    # TODO: test if the appropriate logs are called for all iterations and all transformers
+    # TODO: test if execution one-by-one or in a pipeline makes a difference
+    # TODO: try all of the input streams programatically
+    # TODO: test if time is passed through appropriately
+    # TODO: mock functions for logging
 
 
 

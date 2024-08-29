@@ -130,8 +130,8 @@ class proSVD(TypicalTransformer, BaseProSVD):
     def partial_fit_for_X(self, X):
         self.updateSVD(X.T)
 
-    def log_for_partial_fit(self, data, stream=0, pre_initialization=False):
-        if not pre_initialization:
+    def log_for_partial_fit(self, data, stream=0):
+        if self.is_initialized:
             if self.log_level > 0:
                 self.log['Q'].append(self.Q)
                 self.log['t'].append(data.t)

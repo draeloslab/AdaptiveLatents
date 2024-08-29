@@ -35,7 +35,7 @@ def plot_photostim(neuron_ID, method, spike_train_matrix, photostim_matrix, df):
     elif method.lower() == 'prosvd':
         # Use proSVD on the photostim data
         pro = proSVD(3) # like the PCA() step
-        pro.run_on(C_stims) # like the fit_transform step
+        pro.streaming_run_on(C_stims) # like the fit_transform step
         threeDim_C=pro.project(C_photostims).T # like the transform step
 
     else:
