@@ -9,7 +9,8 @@ from adaptive_latents.config import use_config_defaults
 from adaptive_latents.transformer import DecoupledTransformer
 from adaptive_latents.timed_data_source import ArrayWithTime
 
-# todo: make this a parameter?
+# TODO: save frozen vs estimator frozen
+# TODO: make this a parameter?
 epsilon = 1e-10
 
 
@@ -52,7 +53,7 @@ class BaseBubblewrap:
         self.mu_orig = None
 
         self.is_initialized = False
-        self.frozen = False
+        self.sfrozen = False
 
         self.backend_note = None
         self.precision_note = None
@@ -264,16 +265,16 @@ class BaseBubblewrap:
         self.m_L_diag, self.v_L_diag, self.L_diag = single_adam(self.step, self.m_L_diag, self.v_L_diag, L_diag, self.t, self.L_diag)
         self.m_A, self.v_A, self.log_A = single_adam(self.step, self.m_A, self.v_A, A, self.t, self.log_A)
 
-    def freeze(self):
-        self.frozen = True
-        self.obs.freeze()
+    def sfreeze(self):
+        self.sfrozen = True
+        self.obs.sfreeze()
 
     def __getstate__(self):
         return _unjax_state(self)
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        if not state["frozen"]:
+        if not state["sfrozen"]:
             self._add_jited_functions()
             if not self.go_fast:
                 from jax.lib import xla_bridge
@@ -439,7 +440,7 @@ class Observations:
 
         self.n_obs = 0
 
-        self.frozen = False
+        self.sfrozen = False
 
     def new_obs(self, coord_new):
         self.curr = coord_new
@@ -459,8 +460,8 @@ class Observations:
                 else:
                     self.cov = update_cov(self.cov, self.last_mean, self.curr, self.mean, self.n_obs)
 
-    def freeze(self):
-        self.frozen = True
+    def sfreeze(self):
+        self.sfrozen = True
 
     def __getstate__(self):
         return _unjax_state(self)
@@ -474,7 +475,7 @@ def _unjax_state(self):
             _pickle_changes.append((key, "callable"))
             continue
 
-        elif self.frozen and "jax" in str(type(value)) and "Array" in str(type(value)):
+        elif self.sfrozen and "jax" in str(type(value)) and "Array" in str(type(value)):
             to_save[key] = numpy.array(value)
             _pickle_changes.append((key, "unjaxed"))
         else:
