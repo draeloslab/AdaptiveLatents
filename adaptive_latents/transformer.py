@@ -102,8 +102,11 @@ class StreamingTransformer(ABC):
         stream: int, optional
             the stream that the outputted data belongs to
         """
-        if not (isinstance(sources, tuple) or isinstance(sources, list)): # passed a single source
+
+        if not (isinstance(sources, tuple) or isinstance(sources, list)):  # passed a single source
             sources = [sources]
+        elif not len(sources): # passed an empty list
+            return
 
         if not isinstance(sources[0], tuple):  # passed a list of sources without streams
             streams = range(len(sources))
@@ -111,9 +114,7 @@ class StreamingTransformer(ABC):
 
         sources, streams = zip(*sources)
 
-        # TODO: think more about if this should be a deep copy or not
-        # or if NumpyTimedDataSource should not be both the data structure and iterator
-        sources = [NumpyTimedDataSource(copy.deepcopy(source)) if isinstance(source, np.ndarray) else GeneratorDataSource(source) for source in sources]
+        sources = [NumpyTimedDataSource(source) if isinstance(source, np.ndarray) else GeneratorDataSource(source) for source in sources]
 
         sources = list(zip(map(iter, sources), streams))
 

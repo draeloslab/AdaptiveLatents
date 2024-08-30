@@ -8,20 +8,25 @@ import pytest
 import copy
 import itertools
 
+streaming_only_transformers = [
+    KernelSmoother,
+    lambda: Bubblewrap(dim=6, num=50)
+]
 
-def streaming_transformers():
-    return [
-    CenteringTransformer(),
-    KernelSmoother(),
-    proSVD(k=3, whiten=True),
-    proPLS(k=3),
-    sjPCA(),
-    mmICA(),
-    Pipeline([
+decoupled_transformers = [
+    CenteringTransformer,
+    lambda: proSVD(k=3, whiten=True),
+    lambda: proPLS(k=3),
+    sjPCA,
+    mmICA,
+    lambda: Pipeline([
         CenteringTransformer(),
         proSVD(k=3, whiten=False),
-    ])
-]
+    ]),
+    lambda: Pipeline([])
+    ]
+
+all_transformers = streaming_only_transformers + decoupled_transformers
 
 
 class TestStreamingTransformer:
@@ -44,75 +49,104 @@ class TestStreamingTransformer:
             np.zeros((10, 3)),
             np.zeros((5, 2, 3)),
             (np.zeros((2,3)) for _ in range(5)),
+            [((np.zeros((2,3)) for _ in range(5)), 0), ((np.zeros((2,3)) for _ in range(5)), 1)],
             [np.zeros((10, 3))],
             [(np.zeros((10, 3)), 1)],
             [(NumpyTimedDataSource(np.zeros((10, 3))), 0), (NumpyTimedDataSource(np.zeros((10, 3))), 0), (NumpyTimedDataSource(np.zeros((9, 3))), 1)],
         ]
 
 
-@pytest.mark.parametrize('transformer', streaming_transformers())
+@pytest.mark.parametrize('transformer_maker', all_transformers)
 class TestPerStreamingTransformer:
-    def test_can_fit_transform(self, transformer: StreamingTransformer):
+    def test_can_fit_transform(self, transformer_maker):
+        transformer: StreamingTransformer = transformer_maker()
+
         transformer.partial_fit_transform(np.zeros((10,3)))
 
 
-exampled_decoupled_transformers = filter(lambda x: isinstance(x, DecoupledTransformer), streaming_transformers())
-@pytest.mark.parametrize('transformer', exampled_decoupled_transformers)
+@pytest.mark.parametrize('transformer_maker', decoupled_transformers)
 class TestPerDecoupledTransformer:
-    def test_can_ignore_nans(self, transformer: DecoupledTransformer, rng):
-        g1 = (rng.normal(size=(3,6)) * np.nan for _ in range(7))
-        g2 = (rng.normal(size=(3,6)) * np.nan for _ in range(7))
-        output = transformer.offline_run_on([g1, g2])
+    @staticmethod
+    def make_sources(transformer, rng, expression=None, first_n_nan=0, length=20):
+        if expression is None:
+            expression = lambda: rng.normal(size=(3, 6))
 
-        g1 = (rng.normal(size=(3,6)) for _ in range(20))
-        g2 = (rng.normal(size=(3,6)) for _ in range(20))
-        output = transformer.offline_run_on([g1, g2])
-        assert (~np.isnan(output[-1])).all()
+        batches = (expression() * (np.nan if i < first_n_nan else 1) for i in range(length))
+        return list(zip(itertools.repeat(batches), transformer.input_streams.keys()))
 
+    def test_can_ignore_nans(self, transformer_maker, rng):
+        transformer: DecoupledTransformer = transformer_maker()
 
-    def test_original_matrix_unchanged(self, transformer: DecoupledTransformer, rng):
-        transformer.offline_run_on(rng.normal(size=(100,6)))
-        # todo: should transformers be able to mutate their inputs?
+        sources = self.make_sources(transformer, rng, first_n_nan=7)
+        transformer.offline_run_on(sources, convinient_return=False)
 
-        for f in (transformer._partial_fit, transformer.transform):
+        sources = self.make_sources(transformer, rng)
+        output = transformer.offline_run_on(sources, convinient_return=False)
+
+        for stream in output:
+            assert (~np.isnan(output[stream][-1])).all()
+
+    def test_original_matrix_unchanged(self, transformer_maker, rng):
+        transformer: DecoupledTransformer = transformer_maker()
+
+        sources = self.make_sources(transformer, rng)
+        transformer.offline_run_on(sources, convinient_return=False)
+
+        for f in (transformer.partial_fit, transformer.transform):
             A = rng.normal(size=(1,6))
             A_original = A.copy()
             f(A)
             assert np.all(A == A_original)
 
-    def test_partial_fit_transform_decomposes_correctly(self, transformer: DecoupledTransformer, rng):
-        for batch in rng.normal(size=(10,2,6)): # multiple batches to check initialization
-            t1 = transformer
-            t2 = copy.deepcopy(transformer)
+    def test_partial_fit_transform_decomposes_correctly(self, transformer_maker, rng):
+        transformer: DecoupledTransformer = transformer_maker()
 
-            o1 = t1.partial_fit_transform(batch)
+        for i in range(20):
+            for stream in transformer.input_streams.keys():
+                batch = rng.normal(size=(3,6))
 
-            t2._partial_fit(batch)
-            o2 = t2.transform(batch)
+                t1 = transformer
+                t2 = copy.deepcopy(transformer)
 
-            assert np.array_equal(o1, o2, equal_nan=True)
+                o1 = t1.partial_fit_transform(batch, stream)
 
-    def test_freezing_works_correctly(self, transformer: DecoupledTransformer, rng):
+                t2.partial_fit(batch, stream)
+                o2 = t2.transform(batch, stream)
+
+                assert np.array_equal(o1, o2, equal_nan=True)
+
+    def test_freezing_works_correctly(self, transformer_maker, rng):
+        transformer: DecoupledTransformer = transformer_maker()
+
         transformer.freeze(False)
-        for batch, stream in zip(rng.normal(size=(20,2,6)), itertools.cycle([0,1])):
-            transformer._partial_fit(batch, stream)
+        for i in range(10):
+            for stream in transformer.input_streams.keys():
+                batch = rng.normal(size=(2,6))
+                transformer.partial_fit(batch, stream)
         t2 = copy.deepcopy(transformer)
 
         transformer.freeze(True)
-        for batch, stream in zip(rng.normal(size=(20,2,6)), itertools.cycle([0,1])):
-            transformer._partial_fit(batch, stream)
-            assert np.array_equal(transformer.transform(batch), t2.transform(batch))
+        for i in range(10):
+            for stream in transformer.input_streams.keys():
+                batch = rng.normal(size=(2,6))
+                transformer.partial_fit(batch, stream)
+                assert np.array_equal(transformer.transform(batch), t2.transform(batch))
 
         transformer.freeze(False)
-        for i, (batch, stream) in enumerate(zip(rng.normal(size=(20,2,6)), itertools.cycle([0,1]))):
-            transformer._partial_fit(batch, stream)
-            if stream == 0 and i > 2:
-                assert not np.array_equal(transformer.transform(batch, stream), t2.transform(batch, stream))
+        for i in range(10):
+            for stream in transformer.input_streams.keys():
+                batch = rng.normal(size=(2, 6))
+                transformer.partial_fit(batch, stream)
 
-    def test_inverse_transform_works(self, transformer, rng):
-        g1 = (rng.normal(size=(3, 6)) for _ in range(20))
-        g2 = (rng.normal(size=(3, 6)) for _ in range(20))
-        transformer.offline_run_on([g1, g2])
+                if i > 0:  # some algorithms need a sample from each stream to update
+                    t2_result = t2.transform(batch, stream)
+                    assert np.array_equal(batch, t2_result) == np.array_equal(transformer.transform(batch, stream), t2_result)
+
+    def test_inverse_transform_works(self, transformer_maker, rng):
+        transformer: DecoupledTransformer = transformer_maker()
+
+        sources = self.make_sources(transformer, rng)
+        transformer.offline_run_on(sources, convinient_return=False)
         try:
             output = transformer.inverse_transform(transformer.transform(rng.normal(size=(3,6))))
             assert output.shape == (3,6)
@@ -120,11 +154,11 @@ class TestPerDecoupledTransformer:
             pass
 
     # TODO: test if wrapping generator data sources works correctly
-    # TODO: test if the appropriate logs are called for all iterations and all transformers
+    # TODO: test if the appropriate logs are called for all iterations and all transformers (with mock functions)
     # TODO: test if execution one-by-one or in a pipeline makes a difference
+    # TODO: what if there were a single object for multiple data streams?
     # TODO: try all of the input streams programatically
     # TODO: test if time is passed through appropriately
-    # TODO: mock functions for logging
 
 
 
