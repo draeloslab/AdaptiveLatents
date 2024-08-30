@@ -1,6 +1,6 @@
 import numpy as np
 import adaptive_latents as al
-from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother, proPLS, Bubblewrap
+from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother, proPLS, Bubblewrap, RandomProjection
 from adaptive_latents.transformer import DecoupledTransformer, StreamingTransformer
 from adaptive_latents.jpca import generate_circle_embedded_in_high_d
 from adaptive_latents.utils import column_space_distance
@@ -19,6 +19,7 @@ decoupled_transformers = [
     lambda: proPLS(k=3),
     sjPCA,
     mmICA,
+    RandomProjection,
     lambda: Pipeline([
         CenteringTransformer(),
         proSVD(k=3, whiten=False),
@@ -137,10 +138,9 @@ class TestPerDecoupledTransformer:
             for stream in transformer.input_streams.keys():
                 batch = rng.normal(size=(2, 6))
                 transformer.partial_fit(batch, stream)
+                t2.partial_fit(batch, stream)
 
-                if i > 0:  # some algorithms need a sample from each stream to update
-                    t2_result = t2.transform(batch, stream)
-                    assert np.array_equal(batch, t2_result) == np.array_equal(transformer.transform(batch, stream), t2_result)
+                assert np.array_equal(transformer.transform(batch), t2.transform(batch))
 
     def test_inverse_transform_works(self, transformer_maker, rng):
         transformer: DecoupledTransformer = transformer_maker()

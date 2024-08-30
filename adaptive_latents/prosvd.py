@@ -180,22 +180,30 @@ class proSVD(TypicalTransformer, BaseProSVD):
 
 
 class RandomProjection(TypicalTransformer):
-    def __init__(self, k=100, **kwargs):
+    def __init__(self, rng=None, k=100, **kwargs):
         super().__init__(**kwargs)
         self.k = k
         self.input_d = None
+        if rng is None:
+            rng = np.random.default_rng(0)
+        self.rng: np.random.Generator = rng
+        self.random_matrix = None
+        self.inv = None
 
     def pre_initialization_fit_for_X(self, X):
         self.input_d = X.shape[1]
-        # TODO: how to deal with randomness
-        rng = np.random.default_rng()
 
         # TODO: other modes?
-        self.U = rng.normal(size=(self.input_d, self.k), scale=1/(self.input_d * self.k))
+        self.random_matrix = self.rng.normal(size=(self.input_d, self.k), scale=1 / (self.input_d * self.k))
         self.is_initialized = True
 
     def partial_fit_for_X(self, X):
-        return
+        pass
 
     def transform_for_X(self, X):
-        return X @ self.U
+        return X @ self.random_matrix
+
+    def inverse_transform_for_X(self, X):
+        if self.inv is None:
+            self.inv = np.linalg.pinv(self.random_matrix)
+        return X @ self.inv
