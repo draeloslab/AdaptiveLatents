@@ -188,7 +188,7 @@ class Schaffer23Datset(Dataset):
             return NWBHDF5IO(self.dataset_base_path / sub_dataset_identifier, mode="r", load_namespaces=True)
 
 
-class Churchland22Dataset(DandiDataset):
+class Churchland10Dataset(DandiDataset):
     doi = 'https://doi.org/10.48324/dandi.000128/0.220113.0400'
     dandiset_id = '000128'
     version_id = '0.220113.0400'
@@ -816,10 +816,6 @@ Please place a copy of '{sub_dataset_identifier}' into '{self.dataset_base_path}
 
         # t = np.fromfile(subset_base_path/'time.dat', dtype='int32') / sampling_frequency
 
-
-
-if __name__ == '__main__':
-    TostadoMarcos24Dataset()
 
 
 

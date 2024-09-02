@@ -3,8 +3,7 @@ import matplotlib.pyplot as plt
 import adaptive_latents
 import itertools
 from collections import deque
-from adaptive_latents import CenteringTransformer, Pipeline, proSVD, KernelSmoother, sjPCA, mmICA
-from adaptive_latents.bw_run import AnimationManager
+from adaptive_latents import CenteringTransformer, Pipeline, proSVD, KernelSmoother, sjPCA, mmICA, AnimationManager
 from datasets import Leventhal24uDataset
 from tqdm import tqdm
 

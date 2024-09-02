@@ -5,7 +5,8 @@ jax.config.update('jax_enable_x64', CONFIG['jax_enable_x64'])
 jax.config.update('jax_platform_name', CONFIG['jax_platform_name'])
 
 from .bubblewrap import Bubblewrap
-from .bw_run import BWRun, AnimationManager
+from .bw_run import BWRun
+from .plotting_functions import AnimationManager
 from .regressions import VanillaOnlineRegressor, SemiRegularizedRegressor
 from .timed_data_source import NumpyTimedDataSource
 from .prosvd import proSVD, RandomProjection
