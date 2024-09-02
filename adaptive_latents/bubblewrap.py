@@ -482,6 +482,7 @@ def update_cov(cov, last, curr, mean, n):
 
 
 class Bubblewrap(StreamingTransformer, BaseBubblewrap):
+    base_algorithm = BaseBubblewrap
     def _partial_fit_transform(self, data, stream=0, return_output_stream=False):
         if self.input_streams[stream] == 'X' and not numpy.isnan(data).any():
             output = []

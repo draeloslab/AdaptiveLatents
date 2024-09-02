@@ -85,6 +85,11 @@ class StreamingTransformer(ABC):
     def _partial_fit_transform(self, data, stream, return_output_stream):
         pass
 
+    @property
+    @abstractmethod
+    def base_algorithm(self):
+        return
+
     def get_params(self, deep=True):
         if deep:
             return dict(input_streams=self.input_streams, output_streams=self.output_streams, log_level=self.log_level)
@@ -202,8 +207,9 @@ class DecoupledTransformer(StreamingTransformer):
         raise NotImplementedError()
 
 
-
 class Pipeline(DecoupledTransformer):
+    base_algorithm = 'self'
+
     def __init__(self, steps=(), input_streams=None, **kwargs):
         self.steps: list[DecoupledTransformer] = steps
 
@@ -354,8 +360,9 @@ class TypicalTransformer(DecoupledTransformer):
         raise NotImplementedError()
 
 
-
 class CenteringTransformer(TypicalTransformer):
+    base_algorithm = 'self'
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.is_initialized = True
@@ -378,6 +385,7 @@ class CenteringTransformer(TypicalTransformer):
 
 
 class KernelSmoother(TypicalTransformer):
+    base_algorithm = 'self'
     # TODO: make time aware
     # TODO: make a StreamingTransformer
     def __init__(self, tau=1, kernel_length=None, custom_kernel=None, **kwargs):

@@ -95,6 +95,7 @@ class BaseProPLS:
 
 
 class proPLS(DecoupledTransformer, BaseProPLS):
+    base_algorithm = BaseProPLS
     def __init__(self, input_streams=None, **kwargs):
         input_streams = input_streams or {0: 'X', 1: 'Y'}
         super().__init__(input_streams=input_streams,**kwargs)
