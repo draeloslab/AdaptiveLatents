@@ -100,14 +100,17 @@ class BaseProSVD:
 
 
 class proSVD(TypicalTransformer, BaseProSVD):
-    # todo: see if this use of wraps is a good idea
-    # @wraps(TypicalTransformer.__init__)
     def __init__(self, init_size=None, **kwargs):
         super().__init__(**kwargs)
         self.init_size = init_size or self.k
         self.init_samples = []
         self.is_partially_initialized = False
         self.log = {'Q': [], 't': []}
+
+
+    def instance_get_params(self, deep=True):
+        return dict(k=self.k, decay_alpha=self.decay_alpha, whiten=self.whiten, init_size=self.init_size)
+
 
     def pre_initialization_fit_for_X(self, X):
         if not self.is_partially_initialized:
@@ -180,13 +183,12 @@ class proSVD(TypicalTransformer, BaseProSVD):
 
 
 class RandomProjection(TypicalTransformer):
-    def __init__(self, rng=None, k=100, **kwargs):
+    def __init__(self, rng_seed=0, k=100, **kwargs):
         super().__init__(**kwargs)
         self.k = k
         self.input_d = None
-        if rng is None:
-            rng = np.random.default_rng(0)
-        self.rng: np.random.Generator = rng
+        self.rng_seed = rng_seed
+        self.rng: np.random.Generator = np.random.default_rng(self.rng_seed)
         self.random_matrix = None
         self.inv = None
 
@@ -199,6 +201,9 @@ class RandomProjection(TypicalTransformer):
 
     def partial_fit_for_X(self, X):
         pass
+
+    def instance_get_params(self, deep=True):
+        return dict(k=self.k, rng_seed=self.rng_seed)
 
     def transform_for_X(self, X):
         return X @ self.random_matrix

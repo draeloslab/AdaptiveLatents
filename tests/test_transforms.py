@@ -8,12 +8,14 @@ import pytest
 import copy
 import itertools
 import pickle
+import matplotlib.pyplot as plt
+import inspect
 
 DIM = 6
 
 streaming_only_transformers = [
     KernelSmoother,
-    lambda: Bubblewrap(dim=DIM, num=50)
+    lambda: Bubblewrap(num=50)
 ]
 
 decoupled_transformers = [
@@ -89,7 +91,12 @@ class TestPerStreamingTransformer:
             x = rng.normal(size=(10, DIM))
             assert np.array_equal(transformer.partial_fit_transform(x, s),  t2.partial_fit_transform(x, s), equal_nan=True)
 
-
+    def test_get_params_works(self, transformer_maker):
+        transformer: StreamingTransformer = transformer_maker()
+        p = {k:v for k, v in transformer.get_params().items() if len(k) and k[0] != "_"}
+        type(transformer)(**p)
+        # TODO: test that get_params covers all of the possible parameters, not just no extra
+        # TODO: make this mandatory and base string representations off of it
 
 
 @pytest.mark.parametrize('transformer_maker', decoupled_transformers)
@@ -321,7 +328,29 @@ class TestProPLS:
 
 
 class TestBubblewrap:
-    pass
+    def test_plots(self, rng):
+        bw = Bubblewrap(num=10, M=10)
+
+        hmm = al.input_sources.hmm_simulation.HMM.gaussian_clock_hmm()
+        states, observations = hmm.simulate_with_states(n_steps=50, rng=rng)
+
+        bw.offline_run_on(observations)
+
+        fig, axs = plt.subplots(nrows=4, ncols=4)
+        axs = axs.flatten()
+
+        i = -1
+        bw.show_bubbles_2d(axs[(i:=i+1)], observations)
+        bw.show_active_bubbles_2d(axs[(i:=i+1)], observations)
+        bw.show_active_bubbles_and_connections_2d(axs[(i:=i+1)], observations)
+        bw.show_A(axs[(i:=i+1)])
+        bw.show_nstep_pdf(ax=axs[(i:=i+1)], other_axis=axs[0], fig=fig, density=2)
+
+    def test_get_params(self):
+        from adaptive_latents.bubblewrap import BaseBubblewrap
+        bw = Bubblewrap()
+        assert set(bw.get_params().keys()) == set(inspect.signature(BaseBubblewrap).parameters)
+
 
 
 def test_utils_run(rng):

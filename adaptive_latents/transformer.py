@@ -47,15 +47,14 @@ class StreamingTransformer(ABC):
         # if output_streams is not None:
         #     self.kwargs.update(output_streams=output_streams)
 
-        self.input_streams = PassThroughDict(input_streams or {})
+        self.input_streams = PassThroughDict(input_streams or {0: 'X'})
         self.output_streams = PassThroughDict(output_streams or {})
         self.log_level = log_level
         self.log = dict()
 
-    @abstractmethod
     def partial_fit_transform(self, data, stream=0, return_output_stream=False):
         """
-        Learns and appplies a transformation to incoming data.
+        Learns and applies a transformation to incoming data.
 
         Parameters
         ----------
@@ -74,7 +73,23 @@ class StreamingTransformer(ABC):
         stream: int, optional
             the stream the outputted data should be routed to
         """
+
+        ret = self._partial_fit_transform(data, stream, return_output_stream)
+        self.log_for_partial_fit(data, stream)
+        return ret
+
+    def log_for_partial_fit(self, data, stream):
         pass
+
+    @abstractmethod
+    def _partial_fit_transform(self, data, stream, return_output_stream):
+        pass
+
+    def get_params(self, deep=True):
+        if deep:
+            return dict(input_streams=self.input_streams, output_streams=self.output_streams, log_level=self.log_level)
+        else:
+            return dict()
 
     def trace_route(self, stream):
         middle_str = str(self) if stream in self.input_streams else ""
@@ -143,12 +158,12 @@ class StreamingTransformer(ABC):
             data = outputs[0]
             while data and np.isnan(data[0]).any():
                 data.pop(0)
-            return np.squeeze(data)
-        else:
-            return outputs
+            outputs = np.squeeze(data)
+
+        return outputs
 
     def __str__(self):
-        kwargs = ', '.join(f'{k}={v}' for k, v in self.kwargs.items())
+        kwargs = ', '.join(f'{k}={v}' for k, v in self.get_params().items())
         return f"{self.__class__.__name__}({kwargs})"
 
 
@@ -167,6 +182,9 @@ class DecoupledTransformer(StreamingTransformer):
         self._partial_fit(data, stream)
         self.log_for_partial_fit(data, stream)
 
+    def _partial_fit_transform(self, data, stream, return_output_stream):
+        raise NotImplementedError()
+
     @abstractmethod
     def _partial_fit(self, data, stream):
         """data should be of shape (n_samples, sample_size)"""
@@ -183,12 +201,10 @@ class DecoupledTransformer(StreamingTransformer):
     def inverse_transform(self, data, stream=0, return_output_stream=False):
         raise NotImplementedError()
 
-    def log_for_partial_fit(self, data, stream=0):
-        pass
 
 
 class Pipeline(DecoupledTransformer):
-    def __init__(self, steps, input_streams=None, **kwargs):
+    def __init__(self, steps=(), input_streams=None, **kwargs):
         self.steps: list[DecoupledTransformer] = steps
 
         expected_streams = set(k for step in self.steps for k in step.input_streams.keys())
@@ -197,6 +213,15 @@ class Pipeline(DecoupledTransformer):
             input_streams = dict(zip(range(len(self.expected_streams)), self.expected_streams))
 
         super().__init__(input_streams, **kwargs)
+
+    def get_params(self, deep=True):
+        # TODO: make this actually SKLearn compatible
+        p = dict(steps=[x for x in self.steps])
+        if deep:
+            for i, step in enumerate(self.steps):
+                for k, v in step.get_params(deep).items():
+                    p[f'__steps[{i}]__{k}'] = v
+        return p | super().get_params(deep)
 
     def _partial_fit(self, data, stream=0):
         self.partial_fit_transform(data, stream)
@@ -265,6 +290,11 @@ class TypicalTransformer(DecoupledTransformer):
         super().__init__(input_streams, output_streams, **kwargs)
         self.is_initialized = False
 
+    def get_params(self, deep=True):
+        p = super().get_params(deep)
+        p = self.instance_get_params() | p
+        return p
+
     def _partial_fit(self, data, stream=0):
         if self.input_streams[stream] == 'X':
             if np.isnan(data).any():
@@ -316,6 +346,10 @@ class TypicalTransformer(DecoupledTransformer):
     def transform_for_X(self, X):
         pass
 
+    @abstractmethod
+    def instance_get_params(self, deep=True):
+        pass
+
     def inverse_transform_for_X(self, X):
         raise NotImplementedError()
 
@@ -339,14 +373,18 @@ class CenteringTransformer(TypicalTransformer):
     def inverse_transform_for_X(self, X):
         return X + self.center
 
-    def freeze(self, b=True):
-        self.frozen = b
+    def instance_get_params(self, deep=True):
+        return {}
 
 
 class KernelSmoother(TypicalTransformer):
     # TODO: make time aware
+    # TODO: make a StreamingTransformer
     def __init__(self, tau=1, kernel_length=None, custom_kernel=None, **kwargs):
         super().__init__(**kwargs)
+        self.tau = tau
+        self.kernel_length = kernel_length
+        self.custom_kernel = custom_kernel
         if custom_kernel is None:
             delta_t = 1 # todo: make time-aware
             alpha = 1 - np.exp(-delta_t/tau)
@@ -359,6 +397,9 @@ class KernelSmoother(TypicalTransformer):
         self.kernel = kernel
         self.last_X = None
         self.history = deque(maxlen=len(self.kernel))
+
+    def instance_get_params(self, deep=True):
+        return dict(tau=self.tau, kernel_length=self.kernel_length, custom_kernel=self.custom_kernel)
 
     def pre_initialization_fit_for_X(self, X):
         if self.last_X is not None:
@@ -379,9 +420,6 @@ class KernelSmoother(TypicalTransformer):
             d.append(row)
             new_X[i] = self.kernel @ d
         return new_X
-
-    def freeze(self, b=True):
-        self.frozen = b
 
     def plot_impulse_response(self, ax):
         """

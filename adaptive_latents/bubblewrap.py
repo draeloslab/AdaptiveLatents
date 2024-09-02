@@ -5,9 +5,11 @@ from jax import jit, vmap
 from jax import nn, random
 import jax
 import warnings
-from adaptive_latents.config import use_config_defaults
-from adaptive_latents.transformer import DecoupledTransformer
-from adaptive_latents.timed_data_source import ArrayWithTime
+from matplotlib.patches import Ellipse
+from math import atan2
+from .config import use_config_defaults
+from .transformer import StreamingTransformer
+from .timed_data_source import ArrayWithTime
 
 # TODO: save frozen vs estimator frozen
 # TODO: make this a parameter?
@@ -17,10 +19,9 @@ epsilon = 1e-10
 class BaseBubblewrap:
     @use_config_defaults
     # note the defaults in this signature are overridden by the defaults in adaptive_latents_config
-    def __init__(self, dim, num=1000, seed=42, M=30, lam=1, nu=1e-2, eps=3e-2, B_thresh=1e-4, step=1e-6, n_thresh=5e-4, batch=False, batch_size=1, go_fast=False, copy_row_on_teleport=True, num_grad_q=1, sigma_orig_adjustment=0):
+    def __init__(self, num=1000, seed=42, M=30, lam=1, nu=1e-2, eps=3e-2, B_thresh=1e-4, step=1e-6, n_thresh=5e-4, go_fast=False, copy_row_on_teleport=True, num_grad_q=1, sigma_orig_adjustment=0):
 
         self.N = num  # Number of nodes
-        self.d = dim  # dimension of the space
         self.seed = seed
         self.lam_0 = lam
         self.nu = nu
@@ -34,11 +35,6 @@ class BaseBubblewrap:
         self.num_grad_q = num_grad_q
         self.sigma_orig_adjust = sigma_orig_adjustment
 
-        self.batch = batch
-        self.batch_size = batch_size
-        if not self.batch:
-            self.batch_size = 1
-
         self.go_fast = go_fast
 
         self.key = random.PRNGKey(self.seed)
@@ -46,9 +42,7 @@ class BaseBubblewrap:
         # TODO: change this to use the `rng` system
 
         # observations of the data; M is how many to keep in history
-        if self.batch:
-            M = self.batch_size
-        self.obs = Observations(self.d, M=M, go_fast=go_fast)
+        self.obs = Observations(M=M, go_fast=go_fast)
         self._add_jited_functions()
         self.mu_orig = None
 
@@ -69,6 +63,7 @@ class BaseBubblewrap:
 
     def init_nodes(self):
         ### Based on observed data so far of length M
+        self.d = self.obs.saved_obs[-1].size
         self.mu = jnp.zeros((self.N, self.d))
 
         com = center_mass(self.mu)
@@ -106,10 +101,7 @@ class BaseBubblewrap:
         fullSigma = numpy.zeros((self.N, self.d, self.d), dtype="float32")
         self.L = numpy.zeros((self.N, self.d, self.d))
         self.L_diag = numpy.zeros((self.N, self.d))
-        if self.batch and not self.go_fast:
-            var = self.obs.cov
-        else:
-            var = jnp.diag(jnp.var(jnp.array(self.obs.saved_obs), axis=0))
+        var = jnp.diag(jnp.var(jnp.array(self.obs.saved_obs), axis=0))
         for n in numpy.arange(self.N):
             fullSigma[n] = var * (self.nu + self.d + 1) / (self.N**(2 / self.d))
 
@@ -162,11 +154,7 @@ class BaseBubblewrap:
         # Get new data point and update observation history
 
         ## Do all observations, and then update mu0, sigma0
-        if self.batch:
-            for i in range(len(x)):  # x array of observations
-                self.obs.new_obs(x[i])
-        else:
-            self.obs.new_obs(x)
+        self.obs.new_obs(x)
 
         if not self.go_fast and self.obs.cov is not None and self.mu_orig is not None:
             lamr = 0.02  # this is $\lambda$ from the paper
@@ -179,11 +167,7 @@ class BaseBubblewrap:
 
     def e_step(self):
         # take E step; after observation
-        if self.batch:
-            for o in self.obs.saved_obs:
-                self.single_e_step(o)
-        else:
-            self.single_e_step(self.obs.curr)
+        self.single_e_step(self.obs.curr)
 
     def single_e_step(self, x):
         self.beta = 1 + 10 / (self.t + 1)
@@ -288,8 +272,6 @@ class BaseBubblewrap:
         step=8e-2,
         M=100,
         B_thresh=-5,
-        batch=False,
-        batch_size=1,
         go_fast=False,
         seed=42,
         num_grad_q=1,
@@ -425,9 +407,9 @@ def center_mass(points):
 
 
 class Observations:
-    def __init__(self, dim, M=5, go_fast=True):
+    # TODO: get rid of this object?
+    def __init__(self, M=5, go_fast=True):
         self.M = M  # how many observed points to hold in memory
-        self.d = dim  # dimension of coordinate system
         self.go_fast = go_fast
 
         self.curr = None
@@ -499,19 +481,20 @@ def update_cov(cov, last, curr, mean, n):
     return f * (cov+lastm) + (1-f) * curro - currm
 
 
-class Bubblewrap(DecoupledTransformer, BaseBubblewrap):
-    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
-        # partial fit
+class Bubblewrap(StreamingTransformer, BaseBubblewrap):
+    def _partial_fit_transform(self, data, stream=0, return_output_stream=False):
         if self.input_streams[stream] == 'X' and not numpy.isnan(data).any():
             output = []
             for i in range(len(data)):
+                # partial fit
                 self.observe(data[i])
+
+                if not self.is_initialized and self.obs.n_obs > self.M:
+                    self.init_nodes()
 
                 if self.is_initialized:
                     self.e_step()
                     self.grad_Q()
-                elif self.obs.n_obs > self.M:
-                    self.init_nodes()
 
                 # transform
                 if self.is_initialized:
@@ -528,12 +511,222 @@ class Bubblewrap(DecoupledTransformer, BaseBubblewrap):
             return data, stream
         return data
 
+    def get_params(self, deep=False):
+        params = dict(
+            num=self.N,
+            seed=self.seed,
+            M=self.M,
+            step=self.step,
+            lam=self.lam_0,
+            eps=self.eps,
+            nu=self.nu,
+            B_thresh=self.B_thresh,
+            n_thresh=self.n_thresh,
+            go_fast=self.go_fast,
+            copy_row_on_teleport=self.copy_row_on_teleport,
+            num_grad_q=self.num_grad_q,
+            # backend=self.backend_note,
+            # precision=self.precision_note,
+            sigma_orig_adjustment=self.sigma_orig_adjust,
+        )
 
-    def _partial_fit(self, data, stream=0):
-        raise NotImplementedError()
+        return params | super().get_params()
 
-    def transform(self, data, stream=0, return_output_stream=False):
-        raise NotImplementedError()
+    def log_for_partial_fit(self, data, stream):
+        if self.log_level > 0:
+            self.log['alpha'] = self.log.get('alpha', []) + numpy.array(self.alpha)
 
-    def freeze(self, b=True):
-        raise NotImplementedError()
+    def show_bubbles_2d(self, ax, data, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45, show_names=True, tail_length=0, no_bubbles=False):
+        ax.cla()
+        n_obs = numpy.array(self.n_obs)
+        ax.scatter(data[:, dim_1], data[:, dim_2], s=5, color='#004cff', alpha=numpy.power(1 - self.eps, numpy.arange(data.shape[0], 0, -1)))
+        if tail_length > 0:
+            start = max(data.shape[0] - tail_length, 0)
+            ax.plot(data[start:, 0], data[start:, 1], linewidth=3, color='#004cff', alpha=.5)
+
+        if not no_bubbles:
+            for n in reversed(numpy.arange(self.A.shape[0])):
+                color = '#ed6713'
+                alpha = .4 * alpha_coefficient
+                if n in self.dead_nodes:
+                    color = '#000000'
+                    alpha = 0.05 * alpha_coefficient
+                self.add_2d_bubble(ax, self.L[n], self.mu[n], n_sds, name=n, facecolor=color, alpha=alpha, show_name=show_names, name_theta=name_theta)
+
+            mask = numpy.ones(self.mu.shape[0], dtype=bool)
+            mask[n_obs < .1] = False
+            mask[self.dead_nodes] = False
+            ax.scatter(self.mu[mask, 0], self.mu[mask, 1], c='k', zorder=10)
+            ax.scatter(data[0, 0], data[0, 1], color="#004cff", s=10)
+
+    def show_active_bubbles_2d(self, ax, data, name_theta=45, n_sds=3, history_length=1):
+        ax.cla()
+        ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff', alpha=numpy.power(1 - self.eps, numpy.arange(data.shape[0], 0, -1)))
+        # ax.scatter(data[-1, 0], data[-1, 1], s=10, color='red')
+
+        if history_length > 1:
+            start = max(data.shape[0] - history_length, 0)
+            ax.plot(data[start:, 0], data[start:, 1], linewidth=3, color='#af05ed', alpha=.5)
+
+        to_draw = numpy.argsort(numpy.array(self.alpha))[-3:]
+        opacities = numpy.array(self.alpha)[to_draw]
+        opacities = opacities * .5 / opacities.max()
+
+        for i, n in enumerate(to_draw):
+            self.add_2d_bubble(ax, self.L[n], self.mu[n], n_sds, name=n, alpha=opacities[i], name_theta=name_theta)
+
+
+    def show_active_bubbles_and_connections_2d(self, ax, data, name_theta=45, n_sds=3, history_length=1):
+        ax.cla()
+        ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff', alpha=numpy.power(1 - self.eps, numpy.arange(data.shape[0], 0, -1)))
+        # ax.scatter(data[-1, 0], data[-1, 1], s=10, color='red')
+
+        if history_length > 1:
+            start = max(data.shape[0] - history_length, 0)
+            ax.plot(data[start:, 0], data[start:, 1], linewidth=3, color='#af05ed', alpha=.5)
+
+        to_draw = numpy.argsort(numpy.array(self.alpha))[-3:]
+        opacities = numpy.array(self.alpha)[to_draw]
+        opacities = opacities * .5 / opacities.max()
+
+        for i, n in enumerate(to_draw):
+            self.add_2d_bubble(ax, self.L[n], self.mu[n], n_sds, name=n, alpha=opacities[i], name_theta=name_theta)
+
+            if i == 2:
+                connections = numpy.array(self.A[n])
+                self_connection = connections[n]
+                other_connection = numpy.array(connections)
+                other_connection[n] = 0
+                c_to_draw = numpy.argsort(connections)[-3:]
+                c_opacities = (other_connection / other_connection.sum())[c_to_draw]
+                for j, m in enumerate(c_to_draw):
+                    if n != m:
+                        line = numpy.array(self.mu)[[n, m]]
+                        ax.plot(line[:, 0], line[:, 1], color='k', alpha=1)
+
+    def show_A(self, ax, show_log=False):
+        ax.cla()
+        A = numpy.array(self.A)
+        if show_log:
+            A = numpy.log(A)
+        img = ax.imshow(A, aspect='equal', interpolation='nearest')
+        # fig.colorbar(img)
+
+        ax.set_title("Transition Matrix (A)")
+        ax.set_xlabel("To")
+        ax.set_ylabel("From")
+
+        ax.set_xticks(numpy.arange(self.N))
+        live_nodes = [x for x in numpy.arange(self.N) if x not in self.dead_nodes]
+        ax.set_yticks(live_nodes)
+
+    def show_alpha(self, ax, show_log=False):
+        ax.cla()
+
+        to_show = numpy.array(self.log['alpha'][-20:]).T
+
+        if show_log:
+            to_show = numpy.log(to_show)
+
+        ims = ax.imshow(to_show, aspect='auto', interpolation='nearest')
+
+        ax.set_title("State Estimate ($\\alpha$)")
+        live_nodes = [x for x in numpy.arange(self.N) if x not in self.dead_nodes]
+        ax.set_yticks(live_nodes)
+        if len(live_nodes) > 20:
+            ax.set_yticklabels([str(x) if idx % (len(live_nodes) // 20) == 0 else "" for idx, x in enumerate(live_nodes)])
+        else:
+            ax.set_yticklabels([str(x) for x in live_nodes])
+        ax.set_ylabel("bubble")
+        ax.set_xlabel("steps (ago)")
+
+
+    def show_nstep_pdf(self, ax, other_axis, fig, density=50, current_location=None, offset_location=None, hmm=None, method="br", offset=1, show_colorbar=True):
+        """
+        the other_axis is supposed to be something showing the bubbles, so they line up
+        """
+        if ax.collections and show_colorbar:
+            old_vmax = ax.collections[-3].colorbar.vmax
+            old_vmin = ax.collections[-3].colorbar.vmin
+            ax.collections[-3].colorbar.remove()
+        ax.cla()
+
+        xlim = other_axis.get_xlim()
+        ylim = other_axis.get_ylim()
+
+
+        x_bins = numpy.linspace(*xlim, density + 1)
+        y_bins = numpy.linspace(*ylim, density + 1)
+        pdf = numpy.zeros(shape=(density, density))
+        for i in range(density):
+            for j in range(density):
+                x = numpy.array([x_bins[i] + x_bins[i + 1], y_bins[j] + y_bins[j + 1]]) / 2
+                b_values = self.logB_jax(x, self.mu, self.L, self.L_diag)
+                pdf[i, j] = self.alpha @ numpy.linalg.matrix_power(self.A, offset) @ numpy.exp(b_values)
+                # elif method == 'hmm':
+                #     emission_model = hmm.emission_model
+                #     node_history, _ = br.output_ds.get_history()
+                #     current_node = node_history[-1]
+                #     state_p_vec = numpy.zeros(emission_model.means.shape[0])
+                #     state_p_vec[current_node] = 1
+                #
+                #     x = numpy.array([x_bins[i] + x_bins[i + 1], y_bins[j] + y_bins[j + 1]]) / 2
+                #     pdf_p_vec = numpy.zeros(emission_model.means.shape[0])
+                #     for k in range(pdf_p_vec.size):
+                #         mu = emission_model.means[k]
+                #         sigma = emission_model.covariances[k]
+                #         displacement = x - mu
+                #         pdf_p_vec[k] = 1 / (numpy.sqrt((2 * numpy.pi)**mu.size * numpy.linalg.det(sigma))) * numpy.exp(-1 / 2 * displacement.T @ numpy.linalg.inv(sigma) @ displacement)
+                #
+                #     pdf[i, j] = state_p_vec @ numpy.linalg.matrix_power(hmm.transition_matrix, offset) @ pdf_p_vec
+
+        cmesh = ax.pcolormesh(x_bins, y_bins, pdf.T)
+        if show_colorbar:
+            fig.colorbar(cmesh)
+
+        if offset_location is not None:
+            ax.scatter(offset_location[0], offset_location[1], c='white')
+
+        if current_location is not None:
+            ax.scatter(current_location[0], current_location[1], c='red')
+
+        ax.set_title(f"{offset}-step pred.")
+
+
+
+
+    @classmethod
+    def add_2d_bubble(cls, ax, cov, center, passed_sig=False, **kwargs):
+        if not passed_sig:
+            el = numpy.linalg.inv(cov)
+            sig = el.T @ el
+        else:
+            sig = cov
+        proj_mat = numpy.eye(sig.shape[0])[:2, :]
+        sig = proj_mat @ sig @ proj_mat.T
+        center = proj_mat @ center
+        cls.add_2d_bubble_from_sig(ax, sig, center, **kwargs)
+
+
+    @classmethod
+    def add_2d_bubble_from_sig(cls, ax, sig, center, n_sds=3, facecolor='#ed6713', name=None, alpha=1., name_theta=45, show_name=True):
+        assert center.size == 2
+        assert sig.shape == (2,2)
+
+        u, s, v = numpy.linalg.svd(sig)
+        width, height = numpy.sqrt(s[0]) * n_sds, numpy.sqrt(s[1]) * n_sds  # note width is always bigger
+        angle = atan2(v[0, 1], v[0, 0]) * 360 / (2 * numpy.pi)
+        el = Ellipse((center[0], center[1]), width, height, angle=angle, zorder=8)
+        el.set_alpha(alpha)
+        el.set_clip_box(ax.bbox)
+        el.set_facecolor(facecolor)
+        ax.add_artist(el)
+
+        if show_name:
+            theta1 = name_theta - angle
+            r = cls._ellipse_r(width / 2, height / 2, theta1 / 180 * numpy.pi)
+            ax.text(center[0] + r * numpy.cos(name_theta / 180 * numpy.pi), center[1] + r * numpy.sin(name_theta / 180 * numpy.pi), name, clip_on=True)
+
+    @staticmethod
+    def _ellipse_r(a, b, theta):
+        return a * b / numpy.sqrt((numpy.cos(theta) * b)**2 + (numpy.sin(theta) * a)**2)

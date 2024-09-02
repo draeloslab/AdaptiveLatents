@@ -20,8 +20,6 @@ default_parameters:
     step: 8.0e-2
     M: 30
     B_thresh: -10
-    batch: False
-    batch_size: 1
     go_fast: False
     seed: 42
     num_grad_q: 1

@@ -102,6 +102,9 @@ class proPLS(DecoupledTransformer, BaseProPLS):
         self.last_seen = {}
         self.is_initialized = False
 
+    def get_params(self, deep=True):
+        return dict(k=self.k, decay_alpha=self.decay_alpha) | super().get_params()
+
     def _partial_fit(self, data, stream=0):
         if self.frozen:
             return
@@ -158,9 +161,6 @@ class proPLS(DecoupledTransformer, BaseProPLS):
         if return_output_stream:
             return data, stream
         return data
-
-    def freeze(self, b=True):
-        self.frozen = b
 
     def log_for_partial_fit(self, data, stream=0, pre_initialization=False):
         if not pre_initialization:
