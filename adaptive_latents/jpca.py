@@ -103,6 +103,7 @@ class BaseSJPCA:
 
 
 class sjPCA(TypicalTransformer, BaseSJPCA):
+    base_algorithm = BaseSJPCA
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.log = {'U': [], 't':[]}

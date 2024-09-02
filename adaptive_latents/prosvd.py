@@ -100,6 +100,8 @@ class BaseProSVD:
 
 
 class proSVD(TypicalTransformer, BaseProSVD):
+    base_algorithm = BaseProSVD
+
     def __init__(self, init_size=None, **kwargs):
         super().__init__(**kwargs)
         self.init_size = init_size or self.k
@@ -183,6 +185,8 @@ class proSVD(TypicalTransformer, BaseProSVD):
 
 
 class RandomProjection(TypicalTransformer):
+    base_algorithm = 'self'
+
     def __init__(self, rng_seed=0, k=100, **kwargs):
         super().__init__(**kwargs)
         self.k = k

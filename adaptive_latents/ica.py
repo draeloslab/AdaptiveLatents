@@ -89,6 +89,8 @@ class BaseMMICA:
 
 
 class mmICA(TypicalTransformer, BaseMMICA):
+    base_algorithm = BaseMMICA
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.processing_queue = []
