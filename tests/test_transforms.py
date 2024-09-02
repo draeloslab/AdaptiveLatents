@@ -7,22 +7,25 @@ from adaptive_latents.utils import column_space_distance
 import pytest
 import copy
 import itertools
+import pickle
+
+DIM = 6
 
 streaming_only_transformers = [
     KernelSmoother,
-    lambda: Bubblewrap(dim=6, num=50)
+    lambda: Bubblewrap(dim=DIM, num=50)
 ]
 
 decoupled_transformers = [
     CenteringTransformer,
-    lambda: proSVD(k=3, whiten=True),
-    lambda: proPLS(k=3),
+    lambda: proSVD(k=DIM, whiten=True),
+    lambda: proPLS(k=DIM),
     sjPCA,
     mmICA,
     RandomProjection,
     lambda: Pipeline([
         CenteringTransformer(),
-        proSVD(k=3, whiten=False),
+        proSVD(k=DIM, whiten=False),
     ]),
     lambda: Pipeline([])
     ]
@@ -47,22 +50,46 @@ class TestStreamingTransformer:
     @pytest.fixture
     def valid_sources(self):
         return [
-            np.zeros((10, 3)),
-            np.zeros((5, 2, 3)),
-            (np.zeros((2,3)) for _ in range(5)),
-            [((np.zeros((2,3)) for _ in range(5)), 0), ((np.zeros((2,3)) for _ in range(5)), 1)],
-            [np.zeros((10, 3))],
-            [(np.zeros((10, 3)), 1)],
-            [(NumpyTimedDataSource(np.zeros((10, 3))), 0), (NumpyTimedDataSource(np.zeros((10, 3))), 0), (NumpyTimedDataSource(np.zeros((9, 3))), 1)],
+            np.zeros((10, DIM)),
+            np.zeros((5, 2, DIM)),
+            (np.zeros((2, DIM)) for _ in range(5)),
+            [((np.zeros((2, DIM)) for _ in range(5)), 0), ((np.zeros((2, DIM)) for _ in range(5)), 1)],
+            [np.zeros((10, DIM))],
+            [(np.zeros((10, DIM)), 1)],
+            [(NumpyTimedDataSource(np.zeros((10, DIM))), 0), (NumpyTimedDataSource(np.zeros((10, DIM))), 0), (NumpyTimedDataSource(np.zeros((9, DIM))), 1)],
         ]
 
 
 @pytest.mark.parametrize('transformer_maker', all_transformers)
 class TestPerStreamingTransformer:
-    def test_can_fit_transform(self, transformer_maker):
+    def test_can_fit_transform(self, transformer_maker, rng):
+        transformer: StreamingTransformer = transformer_maker()
+        for _ in range(5):
+            for s in transformer.input_streams:
+                transformer.partial_fit_transform(rng.normal(size=(10, DIM)), s)
+
+    def test_can_save_and_rerun(self, transformer_maker, rng, tmp_path):
         transformer: StreamingTransformer = transformer_maker()
 
-        transformer.partial_fit_transform(np.zeros((10,3)))
+        for _ in range(5):
+            for s in transformer.input_streams:
+                transformer.partial_fit_transform(rng.normal(size=(10, DIM)), s)
+        t2 = copy.deepcopy(transformer)
+
+        temp_file = tmp_path/'streaming_transformer.pickle'
+        with open(temp_file, 'bw') as f:
+            pickle.dump(transformer, f)
+
+        del transformer
+
+        with open(temp_file, 'br') as f:
+            transformer = pickle.load(f)
+
+        for s in transformer.input_streams:
+            x = rng.normal(size=(10, DIM))
+            assert np.array_equal(transformer.partial_fit_transform(x, s),  t2.partial_fit_transform(x, s), equal_nan=True)
+
+
 
 
 @pytest.mark.parametrize('transformer_maker', decoupled_transformers)
@@ -70,9 +97,9 @@ class TestPerDecoupledTransformer:
     @staticmethod
     def make_sources(transformer, rng, expression=None, first_n_nan=0, length=20):
         if expression is None:
-            expression = lambda: rng.normal(size=(3, 6))
+            expression = lambda: rng.normal(size=(3, DIM))
 
-        batches = (expression() * (np.nan if i < first_n_nan else 1) for i in range(length))
+        batches = [expression() * (np.nan if i < first_n_nan else 1) for i in range(length)]
         return list(zip(itertools.repeat(batches), transformer.input_streams.keys()))
 
     def test_can_ignore_nans(self, transformer_maker, rng):
@@ -104,7 +131,7 @@ class TestPerDecoupledTransformer:
 
         for i in range(20):
             for stream in transformer.input_streams.keys():
-                batch = rng.normal(size=(3,6))
+                batch = rng.normal(size=(3,DIM))
 
                 t1 = transformer
                 t2 = copy.deepcopy(transformer)
@@ -148,8 +175,8 @@ class TestPerDecoupledTransformer:
         sources = self.make_sources(transformer, rng)
         transformer.offline_run_on(sources, convinient_return=False)
         try:
-            output = transformer.inverse_transform(transformer.transform(rng.normal(size=(3,6))))
-            assert output.shape == (3,6)
+            output = transformer.inverse_transform(transformer.transform(rng.normal(size=(3,DIM))))
+            assert output.shape == (3,DIM)
         except NotImplementedError:
             pass
 
@@ -293,24 +320,17 @@ class TestProPLS:
         assert column_space_distance(pls.u, x_common_basis) < 0.155
 
 
+class TestBubblewrap:
+    pass
+
+
 def test_utils_run(rng):
     # note I do not test correctness here
     A = rng.normal(size=(200, 10))
     t = np.arange(A.shape[0])
 
-    # A = al.utils.center_from_first_n(A)
     A = al.utils.zscore(A)
-    # A = al.utils.prosvd_data(input_arr=A, output_d=2, init_size=10, centering=True, _recalculate_cache_value=True)
-    # A = al.utils.prosvd_data(input_arr=A, output_d=2, init_size=10, centering=False, _recalculate_cache_value=True)
     A, t = al.utils.clip(A, t)
-
-    # A, Qs = al.utils.prosvd_data_with_Qs(input_arr=A, output_d=2, init_size=10)
-
-    # al.utils.bwrap_alphas(input_arr=A, bw_params=al.Bubblewrap.default_clock_parameters, _recalculate_cache_value=True)
-    # al.utils.bwrap_alphas_ahead(input_arr=A, bw_params=al.Bubblewrap.default_clock_parameters, _recalculate_cache_value=True)
-
-    # this tests that y
-    # A = al.utils.prosvd_data(input_arr=A, output_d=2, init_size=10, centering=False, _recalculate_cache_value=True)
 
 
 # def test_can_use_args_in_cache(rng):

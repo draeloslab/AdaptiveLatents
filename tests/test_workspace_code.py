@@ -13,7 +13,7 @@ class TestScripts:
 @longrun
 class TestDatasets:
     singleton_datsets = [
-        datasets.Churchland22Dataset,
+        datasets.Churchland10Dataset,
         datasets.Nason20Dataset,
         datasets.Temmar24uDataset,
         datasets.Musall19Dataset,
