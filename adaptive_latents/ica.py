@@ -17,14 +17,16 @@ def min_W_with_extra_info(W, A, maxiter_cg, tol=1e-10):
 
 
 class BaseMMICA:
-    def __init__(self, density='huber', maxiter_cg=10, greedy=0, alpha=.7, track_extra_info=False, tol=1e-10):
+    def __init__(self, density_name='huber', maxiter_cg=10, greedy=0, alpha=.7, track_extra_info=False, tol=1e-10):
         self.alpha = alpha
         self.greedy = greedy
         self.maxiter_cg = maxiter_cg
         self.tol = tol
+        self.density_name = density_name
 
-        self.density = {'huber': Huber(), 'tanh': Sigmoid()}.get(density)
+        self.density = {'huber': Huber(), 'tanh': Sigmoid()}.get(self.density_name)
 
+        self.track_extra_info = track_extra_info
         self.hit_iter_history = None
         self.hit_norm_history = None
         if track_extra_info:
@@ -91,6 +93,16 @@ class mmICA(TypicalTransformer, BaseMMICA):
         super().__init__(**kwargs)
         self.processing_queue = []
         self.log = {'W': [], 't': []}
+
+    def instance_get_params(self, deep=True):
+        return dict(
+            density_name=self.density_name,
+            maxiter_cg=self.maxiter_cg,
+            greedy=self.greedy,
+            alpha=self.alpha,
+            track_extra_info=self.track_extra_info,
+            tol=self.tol
+        )
 
     def pre_initialization_fit_for_X(self, X):
         self.set_p(X.shape[1])

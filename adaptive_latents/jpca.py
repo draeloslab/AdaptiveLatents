@@ -107,6 +107,9 @@ class sjPCA(TypicalTransformer, BaseSJPCA):
         super().__init__(**kwargs)
         self.log = {'U': [], 't':[]}
 
+    def instance_get_params(self, deep=True):
+        return {}
+
     def pre_initialization_fit_for_X(self, X):
         if self.last_x is None: #  round 1
             self.initialize(X)
