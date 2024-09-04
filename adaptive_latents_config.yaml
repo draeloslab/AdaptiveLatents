@@ -5,3 +5,4 @@ attempt_to_cache: False
 bwrun_save_path: ./workspace/al_generated/bw_runs
 cache_path: ./workspace/al_generated/caches
 plot_save_path: ./workspace/al_generated/plots
+dataset_path: ./workspace/datasets

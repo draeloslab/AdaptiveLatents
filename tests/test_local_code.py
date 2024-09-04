@@ -1,6 +1,6 @@
 import pytest
 from workspace.main import main
-import workspace.datasets as datasets
+import adaptive_latents.datasets as datasets
 import workspace.leventhal_script as leventhal_script
 import matplotlib.pyplot as plt
 
@@ -52,6 +52,7 @@ class TestDatasets:
             assert d.neural_data is not None
             assert d.behavioral_data is not None or d.opto_stimulations is not None
 
+@longrun
 def test_dataset_plots():
     d = datasets.TostadoMarcos24Dataset()
     fig, ax = plt.subplots()
