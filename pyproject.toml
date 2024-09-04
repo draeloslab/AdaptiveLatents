@@ -55,6 +55,9 @@ source = [
     "tests",
     "workspace",
     ]
+omit = [
+    "workspace/datasets/*"
+]
 
 [tool.coverage.html]
 directory = "./tests/reports/coverage-html"

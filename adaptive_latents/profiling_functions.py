@@ -166,10 +166,6 @@ def get_speed_by_time(psvd_input, regression_output, prosvd_k=6, bw_params=None,
         reg.predict(np.array(bw.alpha @ bw.A))
     times.append(timeit.default_timer())
 
-    print(psvd.Q)
-    print(jpca.last_U)
-    print(bw.alpha)
-    print(reg.get_beta())
 
     times = np.array(times)
 

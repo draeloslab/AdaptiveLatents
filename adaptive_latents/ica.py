@@ -1,19 +1,6 @@
 import numpy as np
 from .transformer import TypicalTransformer
 from mmica.solvers import gen_idx, compute_A_idx, compute_A, Huber, Sigmoid, min_W
-from mmica._utils import python_cg_c, cython_cg_c, python_cg_c_with_extra_info
-
-
-def min_W_with_extra_info(W, A, maxiter_cg, tol=1e-10):
-    N, _ = W.shape
-    hit_iters = np.empty(N)
-    hit_norms = np.ones((N, maxiter_cg)) * np.nan
-    for i in range(N):
-        K = W @ A[i] @ W.T
-        s, hit_iters[i], hit_norms[i, :] = python_cg_c_with_extra_info(B=K, i=i, max_iter=maxiter_cg, tol=tol, N=K.shape[0])
-        s /= np.sqrt(s[i])
-        W[i] = s @ W
-    return W, hit_iters, hit_norms
 
 
 class BaseMMICA:
@@ -69,10 +56,6 @@ class BaseMMICA:
             u *= step
             self.A += compute_A(u, x)
         self.W = min_W(self.W, self.A, self.maxiter_cg)
-        # self.W, hit_iters, hit_norms = min_W_with_extra_info(W=self.W, A=self.A, maxiter_cg=self.maxiter_cg, tol=self.tol)
-        # if self.hit_iter_history is not None:
-        #     self.hit_iter_history.append(hit_iters)
-        #     self.hit_norm_history.append(hit_norms)
 
         # extra added by jgould
         non_gaussianness = self.density.logp(self.W @ x).mean(axis=1)

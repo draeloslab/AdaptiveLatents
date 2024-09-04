@@ -30,8 +30,8 @@ def make_hashable_and_hash(x):
     return int(hashlib.sha1(make_hashable(x)).hexdigest(), 16)
 
 
-def save_to_cache(file, location=CONFIG["cache_path"]):
-    if not CONFIG["attempt_to_cache"]:
+def save_to_cache(file, location=CONFIG["cache_path"], override_config_and_cache=False):
+    if not CONFIG["attempt_to_cache"] and not override_config_and_cache:
 
         def decorator(original_function):
             @functools.wraps(original_function)
@@ -91,95 +91,6 @@ def save_to_cache(file, location=CONFIG["cache_path"]):
 
 
 
-
-# def prosvd_data_with_Qs(input_arr, output_d, init_size, pro_arguments=None):
-#     # todo: combine this with prosvd_data
-#     pro_arguments = pro_arguments or {}
-#     pro = BaseProSVD(k=output_d, **pro_arguments)
-#     pro.initialize(input_arr[:init_size].T)
-#
-#     output = []
-#     old_Qs = []
-#     for i in range(init_size, len(input_arr)):
-#         obs = input_arr[i:i + 1, :]
-#         old_Qs.append(np.array(pro.Q))
-#         output.append(pro.update_and_project(obs.T))
-#     return np.array(output).reshape((-1, output_d)), np.array(old_Qs)
-
-
-def zscore(input_arr, init_size=6, clip_level=15):
-    mean = 0
-    m2 = 1e-4
-    output = []
-    count = 0
-    for i, x in enumerate(tqdm(input_arr)):
-        if np.any(np.isnan(x)):
-            output.append(x * np.nan)
-            continue
-
-        if count >= init_size:
-            std = np.sqrt(m2 / (count-1))
-            output.append((x-mean) / std)
-
-        delta = x - mean
-        mean += delta / (count+1)
-        m2 += delta * (x-mean)
-        count += 1
-    output = np.array(output)
-
-    if clip is not None:
-        output[output > clip_level] = clip_level
-        output[output < -clip_level] = -clip_level
-    return output
-
-
-# todo: some rank-version of zscore?
-
-
-# @save_to_cache("bwrap_alphas")
-# def bwrap_alphas(input_arr, bw_params):
-#     alphas = []
-#     bw = adaptive_latents.Bubblewrap(dim=input_arr.shape[1], **bw_params)
-#     for step in range(len(input_arr)):
-#         bw.observe(input_arr[step])
-#
-#         if step < bw.M:
-#             pass
-#         elif step == bw.M:
-#             bw.init_nodes()
-#             bw.e_step()
-#             bw.grad_Q()
-#         else:
-#             bw.e_step()
-#             bw.grad_Q()
-#
-#             alphas.append(bw.alpha)
-#     return np.array(alphas)
-
-
-# @save_to_cache("bwrap_alphas_ahead")
-# def bwrap_alphas_ahead(input_arr, bw_params, nsteps=(1,)):
-#     returns = {x: [] for x in nsteps}
-#     bw = adaptive_latents.Bubblewrap(dim=input_arr.shape[1], **bw_params)
-#     for step in tqdm(range(len(input_arr))):
-#         bw.observe(input_arr[step])
-#
-#         if step < bw.M:
-#             pass
-#         elif step == bw.M:
-#             bw.init_nodes()
-#             bw.e_step()
-#             bw.grad_Q()
-#         else:
-#             bw.e_step()
-#             bw.grad_Q()
-#
-#             for step in nsteps:
-#                 returns[step].append(bw.alpha @ np.linalg.matrix_power(bw.A, step))
-#     returns = {x: np.array(returns[x]) for x in returns}
-#     return returns
-
-
 def clip(*args, maxlen=float("inf")):
     """take a variable number of arguments and trim them to be the same length
 
@@ -216,10 +127,6 @@ def resample_matched_timeseries(old_timeseries, new_sample_times, old_sample_tim
     for c in range(resampled_behavior.shape[1]):
         resampled_behavior[:, c] = np.interp(new_sample_times, old_sample_times[good_samples], old_timeseries[good_samples, c])
     return resampled_behavior
-
-
-# def center_from_first_n(A, n=100):
-#     return A[n:] - A[:n].mean(axis=0)
 
 
 def align_column_spaces(A, B):

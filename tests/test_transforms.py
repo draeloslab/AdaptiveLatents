@@ -48,6 +48,7 @@ class TestStreamingTransformer:
 
     def test_trace_route(self):
         self.transformer.trace_route(stream=0)
+        Pipeline([Pipeline([]), Pipeline([])]).trace_route(stream=0)
 
     @pytest.fixture
     def valid_sources(self):
@@ -97,8 +98,6 @@ class TestPerStreamingTransformer:
         type(transformer)(**p)
 
         base_algorithm = transformer.base_algorithm
-        if base_algorithm == 'self':
-            base_algorithm = type(transformer)
         base_args = set(inspect.signature(base_algorithm).parameters.keys()) - {'args', 'kwargs'}
         found_args = set(p.keys()) - {'args', 'kwargs'}
         assert base_args.issubset(found_args)
@@ -232,6 +231,19 @@ class TestJPCA:
         aligned_U, aligned_C = al.utils.align_column_spaces(U[:, :2], true_variables['C'])
         assert np.allclose(aligned_U, aligned_C, atol=1e-4)
 
+    def test_plots(self, rng):
+        fig, ax = plt.subplots()
+
+        X, _, true_variables = generate_circle_embedded_in_high_d(rng, m=100, stddev=.01)
+        jp = sjPCA(log_level=1)
+        jp.offline_run_on(X)
+
+        jp.plot_U_stability(ax)
+        jp.get_distance_from_subspace_over_time(true_variables['C'])
+
+
+
+
 
 class TestProSVD:
     def probabilistically_check_adding_channels_works(self, rng, n_samples=50, n1=4, n2=10, k=2):
@@ -286,6 +298,16 @@ class TestProSVD:
 
         assert column_space_distance(pro.Q, true_variables['C']) < 0.05
 
+    def test_plots(self, rng):
+        fig, ax = plt.subplots()
+
+        X, _, true_variables = generate_circle_embedded_in_high_d(rng, m=100, stddev=.01)
+        pro = proSVD(k=2, log_level=1)
+        pro.offline_run_on(X)
+
+        pro.plot_Q_stability(ax)
+        pro.get_distance_from_subspace_over_time(true_variables['C'])
+
     # TODO:
     # def test_n_samples_works_with_decay_alpha(self):
     #     assert False
@@ -325,16 +347,18 @@ class TestProPLS:
 
         x_common_basis = np.eye(high_d[0])[:,:common_d]
 
-        pls = proPLS(k=3)
+        pls = proPLS(k=3, log_level=1)
 
         pls.offline_run_on([X, Y])
 
         assert column_space_distance(pls.u, x_common_basis) < 0.155
 
+        pls.get_distance_from_subspace_over_time(x_common_basis)
+
 
 class TestBubblewrap:
     def test_plots(self, rng):
-        bw = Bubblewrap(num=10, M=10)
+        bw = Bubblewrap(num=10, M=10, log_level=1)
 
         hmm = al.input_sources.hmm_simulation.HMM.gaussian_clock_hmm()
         states, observations = hmm.simulate_with_states(n_steps=50, rng=rng)
@@ -346,23 +370,15 @@ class TestBubblewrap:
 
         i = -1
         bw.show_bubbles_2d(axs[(i:=i+1)], observations)
+        bw.show_alpha(axs[(i:=i+1)])
         bw.show_active_bubbles_2d(axs[(i:=i+1)], observations)
         bw.show_active_bubbles_and_connections_2d(axs[(i:=i+1)], observations)
         bw.show_A(axs[(i:=i+1)])
         bw.show_nstep_pdf(ax=axs[(i:=i+1)], other_axis=axs[0], fig=fig, density=2)
+        Bubblewrap.compare_runs([bw])
 
 
-
-def test_utils_run(rng):
-    # note I do not test correctness here
-    A = rng.normal(size=(200, 10))
-    t = np.arange(A.shape[0])
-
-    A = al.utils.zscore(A)
-    A, t = al.utils.clip(A, t)
-
-
-# def test_can_use_args_in_cache(rng):
-#     A = rng.normal(size=(200, 10))
-#     A = adaptive_latents.transforms.utils.prosvd_data(input_arr=A, output_d=2, init_size=10, _recalculate_cache_value=True)
-#     A = adaptive_latents.transforms.utils.prosvd_data(input_arr=A, output_d=2, init_size=10, _recalculate_cache_value=False)
+def test_miscellaneous_plots():
+    fig, ax = plt.subplots()
+    t = KernelSmoother()
+    t.plot_impulse_response(ax)

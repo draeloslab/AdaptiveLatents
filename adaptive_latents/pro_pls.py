@@ -107,8 +107,6 @@ class proPLS(DecoupledTransformer, BaseProPLS):
         return dict(k=self.k, decay_alpha=self.decay_alpha) | super().get_params()
 
     def _partial_fit(self, data, stream=0):
-        if self.frozen:
-            return
         stream_label = self.input_streams[stream]
         if stream_label in ('X', 'Y'):
             if np.isnan(data).any():
@@ -181,7 +179,7 @@ class proPLS(DecoupledTransformer, BaseProPLS):
         m = len(evolving_subspace)
         distances = np.empty(m)
         for j, Q in enumerate(evolving_subspace):
-            if np.any(np.isnan(Q)):
+            if Q is None or np.any(np.isnan(Q)):
                 distances[j] = np.nan
                 continue
             distances[j] = column_space_distance(Q, subspace)
