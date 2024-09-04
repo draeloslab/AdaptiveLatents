@@ -9,6 +9,7 @@ verbose: True
 bwrun_save_path: ./al_generated/bw_runs
 plot_save_path: ./al_generated/plots
 cache_path: ./al_generated/caches
+dataset_path: ./al_generated/datasets
 
 # note that while this configures defaults, they can still be overridden in your code
 default_parameters:

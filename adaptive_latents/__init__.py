@@ -13,6 +13,7 @@ from .ica import mmICA
 from .jpca import sjPCA
 from .pro_pls import proPLS
 from .transformer import CenteringTransformer, Pipeline, KernelSmoother
+from .input_sources import datasets
 from . import plotting_functions
 from . import profiling_functions
 from . import utils

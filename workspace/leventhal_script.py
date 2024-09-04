@@ -4,10 +4,7 @@ import adaptive_latents
 import itertools
 from collections import deque
 from adaptive_latents import CenteringTransformer, Pipeline, proSVD, KernelSmoother, sjPCA, mmICA, AnimationManager
-try:
-    from datasets import Leventhal24uDataset
-except ImportError:
-    from workspace.datasets import Leventhal24uDataset
+from adaptive_latents.datasets import Leventhal24uDataset
 from tqdm import tqdm
 
 def make_video(outdir=None):

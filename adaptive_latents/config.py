@@ -12,8 +12,7 @@ CONFIG_FILE_NAME = "adaptive_latents_config.yaml"
 def merge_dicts(d1, d2):
     # d2 has higher precedence
     common_keys = set(d1.keys()).intersection(d2.keys())
-    # d3 = d1 | d2
-    d3 = {**d1, **d2}
+    d3 = d1 | d2
     for key in filter(lambda x: isinstance(x, dict), common_keys):
         d3[key] = merge_dicts(d1[key], d2[key])
     return d3
@@ -42,24 +41,24 @@ def load_config(file, path_keys, use_local=False):
 
 
 def get_config():
-    path_keys = ['bwrun_save_path', 'cache_path', 'plot_save_path']
+    path_keys = ['bwrun_save_path', 'cache_path', 'plot_save_path', 'dataset_path']
     config = load_config(pathlib.Path(impresources.files('adaptive_latents')) / CONFIG_FILE_NAME, path_keys, use_local=True)
 
 
     local_config = {}
-    for path in pathlib.Path.cwd().parents:
+    cwd = pathlib.Path.cwd()
+    for path in [cwd] + list(cwd.parents):
         file = path / CONFIG_FILE_NAME
         if file.is_file():
             local_config = load_config(file, path_keys)
             break
 
+    config = merge_dicts(config, local_config)
     for path in path_keys:
         if not config[path].is_dir():
             print(f"constructing {config[path]}")
             config[path].mkdir(exist_ok=True, parents=True)
             # TODO: put a readme in each created directory?
-    config = merge_dicts(config, local_config)
-
 
     return freeze_recursively(config)
 

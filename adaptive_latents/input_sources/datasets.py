@@ -4,16 +4,14 @@ import os
 from scipy.io import loadmat
 from tqdm import tqdm
 from adaptive_latents.utils import save_to_cache, clip
-from adaptive_latents import NumpyTimedDataSource, proSVD
+from adaptive_latents import NumpyTimedDataSource, proSVD, CONFIG
 from skimage.transform import resize
 from pynwb import NWBHDF5IO
 import pathlib
 import pandas as pd
 from abc import ABC, abstractmethod
 import sys
-import warnings
 import scipy.io
-import copy
 import matplotlib
 
 from contextlib import contextmanager
@@ -26,7 +24,7 @@ import datahugger
 
 import urllib.request
 
-DATA_BASE_PATH = pathlib.Path(__file__).parent.resolve() / 'datasets'
+DATA_BASE_PATH = CONFIG['dataset_path']
 
 
 class Dataset(ABC):
