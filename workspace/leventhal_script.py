@@ -4,10 +4,14 @@ import adaptive_latents
 import itertools
 from collections import deque
 from adaptive_latents import CenteringTransformer, Pipeline, proSVD, KernelSmoother, sjPCA, mmICA, AnimationManager
-from datasets import Leventhal24uDataset
+try:
+    from datasets import Leventhal24uDataset
+except ImportError:
+    from workspace.datasets import Leventhal24uDataset
 from tqdm import tqdm
 
-def make_video():
+def make_video(outdir=None):
+    "shows a video of three pairs of latents with events in the bottom-left corner"
     d = Leventhal24uDataset(bin_size=.1)
 
     smoother1 = KernelSmoother(tau=8)
@@ -31,7 +35,7 @@ def make_video():
     # video_time = 3500-start # in s
     tq = tqdm(total=start+video_time)
 
-    with AnimationManager(fps=40, n_rows=2, n_cols=2) as am:
+    with AnimationManager(fps=40, n_rows=2, n_cols=2, outdir=outdir) as am:
         traj_ax: plt.Axes = am.axs[0, 0]
         timing_ax: plt.Axes = am.axs[1, 0]
 
@@ -91,7 +95,7 @@ def make_video():
 
             tq.update(round(current_time,1)-tq.n)
 
-def plot_against_average():
+def show_events_timestamps_and_average_trace(show=True):
     d = Leventhal24uDataset(bin_size=.1)
 
     smoother1 = KernelSmoother(tau=8)
@@ -118,10 +122,12 @@ def plot_against_average():
             ax.axvline(event, color=f'C{i}', label=key if j == 0 else "")
 
     ax.plot(t, output.mean(axis=1))
-    plt.show()
+    if show:
+        plt.show()
 
 
-def main():
+def show_response_arcs(show=True):
+    "shows the arcs of responses in the latent space"
     d = Leventhal24uDataset(bin_size=.1)
 
     centerer = CenteringTransformer()
@@ -180,8 +186,9 @@ def main():
         axs[i,j].scatter(output[:,idx1], output[:,idx2], alpha=.05, s=5, color='k', linewidth=0)
         for response in responses:
             axs[i,j].plot(response[:,idx1], response[:,idx2], color=f'C{event_index}', linewidth=.5, alpha=1)
-    plt.show()
+    if show:
+        plt.show()
 
 
 if __name__ == '__main__':
-    main()
+    make_video()

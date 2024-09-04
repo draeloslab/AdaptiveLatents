@@ -1,8 +1,10 @@
 import adaptive_latents
 import jax
+import numpy as np
+import pytest
 
 
-class TestEnvironment:
+class TestJaxEnvironment:
     def test_can_use_configured_backend(self):
         # note that this does not check that both backends are possible
         from jax.lib import xla_bridge
@@ -22,31 +24,36 @@ class TestEnvironment:
         assert x.dtype != jax.numpy.float64
     """
 
-# class TestBWRun:
-#     def test_post_hoc_regression_is_correct(self, rng, outdir):
-#         m, n_obs, n_beh = 150, 3, 4
-#         obs = rng.normal(size=(m, n_obs))
-#         beh = rng.normal(size=(m, n_beh))  # TODO: refactor these names to input and output
-#         t = np.arange(m)
-#
-#         br1 = BWRun(
-#             Bubblewrap(3, **Bubblewrap.default_clock_parameters),
-#             NumpyTimedDataSource(obs, t, (0, 1)),
-#             NumpyTimedDataSource(beh, t, (0, 1)),
-#             SemiRegularizedRegressor(Bubblewrap.default_clock_parameters['num'], n_beh),
-#             show_tqdm=False,
-#             output_directory=outdir
-#         )
-#         br1.run()
-#
-#         br2 = BWRun(Bubblewrap(3, **Bubblewrap.default_clock_parameters), NumpyTimedDataSource(obs, t, (0, 1)), show_tqdm=False, output_directory=outdir)
-#         br2.run()
-#         reg = SemiRegularizedRegressor(br2.bw.N, n_beh)
-#         br2.add_regression_post_hoc(reg, NumpyTimedDataSource(beh, t, (0, 1)))
-#
-#         assert np.allclose(br1.h.beh_error[1], br2.h.beh_error[1], equal_nan=True)
-#         # TODO: the times seem to be 1 out of sync with the expected bubblewrap step times (even accounting for delay)
 
+def test_utils_run(rng):
+    A = rng.normal(size=(200, 10))
+    t = np.arange(A.shape[0])
+
+    t, old_t = np.linspace(0, 10), t
+    adaptive_latents.utils.resample_matched_timeseries(A, t, old_t)
+    A, t = adaptive_latents.utils.clip(A, t)
+
+
+def test_cache_works(rng, tmp_path):
+    should_fail = False
+    def f(n):
+        assert not should_fail
+        if n < 1:
+            return 0
+        elif n == 1:
+            return 1
+
+        return np.array(f(n-1) + f(n-2))
+
+    cached_f = adaptive_latents.utils.save_to_cache("fibonacci_test", tmp_path, override_config_and_cache=True)(f)
+
+    assert cached_f(6) == 8
+
+    should_fail = True
+    with pytest.raises(AssertionError):
+        f(6)
+
+    assert cached_f(6) == 8
 
 
 # TODO:

@@ -567,7 +567,7 @@ This data will eventually be published, after which there should be an easier wa
         # pre_jpca_A, pre_jpca_t, pre_jpca_beh = clip(pre_jpca_A, pre_prosvd_t, pre_prosvd_beh)
         #
         # A, beh, t = pre_jpca_A, pre_jpca_beh, pre_jpca_t
-        return A, beh, t, t
+        return A, beh, t, pre_smooth_t
 
 
 class Musall19Dataset(Dataset):
@@ -676,6 +676,7 @@ class Naumann24uDataset(Dataset):
         self.sub_dataset = sub_dataset_identifier
         self.C, self.opto_stimulations, self.neuron_df, self.visual_stimuli = self.construct(sub_dataset_identifier)
         self.neural_data = NumpyTimedDataSource(self.C.T, np.arange(self.C.shape[1]))
+        self.behavioral_data = None
 
     def construct(self, sub_dataset_identifier):
         visual_stimuli, optical_stimulations, C = self.acquire(sub_dataset_identifier)

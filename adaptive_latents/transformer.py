@@ -40,7 +40,6 @@ class StreamingTransformer(ABC):
         """
 
         # TODO: get consistent printing
-        self.kwargs = kwargs  # mostly for printing later, these sometimes correspond to the estimator; this works when being used as a mixin
         super().__init__(**kwargs)
         # if input_streams is not None:
         #     self.kwargs.update(input_streams=input_streams)
@@ -74,8 +73,9 @@ class StreamingTransformer(ABC):
             the stream the outputted data should be routed to
         """
 
+        original_data = copy.deepcopy(data)
         ret = self._partial_fit_transform(data, stream, return_output_stream)
-        self.log_for_partial_fit(data, stream)
+        self.log_for_partial_fit(original_data, stream)
         return ret
 
     def log_for_partial_fit(self, data, stream):
@@ -86,9 +86,8 @@ class StreamingTransformer(ABC):
         pass
 
     @property
-    @abstractmethod
     def base_algorithm(self):
-        return
+        return type(self)
 
     def get_params(self, deep=True):
         if deep:
@@ -184,8 +183,9 @@ class DecoupledTransformer(StreamingTransformer):
     def partial_fit(self, data, stream=0):
         if self.frozen:
             return
+        original_data = copy.deepcopy(data)
         self._partial_fit(data, stream)
-        self.log_for_partial_fit(data, stream)
+        self.log_for_partial_fit(original_data, stream)
 
     def _partial_fit_transform(self, data, stream, return_output_stream):
         raise NotImplementedError()
@@ -208,8 +208,6 @@ class DecoupledTransformer(StreamingTransformer):
 
 
 class Pipeline(DecoupledTransformer):
-    base_algorithm = 'self'
-
     def __init__(self, steps=(), input_streams=None, **kwargs):
         self.steps: list[DecoupledTransformer] = steps
 
@@ -286,7 +284,7 @@ class Pipeline(DecoupledTransformer):
         return super_path
 
     def __str__(self):
-        kwargs = ' '.join(f'{k}={v}' for k, v in self.kwargs.items())
+        kwargs = ' '.join(f'{k}={v}' for k, v in self.get_params().items())
         return f"{self.__class__.__name__}([{', '.join(str(s) for s in self.steps)}]{', ' + kwargs if kwargs else ''})"
 
 
@@ -361,8 +359,6 @@ class TypicalTransformer(DecoupledTransformer):
 
 
 class CenteringTransformer(TypicalTransformer):
-    base_algorithm = 'self'
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.is_initialized = True
@@ -385,7 +381,6 @@ class CenteringTransformer(TypicalTransformer):
 
 
 class KernelSmoother(TypicalTransformer):
-    base_algorithm = 'self'
     # TODO: make time aware
     # TODO: make a StreamingTransformer
     def __init__(self, tau=1, kernel_length=None, custom_kernel=None, **kwargs):
@@ -448,26 +443,3 @@ class KernelSmoother(TypicalTransformer):
         # ax.axvline(impulse_point, color='k', alpha=.25, label='region of impulse response')
         ax.fill_between([impulse_point, impulse_point + len(self.kernel)-1], 1,  color='k', alpha=.1, label='impulse response')
         ax.legend()
-
-
-# class Concatenator(TransformerMixin):
-#     def __init__(self, input_streams, output_streams):
-#         super().__init__(input_streams, output_streams)
-#         self.last_seen = {k: None for k in self.input_streams.keys()}
-#
-#     def partial_fit_transform(self, data, stream=0):
-#         self.partial_fit(data, stream)
-#         return self.transform(data, stream)
-#
-#     def partial_fit(self, data, stream=0):
-#         if stream in self.input_streams:
-#             self.last_seen[self.input_streams[stream]] = data
-#
-#     def transform(self, data, stream=0):
-#         if stream in self.input_streams:
-#             last_seen = dict(self.last_seen)
-#             last_seen[self.input_streams[stream]] = data
-#             values = filter(lambda x: x is not None, last_seen.values())
-#             return np.hstack(list(values))
-#         else:
-#             return data

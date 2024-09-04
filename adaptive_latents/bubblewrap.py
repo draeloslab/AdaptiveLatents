@@ -7,6 +7,7 @@ import jax
 import warnings
 from matplotlib.patches import Ellipse
 from math import atan2
+from scipy.linalg import fractional_matrix_power
 from .config import use_config_defaults
 from .transformer import StreamingTransformer
 from .timed_data_source import ArrayWithTime
@@ -144,11 +145,11 @@ class BaseBubblewrap:
         self.expB_jax = jit(expB)
         self.update_internal_jax = jit(update_internal)
         self.kill_nodes = jit(kill_dead_nodes)
-        self.pred_ahead = jit(pred_ahead, static_argnames=['steps_ahead'])
+        self._pred_ahead = jit(pred_ahead, static_argnames=['steps_ahead'])
         self.sum_me = jit(sum_me)
         self.compute_L = jit(vmap(get_L, (0, 0)))
         self.get_amax = jit(amax)
-        self.get_entropy = jit(entropy, static_argnames=['steps_ahead'])
+        self._get_entropy = jit(entropy, static_argnames=['steps_ahead'])
 
     def observe(self, x):
         # Get new data point and update observation history
@@ -167,9 +168,7 @@ class BaseBubblewrap:
 
     def e_step(self):
         # take E step; after observation
-        self.single_e_step(self.obs.curr)
-
-    def single_e_step(self, x):
+        x = self.obs.curr
         self.beta = 1 + 10 / (self.t + 1)
         self.B = self.logB_jax(x, self.mu, self.L, self.L_diag)
         self.update_B(x)
@@ -248,6 +247,49 @@ class BaseBubblewrap:
         self.m_L_lower, self.v_L_lower, self.L_lower = single_adam(self.step, self.m_L_lower, self.v_L_lower, L, self.t, self.L_lower)
         self.m_L_diag, self.v_L_diag, self.L_diag = single_adam(self.step, self.m_L_diag, self.v_L_diag, L_diag, self.t, self.L_diag)
         self.m_A, self.v_A, self.log_A = single_adam(self.step, self.m_A, self.v_A, A, self.t, self.log_A)
+
+    def unevaluated_log_pred_p(self, steps):
+        if not self.is_initialized:
+            return lambda x: numpy.nan
+
+        mu = numpy.array(self.mu)
+        L = numpy.array(self.L)
+        L_diag = numpy.array(self.L_diag)
+        A = numpy.array(self.A)
+        alpha = numpy.array(self.alpha)
+
+        def f(future_point):
+            b = self.logB_jax(future_point, mu, L, L_diag)
+            AT = fractional_matrix_power(A, steps)
+            p = jnp.log(alpha @ AT @ jnp.exp(b) + 1e-16)
+            return numpy.array(p)
+        return f
+
+    def log_pred_p(self, future_point, steps):
+        if not self.is_initialized:
+            return numpy.nan
+        b = self.logB_jax(future_point, self.mu, self.L, self.L_diag)
+        if numpy.isclose(steps, round(steps)):
+            p = self._pred_ahead(b, self.A, self.alpha, steps)
+        else:
+            AT = fractional_matrix_power(self.A, steps)
+            p = jnp.log(self.alpha @ AT @ jnp.exp(b) + 1e-16)
+        return numpy.array(p)
+
+    def entropy(self, steps, alpha=None):
+        if not self.is_initialized:
+            return numpy.nan
+        if alpha is None:
+            alpha = self.alpha
+
+        if numpy.isclose(steps, round(steps)):
+            e = self._get_entropy(self.A, alpha, steps)
+        else:
+            AT = fractional_matrix_power(self.A, steps)
+            one = alpha @ AT
+            e = -jnp.sum(one.dot(jnp.log2(alpha @ AT)))
+
+        return numpy.array(e)
 
     def sfreeze(self):
         self.sfrozen = True
@@ -483,8 +525,19 @@ def update_cov(cov, last, curr, mean, n):
 
 class Bubblewrap(StreamingTransformer, BaseBubblewrap):
     base_algorithm = BaseBubblewrap
+
+    def __init__(self, n_steps_to_predict=1, **kwargs):
+        super().__init__(**kwargs)
+        self.unevaluated_predictions = {}
+        self.dt = None
+        self.last_timepoint = None
+        self.n_steps_to_predict = n_steps_to_predict
+
     def _partial_fit_transform(self, data, stream=0, return_output_stream=False):
         if self.input_streams[stream] == 'X' and not numpy.isnan(data).any():
+            if hasattr(data, 't') and self.last_timepoint is not None and self.dt is not None:
+                assert numpy.isclose(self.dt,  data.t - self.last_timepoint)
+
             output = []
             for i in range(len(data)):
                 # partial fit
@@ -507,6 +560,11 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
             if isinstance(data, ArrayWithTime):
                 data = ArrayWithTime(output, data.t)
 
+            if hasattr(data, 't'):
+                if self.last_timepoint is not None:
+                    self.dt = data.t - self.last_timepoint
+                self.last_timepoint = data.t
+
         stream = self.output_streams[stream]
         if return_output_stream:
             return data, stream
@@ -526,16 +584,34 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
             go_fast=self.go_fast,
             copy_row_on_teleport=self.copy_row_on_teleport,
             num_grad_q=self.num_grad_q,
-            # backend=self.backend_note,
-            # precision=self.precision_note,
             sigma_orig_adjustment=self.sigma_orig_adjust,
         )
 
         return params | super().get_params()
 
     def log_for_partial_fit(self, data, stream):
-        if self.log_level > 0:
-            self.log['alpha'] = self.log.get('alpha', []) + numpy.array(self.alpha)
+
+        if self.log_level > 0 and self.is_initialized:
+            if 'alpha' not in self.log:
+                for key in ['alpha', 'entropy', 't', 'log_pred_p', 'log_pred_p_origin_t']:
+                    self.log[key] = []
+            if hasattr(data, 't'):
+                t = data.t
+            else:
+                # TODO: this is not a great fix, but it works
+                t = self.obs.n_obs
+            self.log['alpha'].append(numpy.array(self.alpha))
+            self.log['entropy'].append(self.entropy(steps=self.n_steps_to_predict))
+            self.log['t'].append(t)
+
+            real_time_offset = (self.dt or 1) * self.n_steps_to_predict
+            self.unevaluated_predictions[t + real_time_offset] = (t, self.unevaluated_log_pred_p(self.n_steps_to_predict))
+            for t_to_eval in list(self.unevaluated_predictions.keys()):
+                if numpy.isclose(t, t_to_eval):
+                    origin_t, f = self.unevaluated_predictions[t_to_eval]
+                    self.log['log_pred_p'].append(f(data))
+                    self.log['log_pred_p_origin_t'].append(origin_t)
+                    del self.unevaluated_predictions[t_to_eval]
 
     def show_bubbles_2d(self, ax, data, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45, show_names=True, tail_length=0, no_bubbles=False):
         ax.cla()
@@ -731,3 +807,88 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
     @staticmethod
     def _ellipse_r(a, b, theta):
         return a * b / numpy.sqrt((numpy.cos(theta) * b)**2 + (numpy.sin(theta) * a)**2)
+
+    @staticmethod
+    def compare_runs(bws):
+        import matplotlib.pyplot as plt
+        def _one_sided_ewma(data, com=100):
+            import pandas as pd
+            return pd.DataFrame(data=dict(data=data)).ewm(com).mean()["data"]
+
+        def plot_with_trendline(ax, times, data, color, com=100):
+            ax.plot(times, data, alpha=.25, color=color)
+            smoothed_data = _one_sided_ewma(data, com, )
+            ax.plot(times, smoothed_data, color=color)
+
+        bws: [Bubblewrap]
+        for bw in bws:
+            assert bw.log_level > 0
+
+
+        fig, axs = plt.subplots(figsize=(14, 5), nrows=2, ncols=2, sharex='col', layout='tight',
+                                gridspec_kw={'width_ratios': [7, 1]})
+
+        common_time_start = max([min(bw.log['t']) for bw in bws])
+        common_time_end = min([max(bw.log['t']) for bw in bws])
+        halfway_time = (common_time_start + common_time_end) / 2
+
+        to_write = [[] for _ in range(axs.shape[0])]
+        colors = ['C0'] + ['k'] * (len(bws) - 1)
+        for idx, bw in enumerate(bws):
+            color = colors[idx]
+
+            # plot prediction
+            t = numpy.array(bw.log['log_pred_p_origin_t'])
+            to_plot = numpy.array(bw.log['log_pred_p'])
+            plot_with_trendline(axs[0, 0], t, to_plot, color)
+            last_half_mean = to_plot[(halfway_time < t) & (t < common_time_end)].mean()
+            to_write[0].append((idx, f'{last_half_mean:.2f}', {'color': color}))
+            axs[0, 0].set_ylabel('log pred. p')
+
+            # plot entropy
+            t = numpy.array(bw.log['t'])
+            to_plot = numpy.array(bw.log['entropy'])
+            plot_with_trendline(axs[1, 0], t, to_plot, color)
+            last_half_mean = to_plot[(halfway_time < t) & (t < common_time_end)].mean()
+            to_write[1].append((idx, f'{last_half_mean:.2f}', {'color': color}))
+            axs[1, 0].set_ylabel('entropy')
+
+            max_entropy = numpy.log2(bw.N)
+            axs[1, 0].axhline(max_entropy, color='k', linestyle='--')
+
+        # this sets the axis bounds for the text
+        for axis in axs[:, 0]:
+            data_lim = numpy.array(axis.dataLim).T.flatten()
+            bounds = data_lim
+            bounds[:2] = (bounds[:2] - bounds[:2].mean()) * numpy.array([1.02, 1.2]) + bounds[:2].mean()
+            bounds[2:] = (bounds[2:] - bounds[2:].mean()) * numpy.array([1.05, 1.05]) + bounds[2:].mean()
+            axis.axis(bounds)
+            axis.format_coord = lambda x, y: 'x={:g}, y={:g}'.format(x, y)
+
+        # this prints the last-half means
+        for i, l in enumerate(to_write):
+            for idx, text, kw in l:
+                x, y = .93, .93 - .1 * idx
+                x, y = axs[i, 0].transLimits.inverted().transform([x, y])
+                axs[i, 0].text(x, y, text, clip_on=True, verticalalignment='top', **kw)
+
+        # this creates the axis for the parameters
+        gs = axs[0, 1].get_gridspec()
+        for a in axs[:, 1]:
+            a.remove()
+        axbig = fig.add_subplot(gs[:, 1])
+        axbig.axis("off")
+
+        # this generates and prints the parameters
+        params_per_bw_list = [bw.get_params() for bw in bws]
+        super_param_dict = {}
+        for key in params_per_bw_list[0].keys():
+            values = [p[key] for p in params_per_bw_list]
+            if len(set(values)) == 1:
+                values = values[0]
+                if key in {'input_streams', 'output_streams', 'log_level'}:
+                    continue
+            super_param_dict[key] = values
+        to_write = "\n".join(f"{k}: {v}" for k, v in super_param_dict.items())
+        axbig.text(0, 1, to_write, transform=axbig.transAxes, verticalalignment="top");
+

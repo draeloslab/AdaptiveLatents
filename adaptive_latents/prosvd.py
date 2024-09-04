@@ -6,7 +6,7 @@ from .utils import save_to_cache, principle_angles
 
 class BaseProSVD:
     # todo: make this row-major
-    def __init__(self, k=10, decay_alpha=1, whiten=False):
+    def __init__(self, k=1, decay_alpha=1, whiten=False):
         self.k = k
         self.decay_alpha = decay_alpha
         self.whiten = whiten
@@ -185,7 +185,6 @@ class proSVD(TypicalTransformer, BaseProSVD):
 
 
 class RandomProjection(TypicalTransformer):
-    base_algorithm = 'self'
 
     def __init__(self, rng_seed=0, k=100, **kwargs):
         super().__init__(**kwargs)

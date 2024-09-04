@@ -139,7 +139,7 @@ class sjPCA(TypicalTransformer, BaseSJPCA):
         m = len(self.log['U'])
         distances = np.empty((m, n//2))
         for j, U in enumerate(self.log['U']):
-            if np.any(np.isnan(U)):
+            if U is None or np.any(np.isnan(U)):
                 distances[j,:] = np.nan
                 continue
             for plane_idx in range(n//2):
