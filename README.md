@@ -48,5 +48,5 @@ yapf --in-place --recursive .
 ```
 
 
-## Refrence
+## Reference
 The core Bubblewrap algorithm was initially described here: ['Bubblewrap: Online tiling and real-time flow prediction on neural manifolds'](https://proceedings.neurips.cc/paper/2021/hash/307eb8ee16198da891c521eca21464c1-Abstract.html).
