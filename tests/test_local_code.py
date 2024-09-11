@@ -1,6 +1,6 @@
 import pytest
 from workspace.main import main
-import adaptive_latents.datasets as datasets
+from adaptive_latents import datasets, CenteringTransformer
 import workspace.leventhal_script as leventhal_script
 import matplotlib.pyplot as plt
 
@@ -37,11 +37,14 @@ class TestDatasets:
         datasets.TostadoMarcos24Dataset,
     ]
 
+
     @pytest.mark.parametrize("DatasetClass", singleton_datsets)
     def test_can_load_singletons(self, DatasetClass):
         d = DatasetClass()
         assert d.neural_data is not None
         assert d.behavioral_data is not None
+
+        self.check_runs_in_pipeline(d)
 
     @pytest.mark.parametrize("DatasetClass", mult_datasets)
     def test_can_load_multis(self, DatasetClass):
@@ -51,6 +54,14 @@ class TestDatasets:
 
             assert d.neural_data is not None
             assert d.behavioral_data is not None or d.opto_stimulations is not None
+
+            self.check_runs_in_pipeline(d)
+
+    @staticmethod
+    def check_runs_in_pipeline(d):
+        iterator = CenteringTransformer().streaming_run_on(d.neural_data)
+        for _ in range(10):
+            next(iterator)
 
 @longrun
 def test_dataset_plots():

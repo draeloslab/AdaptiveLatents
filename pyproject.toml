@@ -18,6 +18,7 @@ dependencies = [] # todo: might be able to migrate pyproject.toml to requirement
 pythonpath = [
   "." # so we can import from the scripts in the tests; you should still install adaptive_latents as a package
 ]
+norecursedirs = ['datasets']
 
 [tool.setuptools]
 packages = ["adaptive_latents"]

@@ -4,12 +4,12 @@ import adaptive_latents
 import itertools
 from collections import deque
 from adaptive_latents import CenteringTransformer, Pipeline, proSVD, KernelSmoother, sjPCA, mmICA, AnimationManager
-from adaptive_latents.datasets import Leventhal24uDataset
+from adaptive_latents import datasets
 from tqdm import tqdm
 
 def make_video(outdir=None):
     "shows a video of three pairs of latents with events in the bottom-left corner"
-    d = Leventhal24uDataset(bin_size=.1)
+    d = datasets.Leventhal24uDataset(bin_size=.1)
 
     smoother1 = KernelSmoother(tau=8)
     centerer = CenteringTransformer()
@@ -93,7 +93,7 @@ def make_video(outdir=None):
             tq.update(round(current_time,1)-tq.n)
 
 def show_events_timestamps_and_average_trace(show=True):
-    d = Leventhal24uDataset(bin_size=.1)
+    d = datasets.Leventhal24uDataset(bin_size=.1)
 
     smoother1 = KernelSmoother(tau=8)
     centerer = CenteringTransformer()
@@ -125,7 +125,7 @@ def show_events_timestamps_and_average_trace(show=True):
 
 def show_response_arcs(show=True):
     "shows the arcs of responses in the latent space"
-    d = Leventhal24uDataset(bin_size=.1)
+    d = datasets.Leventhal24uDataset(bin_size=.1)
 
     centerer = CenteringTransformer()
     pro = proSVD(k=6, whiten=False)
