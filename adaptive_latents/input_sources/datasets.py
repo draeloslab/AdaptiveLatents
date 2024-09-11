@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 import sys
 import scipy.io
 import matplotlib
+import enum
 
 from contextlib import contextmanager
 
@@ -25,6 +26,15 @@ import datahugger
 import urllib.request
 
 DATA_BASE_PATH = CONFIG['dataset_path']
+
+
+class ModelOrganism(enum.Enum):
+    FLY = 'Drosophila melanogaster'
+    MONKEY = 'Macaca mulatta'
+    RAT = 'Rattus rattus'
+    MOUSE = 'Mus musculus'
+    FINCH = 'Taeniopygia castanotis'
+    FISH = 'Danio rerio'
 
 
 class Dataset(ABC):
@@ -40,6 +50,11 @@ class Dataset(ABC):
     @property
     @abstractmethod
     def automatically_downloadable(self):
+        pass
+
+    @property
+    @abstractmethod
+    def model_organism(self) -> ModelOrganism:
         pass
 
     @abstractmethod
@@ -81,6 +96,7 @@ class DandiDataset(Dataset):
 
 class Odoherty21Dataset(Dataset):
     doi = 'https://doi.org/10.5281/zenodo.3854034'
+    model_organism = ModelOrganism.MONKEY
     dataset_base_path = DATA_BASE_PATH / "odoherty21"
     automatically_downloadable = True
     sub_datasets = ('indy_20160407_02.mat',)
@@ -154,6 +170,7 @@ class Odoherty21Dataset(Dataset):
 
 class Schaffer23Datset(Dataset):
     doi = 'https://doi.org/10.6084/m9.figshare.23749074'
+    model_organism = ModelOrganism.FLY
     dataset_base_path = DATA_BASE_PATH / 'schaffer23'
     automatically_downloadable = True
     sub_datasets = (
@@ -188,6 +205,7 @@ class Schaffer23Datset(Dataset):
 
 class Churchland10Dataset(DandiDataset):
     doi = 'https://doi.org/10.48324/dandi.000128/0.220113.0400'
+    model_organism = ModelOrganism.MONKEY
     dandiset_id = '000128'
     version_id = '0.220113.0400'
     automatically_downloadable = True
@@ -245,6 +263,7 @@ class TostadoMarcos24Dataset(DandiDataset):
     dandiset_id = '001046'
     version_id = 'draft'
     automatically_downloadable = True
+    model_organism = ModelOrganism.FINCH
     sub_datasets = ['27', '26', '28']
 
     def __init__(self, sub_dataset_identifier=sub_datasets[0], bin_size=0.03):
@@ -339,6 +358,7 @@ class TostadoMarcos24Dataset(DandiDataset):
 class Nason20Dataset(Dataset):
     doi = 'https://doi.org/10.7302/wwya-5q86'
     directory_name = 'nason20'
+    model_organism = ModelOrganism.MONKEY
     dataset_base_path = DATA_BASE_PATH / directory_name
     automatically_downloadable = False
 
@@ -403,6 +423,7 @@ Then put it in '{self.dataset_base_path}'.
 
 class Peyrache15Dataset(Dataset):
     doi = 'http://dx.doi.org/10.6080/K0G15XS1'
+    model_organism = ModelOrganism.MOUSE
     dataset_base_path = DATA_BASE_PATH / 'peyrache15'
     automatically_downloadable = False
     sub_datasets = ("Mouse12-120806", "Mouse12-120807", "Mouse24-131216")
@@ -513,6 +534,7 @@ Please download {sub_dataset_identifier} from {self.doi} and put it in {self.dat
 
 class Temmar24uDataset(Dataset):
     doi = None
+    model_organism = ModelOrganism.MONKEY
     dataset_base_path = DATA_BASE_PATH / 'temmar24u'
     automatically_downloadable = False
 
@@ -570,6 +592,7 @@ This data will eventually be published, after which there should be an easier wa
 
 class Musall19Dataset(Dataset):
     doi = 'https://doi.org/10.1038/s41593-019-0502-4'
+    model_organism = ModelOrganism.MOUSE
     dataset_base_path = DATA_BASE_PATH / 'musall19'
     inner_data_path = dataset_base_path / "their_data/2pData/Animals/mSM49/SpatialDisc/30-Jul-2018"
     automatically_downloadable = False
@@ -663,6 +686,7 @@ Please ask Anne Draelos where to download the Musal data.\
 class Naumann24uDataset(Dataset):
     doi = None
     automatically_downloadable = False
+    model_organism = ModelOrganism.FISH
     dataset_base_path = DATA_BASE_PATH / "naumann24u"
     sub_datasets = (
         "output_020424_ds1",
@@ -723,6 +747,7 @@ Please ask Anne Draelos how to acquire the Naumann lab dataset we use here. (hin
 
 class Leventhal24uDataset:
     doi = None
+    model_organism = ModelOrganism.RAT
     dataset_base_path = DATA_BASE_PATH / 'leventhal24u'
     automatically_downloadable = False
 #

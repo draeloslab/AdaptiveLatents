@@ -49,6 +49,7 @@ class StreamingTransformer(ABC):
         self.input_streams = PassThroughDict(input_streams or {0: 'X'})
         self.output_streams = PassThroughDict(output_streams or {})
         self.log_level = log_level
+        self.mid_run_sources = None
         self.log = dict()
 
     def partial_fit_transform(self, data, stream=0, return_output_stream=False):
@@ -137,6 +138,7 @@ class StreamingTransformer(ABC):
 
         sources = list(zip(map(iter, sources), streams))
 
+        self.mid_run_sources = sources
         while True:  # while-true/break is a code smell, but I want a do-while
             next_time = float('inf')
             for source, stream in reversed(sources):  # reversed to prefer the first element
@@ -148,6 +150,8 @@ class StreamingTransformer(ABC):
                 break
 
             yield self.partial_fit_transform(data=next(next_source), stream=next_stream, return_output_stream=return_output_stream)
+
+        self.mid_run_sources = None
 
 
     def offline_run_on(self, sources, convinient_return=True):
