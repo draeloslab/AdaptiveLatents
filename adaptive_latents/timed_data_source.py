@@ -29,7 +29,7 @@ class GeneratorDataSource(DataSource):
             generator = iter(source)
         self.generator = enumerate(generator)
         self.next_sample = next(self.generator)
-        self.current_time = None
+        self._current_time = None
         self.dt = dt
 
     def __iter__(self):
@@ -45,14 +45,14 @@ class GeneratorDataSource(DataSource):
         except StopIteration:
             self.next_sample = (float('inf'), None)
 
-        self.current_time = this_sample[0]
-        return ArrayWithTime(this_sample[1], t=self.current_time * self.dt)
+        self._current_time = this_sample[0]
+        return ArrayWithTime(this_sample[1], t=self._current_time * self.dt)
 
     def next_sample_time(self):
         return self.next_sample[0]
 
     def current_sample_time(self):
-        return self.current_time
+        return self._current_time
 
 
 class NumpyTimedDataSource(DataSource):
@@ -95,6 +95,18 @@ class NumpyTimedDataSource(DataSource):
         if self.index == 0:
             return None
         return self.t[self.index-1]
+
+    def time_slice(self, start, stop):
+        assert start <= stop
+        s = (start <= self.t) & (self.t <= stop)
+        return NumpyTimedDataSource(self.a[s], self.t[s])
+
+    def relative_time_slice(self, start, stop):
+        assert 0 <= start <= stop <= 1
+        t0 = self.t.min()
+        total_time = self.t.max() - self.t.min()
+        return self.time_slice(t0 + start * total_time, t0 + stop * total_time)
+
 
     @staticmethod
     def from_nwb_timeseries(timeseries):

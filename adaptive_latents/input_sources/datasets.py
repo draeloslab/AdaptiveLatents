@@ -94,78 +94,46 @@ class DandiDataset(Dataset):
                 yield fhan
 
 
-class Odoherty21Dataset(Dataset):
-    doi = 'https://doi.org/10.5281/zenodo.3854034'
+class Odoherty21Dataset(DandiDataset):
+    doi = 'https://dandiarchive.org/dandiset/000129/draft/'
     model_organism = ModelOrganism.MONKEY
+    dandiset_id = "000129"
+    version_id = None
+
     dataset_base_path = DATA_BASE_PATH / "odoherty21"
     automatically_downloadable = True
-    sub_datasets = ('indy_20160407_02.mat',)
 
-    def __init__(self, bin_width=0.03, sub_dataset_identifier=sub_datasets[0]):
-        self.sub_dataset = sub_dataset_identifier
+    def __init__(self, bin_width=0.03, downsample_behavior=False):
         self.bin_width = bin_width
-        A, behavior, a_t, beh_t = self.construct(sub_dataset_identifier)
-        self.neural_data = NumpyTimedDataSource(A, a_t)
-        self.behavioral_data = NumpyTimedDataSource(behavior, beh_t)
+        self.downsample_behavior = downsample_behavior
+        self.units, self.finger_pos, finger_t, A, bin_ends = self.construct()
+        self.neural_data = NumpyTimedDataSource(A, bin_ends)
+        self.behavioral_data = NumpyTimedDataSource(self.finger_pos, finger_t)
+
+    def construct(self):
+        with self.acquire("sub-Indy/sub-Indy_desc-train_behavior+ecephys.nwb") as fhan:
+            ds = fhan.read()
+            units = ds.units.to_dataframe()
+            finger_pos = ds.processing['behavior'].data_interfaces['finger_pos'].data[:]
+            finger_t = np.arange(finger_pos.shape[0]) * ds.processing['behavior'].data_interfaces['finger_pos'].conversion
+
+        start_time = units.iloc[0, 2].min()
+        end_time = units.iloc[0, 2].max()
+        bins = np.arange(start_time, end_time, self.bin_width)
+        bin_ends = bins[1:]
+
+        A = np.zeros(shape=(bins.shape[0] - 1, len(units)))
+
+        for i, (_, row) in enumerate(units.iterrows()):
+            A[:, i], _ = np.histogram(row['spike_times'], bins=bins)
+
+        factor = 4
+        if self.downsample_behavior:
+            finger_pos = finger_pos[::factor]
+            finger_t = finger_t[::factor]
 
 
-    def acquire(self, sub_dataset_identifier):
-        if not (self.dataset_base_path / sub_dataset_identifier).is_file():
-            try:
-                file_url = f"https://zenodo.org/records/3854034/files/{sub_dataset_identifier}?download=1" ""
-                self.dataset_base_path.mkdir(exist_ok=True)
-                urllib.request.urlretrieve(url=file_url, filename=self.dataset_base_path / sub_dataset_identifier)
-            except:  # todo: make this a real error handling thing
-                # this is usually very slow
-                datahugger.get(self.doi, self.dataset_base_path)
-        return h5py.File(self.dataset_base_path / sub_dataset_identifier, 'r')
-
-    def construct(self, sub_dataset_identifier):
-        fhan = self.acquire(sub_dataset_identifier)
-
-        # this is a first pass I'm using to find the first and last spikes
-        l = []
-        for j in range(fhan['spikes'].shape[1]):
-            for i in range(fhan['spikes'].shape[0]):
-                v = np.squeeze(fhan[fhan['spikes'][i, j]])
-                if v[0] > 50:  # empy channels have one spike very early; we want the other channels
-                    l.append(v)
-
-        # this finds the first and last spikes in the dataset, so we can set our bin boundaries
-        ll = [leaf for tree in l for leaf in tree]  # puts all the spike times into a flat list
-        stop = np.ceil(max(ll))
-        start = np.floor(min(ll))
-
-        # this creates the bins we'll use to group spikes
-        bins = np.arange(start, stop, self.bin_width)
-        bin_centers = np.convolve([.5, .5], bins, "valid")
-
-        # columns of A are channels, rows are time bins
-        A = np.zeros(shape=(bins.shape[0] - 1, len(l)))
-        c = 0  # we need this because some channels are empty
-        for j in range(fhan['spikes'].shape[1]):
-            for i in range(fhan['spikes'].shape[0]):
-                v = np.squeeze(fhan[fhan['spikes'][i, j]])
-                if v[0] > 50:
-                    A[:, c], _ = np.histogram(np.squeeze(fhan[fhan['spikes'][i, j]]), bins=bins)
-                    c += 1
-
-        # load behavior data
-        raw_behavior = fhan['finger_pos'][:].T
-        t = fhan["t"][0]
-
-        # this resamples the behavior so it's in sync with the binned spikes
-        behavior = np.zeros((bin_centers.shape[0], raw_behavior.shape[1]))
-        for c in range(behavior.shape[1]):
-            behavior[:, c] = np.interp(bin_centers, t, raw_behavior[:, c])
-
-        mask = bin_centers > 70  # behavior is near-constant before 70 seconds
-        bin_centers, behavior, A = bin_centers[mask], behavior[mask], A[mask]
-
-        raw_behavior[:, 0] -= 8.5
-        raw_behavior[:, 0] *= 10
-
-        return A, raw_behavior, bin_centers, t
+        return units, finger_pos, finger_t, A, bin_ends
 
 
 class Schaffer23Datset(Dataset):
@@ -253,9 +221,9 @@ class Churchland10Dataset(DandiDataset):
             if covered / self.bin_width < .9:
                 A[i, :] = np.nan
 
-        bin_centers = np.convolve(bin_edges, [.5, .5], 'valid')
+        bin_ends = bin_edges[1:]
 
-        return A, hand_pos, bin_centers, hand_t
+        return A, hand_pos, bin_ends, hand_t
 
 
 class TostadoMarcos24Dataset(DandiDataset):
@@ -500,7 +468,7 @@ Please download {sub_dataset_identifier} from {self.doi} and put it in {self.dat
                     shank_datas.append(pairs)
 
             bins = np.arange(min_time, max_time + bin_width, bin_width)
-            bin_centers = np.convolve([.5, .5], bins, "valid")
+            bin_ends = bins[1:]
             A = np.zeros((len(bins) - 1, used_columns))
 
             for shank_data in shank_datas:
@@ -527,7 +495,7 @@ Please download {sub_dataset_identifier} from {self.doi} and put it in {self.dat
 
             raw_behavior[raw_behavior == -1] = np.nan
 
-            return A, raw_behavior, bin_centers, t
+            return A, raw_behavior, bin_ends, t
 
         return static_construct(sub_dataset_identifier, self.bin_width)
 
@@ -787,7 +755,7 @@ class Leventhal24uDataset:
         for i, c in enumerate(unique_clusters):
             A[:, i] = np.histogram(spike_times[clusters == c], bins=bin_edges)[0]
 
-        bin_centers = np.convolve(bin_edges, [.5,.5], mode='valid')
+        bin_ends = bin_edges[1:]
 
         trial_data = pd.DataFrame(trials['trials'])
 
@@ -809,7 +777,7 @@ class Leventhal24uDataset:
         #
         # trial_data = pd.DataFrame({key: log_data[key] for key in expected_trial_data_keys})
 
-        return A, bin_centers, spike_times, clusters, flattened_trial_data, trial_data
+        return A, bin_ends, spike_times, clusters, flattened_trial_data, trial_data
 #
     def acquire(self, sub_dataset_identifier):
         subset_base_path = self.dataset_base_path / sub_dataset_identifier

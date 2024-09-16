@@ -265,31 +265,32 @@ class BaseBubblewrap:
             return numpy.array(p)
         return f
 
-    def log_pred_p(self, future_point, steps):
+    def log_pred_p(self, future_point, n_steps):
         if not self.is_initialized:
             return numpy.nan
         b = self.logB_jax(future_point, self.mu, self.L, self.L_diag)
-        if numpy.isclose(steps, round(steps)):
-            p = self._pred_ahead(b, self.A, self.alpha, steps)
+        if numpy.isclose(n_steps, round(n_steps)):
+            p = self._pred_ahead(b, self.A, self.alpha, n_steps)
         else:
-            AT = fractional_matrix_power(self.A, steps)
+            AT = fractional_matrix_power(self.A, n_steps)
             p = jnp.log(self.alpha @ AT @ jnp.exp(b) + 1e-16)
         return numpy.array(p)
 
-    def entropy(self, steps, alpha=None):
+    def entropy(self, n_steps, alpha=None):
         if not self.is_initialized:
             return numpy.nan
         if alpha is None:
             alpha = self.alpha
 
-        if numpy.isclose(steps, round(steps)):
-            e = self._get_entropy(self.A, alpha, steps)
+        if numpy.isclose(n_steps, round(n_steps)):
+            e = self._get_entropy(self.A, alpha, n_steps)
         else:
-            AT = fractional_matrix_power(self.A, steps)
+            AT = fractional_matrix_power(self.A, n_steps)
             one = alpha @ AT
             e = -jnp.sum(one.dot(jnp.log2(alpha @ AT)))
 
         return numpy.array(e)
+
 
     def sfreeze(self):
         self.sfrozen = True
@@ -534,21 +535,29 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         self.n_steps_to_predict = n_steps_to_predict
 
     def _partial_fit_transform(self, data, stream=0, return_output_stream=False):
-        if self.input_streams[stream] == 'X' and not numpy.isnan(data).any():
+        if self.input_streams[stream] == 'X':
             if hasattr(data, 't') and self.last_timepoint is not None and self.dt is not None:
-                assert numpy.isclose(self.dt,  data.t - self.last_timepoint)
+                new_dt = data.t - self.last_timepoint
+                larger, smaller = sorted([self.dt, new_dt])
+                assert larger / smaller < 1.1
 
             output = []
-            for i in range(len(data)):
+            for i in range(len(data)): # todo: how to deal with t's within a data matrix
                 # partial fit
-                self.observe(data[i])
+                datapoint = data[i]
+                if not jnp.isnan(datapoint).any():
+                    # main path (no nans)
+                    self.observe(datapoint)
 
-                if not self.is_initialized and self.obs.n_obs > self.M:
-                    self.init_nodes()
+                    if not self.is_initialized and self.obs.n_obs > self.M:
+                        self.init_nodes()
 
-                if self.is_initialized:
-                    self.e_step()
-                    self.grad_Q()
+                    if self.is_initialized:
+                        self.e_step()
+                        self.grad_Q()
+                elif self.is_initialized:
+                    # if there is a nan
+                    self.alpha = self.alpha @ self.A
 
                 # transform
                 if self.is_initialized:
@@ -601,7 +610,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
                 # TODO: this is not a great fix, but it works
                 t = self.obs.n_obs
             self.log['alpha'].append(numpy.array(self.alpha))
-            self.log['entropy'].append(self.entropy(steps=self.n_steps_to_predict))
+            self.log['entropy'].append(self.entropy(n_steps=self.n_steps_to_predict))
             self.log['t'].append(t)
 
             real_time_offset = (self.dt or 1) * self.n_steps_to_predict
@@ -612,6 +621,11 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
                     self.log['log_pred_p'].append(f(data))
                     self.log['log_pred_p_origin_t'].append(origin_t)
                     del self.unevaluated_predictions[t_to_eval]
+
+    def get_alpha_at_t(self, t, alpha=None, relative_t=False):
+        alpha = alpha or self.alpha
+        t = t if relative_t else t - self.last_timepoint
+        return numpy.array(alpha @ fractional_matrix_power(self.A, t))
 
     def show_bubbles_2d(self, ax, data, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45, show_names=True, tail_length=0, no_bubbles=False):
         ax.cla()

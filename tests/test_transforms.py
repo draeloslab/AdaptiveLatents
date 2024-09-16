@@ -1,6 +1,6 @@
 import numpy as np
 import adaptive_latents as al
-from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother, proPLS, Bubblewrap, RandomProjection
+from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother, proPLS, Bubblewrap, RandomProjection, VanillaOnlineRegressor
 from adaptive_latents.transformer import DecoupledTransformer, StreamingTransformer
 from adaptive_latents.jpca import generate_circle_embedded_in_high_d
 from adaptive_latents.utils import column_space_distance
@@ -25,6 +25,7 @@ decoupled_transformers = [
     sjPCA,
     mmICA,
     RandomProjection,
+    VanillaOnlineRegressor,
     lambda: Pipeline([
         CenteringTransformer(),
         proSVD(k=DIM, whiten=False),

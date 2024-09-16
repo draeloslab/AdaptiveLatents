@@ -1,6 +1,8 @@
 import numpy as np
 from abc import ABC, abstractmethod
 from collections import deque
+from .transformer import DecoupledTransformer
+from .timed_data_source import ArrayWithTime
 import jax
 
 
@@ -11,10 +13,6 @@ def rank_one_update_formula1(D, x1, x2):
 
 
 class OnlineRegressor(ABC):
-    def __init__(self, input_d, output_d):
-        self.input_d = input_d
-        self.output_d = output_d
-
     @abstractmethod
     def observe(self, x, y):
         """
@@ -31,18 +29,20 @@ class OnlineRegressor(ABC):
         """
 
 
-class VanillaOnlineRegressor(OnlineRegressor):
-    def __init__(self, input_d, output_d, init_min_ratio=3, add_intercept=True):
-        super().__init__(input_d + add_intercept, output_d)
+class BaseVanillaOnlineRegressor(OnlineRegressor):
+    def __init__(self, init_min_ratio=1.1, add_intercept=True, regularization_factor=0.01):
         self.add_intercept = add_intercept
+        self.init_min_ratio = init_min_ratio
+        self.regularization_factor = regularization_factor
 
         # core stuff
-        self.D = None
-        self.F = np.zeros([self.input_d, self.input_d])
-        self.c = np.zeros([self.input_d, self.output_d])
+        self.input_d = None
+        self.output_d = None
+        self.D = None  # this should be None for a while
+        self.F = None
+        self.c = None
 
         # initializations
-        self.init_min_ratio = init_min_ratio
         self.n_observed = 0
 
     def format_x(self, x):
@@ -66,7 +66,18 @@ class VanillaOnlineRegressor(OnlineRegressor):
     def observe(self, x, y):
         if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
             return
-        x, y = np.array(x), np.array(y)
+
+        # x and y should be vectors
+        if self.F is None and self.c is None:  # this is the first observation
+            self.input_d = x.size + self.add_intercept
+            self.output_d = y.size
+            if self.regularization_factor == 0:
+                self.F = np.zeros([self.input_d, self.input_d])
+                self.c = np.zeros([self.input_d, self.output_d])
+            else:
+                self.D = np.eye(self.input_d) / self.regularization_factor
+                self.c = np.zeros([self.input_d, self.output_d])
+
         if self.n_observed >= self.init_min_ratio * self.input_d or self.D is not None:
             self._observe(x, y, update_D=True)
         else:
@@ -76,29 +87,30 @@ class VanillaOnlineRegressor(OnlineRegressor):
                 self.D = np.linalg.pinv(self.F)
 
     def get_beta(self):
+        if self.c is None:
+            return np.nan
+
         if self.D is None:
             return np.zeros((self.input_d, self.output_d)) * np.nan
         return self.D @ self.c
 
     def predict(self, x):
+        if self.c is None:
+            return np.array(np.nan)
+
         x = self.format_x(x)
         beta = self.get_beta()
 
         return (x.T @ beta).flatten()
 
 
-class SemiRegularizedRegressor(VanillaOnlineRegressor):
-    def __init__(self, input_d, output_d, add_intercept=True, regularization_factor=0.01):
-        super().__init__(input_d, output_d, add_intercept=add_intercept)
-        self.D = np.eye(self.input_d) / regularization_factor
-        self.c = np.zeros([self.input_d, self.output_d])
-
-
 class NearestNeighborRegressor(OnlineRegressor):
-    def __init__(self, input_d, output_d, maxlen=1_000):
-        super().__init__(input_d, output_d)
+    def __init__(self, maxlen=1_000):
+        super().__init__()
         self.maxlen = maxlen
-        self.history = np.zeros(shape=(maxlen, input_d + output_d)) * np.nan
+        self.output_d = None
+        self.input_d = None
+        self.history = None
 
         # index is the next row to write to, increases, and wraps
         self.index = 0
@@ -106,6 +118,11 @@ class NearestNeighborRegressor(OnlineRegressor):
     def observe(self, x, y):
         if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
             return
+
+        if self.history is None:
+            self.input_d = x.size
+            self.output_d = y.size
+            self.history = np.zeros(shape=(self.maxlen, self.input_d + self.output_d)) * np.nan
         self._observe(x, y)
 
     def _observe(self, x, y):
@@ -114,6 +131,8 @@ class NearestNeighborRegressor(OnlineRegressor):
         self.index = (self.index + 1) % self.maxlen
 
     def predict(self, x):
+        if self.history is None:
+            return np.nan
         distances = np.linalg.norm(self.history[:, :self.input_d] - np.squeeze(x), axis=1)
         try:
             idx = np.nanargmin(distances)
@@ -124,8 +143,8 @@ class NearestNeighborRegressor(OnlineRegressor):
 
 def auto_regression_decorator(regressor_class: OnlineRegressor, n_steps=1, autoregress_only=False):
     class AutoRegressor(regressor_class):
-        def __init__(self, input_d, output_d, **kwargs):
-            super().__init__(input_d + output_d*n_steps, output_d, **kwargs)
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
             self._y_history = deque(maxlen=n_steps)
 
         def observe(self, x, y):
@@ -144,17 +163,49 @@ def auto_regression_decorator(regressor_class: OnlineRegressor, n_steps=1, autor
             if len(self._y_history) == self._y_history.maxlen:
                 return super().predict(np.hstack([np.array(self._y_history).flatten(), x.flatten()]))
             else:
-                return np.nan * np.empty(shape=(self.output_d,))
+                return np.array([[np.nan]])
 
     return AutoRegressor
 
 
-"""
-ideas:
-    periodically recalculate D and c
-    zero out small elements of D and c
-    threshold D and c values?
-    constant term and re-weighting
-    prior on constant term
-    force the constant term to be the mean
-"""
+class VanillaOnlineRegressor(DecoupledTransformer, BaseVanillaOnlineRegressor):
+    base_algorithm = BaseVanillaOnlineRegressor
+
+    def __init__(self, input_streams=None, **kwargs):
+        input_streams = input_streams or {0: 'X', 1: 'Y'}
+        super().__init__(input_streams=input_streams,**kwargs)
+        self.log = {'error':[]}
+        self.last_seen = {}
+
+    def get_params(self, deep=True):
+        return dict(init_min_ratio=self.init_min_ratio, add_intercept=self.add_intercept, regularization_factor=self.regularization_factor) | super().get_params()
+
+    def _partial_fit(self, data, stream=0):
+        stream_label = self.input_streams[stream]
+        if stream_label in ('X', 'Y'):
+            if np.isnan(data).any():
+                return
+
+            self.last_seen[stream_label] = data
+            if len(self.last_seen) == 2:
+                for i in range(self.last_seen['X'].shape[0]):
+                    self.observe(self.last_seen['X'][i], self.last_seen['Y'][i])
+                self.log_for_partial_fit(data, stream)
+                self.last_seen = {}
+
+    def transform(self, data, stream=0, return_output_stream=False):
+        stream_label = self.input_streams[stream]
+        if stream_label == 'X':
+            if np.isnan(data).any():
+                data = np.nan * data
+            else:
+                prediction = [self.predict(row) for row in data]
+                if isinstance(data, ArrayWithTime):
+                    data = ArrayWithTime(prediction, data.t)
+                else:
+                    data = np.array(data)
+
+        stream = self.output_streams[stream]
+
+        return data, stream if return_output_stream else data
+
