@@ -1,7 +1,5 @@
 import pytest
 import numpy as np
-import adaptive_latents
-from adaptive_latents import Bubblewrap, NumpyTimedDataSource, VanillaOnlineRegressor
 
 
 # https://stackoverflow.com/a/43938191

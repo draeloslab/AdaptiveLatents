@@ -42,3 +42,17 @@ class AnimationManager:
     def grab_frame(self):
         self.movie_writer.grab_frame()
         self.seen_frames += 1
+
+
+def use_bigger_lims(ax, old_lims=None, y=True, x=True):
+    new_lims = ax.axis()
+    if old_lims is None:
+        old_lims = new_lims
+
+    future_lims = [min(old_lims[0], new_lims[0]), max(old_lims[1], new_lims[1]), min(old_lims[2], new_lims[2]), max(old_lims[3], new_lims[3])]
+    if not y:
+        future_lims[2:] = new_lims[2:]
+
+    if not x:
+        future_lims[:2] = new_lims[:2]
+    ax.axis(future_lims)

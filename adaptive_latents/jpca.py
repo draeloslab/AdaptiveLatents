@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.linalg import block_diag
 from .transformer import TypicalTransformer
-from adaptive_latents.regressions import VanillaOnlineRegressor
+from adaptive_latents.regressions import BaseVanillaOnlineRegressor
 from .utils import principle_angles, align_column_spaces
 import warnings
 import tqdm
@@ -23,7 +23,7 @@ class BaseSJPCA:
         # assert input_d % 2 == 0
         self.input_d = input_d
         self.H = self.make_H(self.input_d)
-        self.reg = VanillaOnlineRegressor(input_d=self.H.shape[1], output_d=1, add_intercept=False)
+        self.reg = BaseVanillaOnlineRegressor(add_intercept=False)
 
         self.last_x = x
 

@@ -224,7 +224,7 @@ class Pipeline(DecoupledTransformer):
 
     def get_params(self, deep=True):
         # TODO: make this actually SKLearn compatible
-        p = dict(steps=[x for x in self.steps])
+        p = dict(steps=[type(x) for x in self.steps])
         if deep:
             for i, step in enumerate(self.steps):
                 for k, v in step.get_params(deep).items():
@@ -339,9 +339,6 @@ class TypicalTransformer(DecoupledTransformer):
         if return_output_stream:
             return data, stream
         return data
-
-    def freeze(self, b=True):
-        self.frozen = b
 
     def pre_initialization_fit_for_X(self, X):
         self.is_initialized = True
