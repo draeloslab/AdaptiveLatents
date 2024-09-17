@@ -174,8 +174,32 @@ class VanillaOnlineRegressor(DecoupledTransformer, BaseVanillaOnlineRegressor):
     def __init__(self, input_streams=None, **kwargs):
         input_streams = input_streams or {0: 'X', 1: 'Y'}
         super().__init__(input_streams=input_streams,**kwargs)
-        self.log = {'error':[]}
+        self.log = {'preq_error':[], 't': []}
         self.last_seen = {}
+
+    def partial_fit(self, data, stream=0):
+        if self.frozen:
+            return
+        self.pre_log_for_partial_fit(data, stream)
+        self._partial_fit(data, stream)
+        self.log_for_partial_fit(data, stream)
+
+    def pre_log_for_partial_fit(self, data, stream):
+        if self.log_level > 0:
+            stream_label = self.input_streams[stream]
+            if stream_label in ('X', 'Y'):
+                if np.isnan(data).any():
+                    return
+
+                last_seen = dict(self.last_seen)
+                last_seen[stream_label] = data
+                if len(last_seen) == 2:
+                    for i in range(last_seen['X'].shape[0]):
+                        pred = self.predict(last_seen['X'][i])
+                        self.log['preq_error'].append(pred - last_seen['Y'][i])
+                        if isinstance(last_seen['X'], ArrayWithTime):
+                            self.log['t'].append(max(last_seen['X'].t, last_seen['Y'].t))
+
 
     def get_params(self, deep=True):
         return dict(init_min_ratio=self.init_min_ratio, add_intercept=self.add_intercept, regularization_factor=self.regularization_factor) | super().get_params()
@@ -190,7 +214,6 @@ class VanillaOnlineRegressor(DecoupledTransformer, BaseVanillaOnlineRegressor):
             if len(self.last_seen) == 2:
                 for i in range(self.last_seen['X'].shape[0]):
                     self.observe(self.last_seen['X'][i], self.last_seen['Y'][i])
-                self.log_for_partial_fit(data, stream)
                 self.last_seen = {}
 
     def transform(self, data, stream=0, return_output_stream=False):
@@ -209,3 +232,10 @@ class VanillaOnlineRegressor(DecoupledTransformer, BaseVanillaOnlineRegressor):
 
         return data, stream if return_output_stream else data
 
+    def plot_preq_error(self, ax):
+        t = np.array(self.log['t'])
+        preq_error = np.array(self.log['preq_error'])
+        sq_error = preq_error**2
+        ax.plot(t, sq_error)
+        ax.set_xlabel('time')
+        ax.set_ylabel('regression training preqential error')

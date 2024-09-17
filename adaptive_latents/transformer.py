@@ -1,6 +1,6 @@
 import copy
 from abc import ABC, abstractmethod
-from .timed_data_source import DataSource, GeneratorDataSource, NumpyTimedDataSource
+from .timed_data_source import DataSource, GeneratorDataSource, NumpyTimedDataSource, ArrayWithTime
 from frozendict import frozendict
 import numpy as np
 import types
@@ -39,12 +39,7 @@ class StreamingTransformer(ABC):
             Keys are input streams, values are output streams; this is stream remapping applied after the transformer.
         """
 
-        # TODO: get consistent printing
         super().__init__(**kwargs)
-        # if input_streams is not None:
-        #     self.kwargs.update(input_streams=input_streams)
-        # if output_streams is not None:
-        #     self.kwargs.update(output_streams=output_streams)
 
         self.input_streams = PassThroughDict(input_streams or {0: 'X'})
         self.output_streams = PassThroughDict(output_streams or {})
@@ -74,9 +69,8 @@ class StreamingTransformer(ABC):
             the stream the outputted data should be routed to
         """
 
-        original_data = copy.deepcopy(data)
         ret = self._partial_fit_transform(data, stream, return_output_stream)
-        self.log_for_partial_fit(original_data, stream)
+        self.log_for_partial_fit(data, stream)
         return ret
 
     def log_for_partial_fit(self, data, stream):
@@ -84,7 +78,8 @@ class StreamingTransformer(ABC):
 
     @abstractmethod
     def _partial_fit_transform(self, data, stream, return_output_stream):
-        pass
+        stream = self.output_streams[stream]
+        return data, stream if return_output_stream else data
 
     @property
     def base_algorithm(self):
@@ -135,6 +130,7 @@ class StreamingTransformer(ABC):
         sources, streams = zip(*sources)
 
         sources = [NumpyTimedDataSource(source) if isinstance(source, np.ndarray) else GeneratorDataSource(source) for source in sources]
+        sources = [copy.deepcopy(source) if isinstance(source, NumpyTimedDataSource) else source for source in sources]
 
         sources = list(zip(map(iter, sources), streams))
 
@@ -187,9 +183,8 @@ class DecoupledTransformer(StreamingTransformer):
     def partial_fit(self, data, stream=0):
         if self.frozen:
             return
-        original_data = copy.deepcopy(data)
         self._partial_fit(data, stream)
-        self.log_for_partial_fit(original_data, stream)
+        self.log_for_partial_fit(data, stream)
 
     def _partial_fit_transform(self, data, stream, return_output_stream):
         raise NotImplementedError()
@@ -288,8 +283,7 @@ class Pipeline(DecoupledTransformer):
         return super_path
 
     def __str__(self):
-        kwargs = ' '.join(f'{k}={v}' for k, v in self.get_params().items())
-        return f"{self.__class__.__name__}([{', '.join(str(s) for s in self.steps)}]{', ' + kwargs if kwargs else ''})"
+        return f"{self.__class__.__name__}([{', '.join(str(s) for s in self.steps)}])"
 
 
 class TypicalTransformer(DecoupledTransformer):
@@ -444,3 +438,31 @@ class KernelSmoother(TypicalTransformer):
         # ax.axvline(impulse_point, color='k', alpha=.25, label='region of impulse response')
         ax.fill_between([impulse_point, impulse_point + len(self.kernel)-1], 1,  color='k', alpha=.1, label='impulse response')
         ax.legend()
+
+
+class Concatenator(StreamingTransformer):
+    def __init__(self, input_streams=None, output_streams=None, **kwargs):
+        input_streams = input_streams or PassThroughDict({0:0, 1:1})
+
+        output_stream = max(input_streams.keys()) + 1
+        output_streams = output_streams or PassThroughDict({k: output_stream for k in input_streams.keys()})
+        super().__init__(input_streams=input_streams, output_streams=output_streams, **kwargs)
+        self.last_seen = {}
+
+    def _partial_fit_transform(self, data, stream, return_output_stream):
+        if stream in self.input_streams:
+            self.last_seen[self.input_streams[stream]] = data
+
+            if len(self.last_seen) == len(self.input_streams):
+                data = [(k, v) for k, v in self.last_seen.items()]
+                data.sort()
+                data = np.hstack([v for k, v in data])
+                if all([isinstance(x, ArrayWithTime) for x in self.last_seen.values()]):
+                    t = max((x.t for x in self.last_seen.values()))
+                    data = ArrayWithTime(input_array=data, t=t)
+                self.last_seen = {}
+            else:
+                data = np.nan * data
+
+        stream = self.output_streams[stream]
+        return data, stream if return_output_stream else data
