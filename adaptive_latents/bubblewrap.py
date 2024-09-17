@@ -11,6 +11,7 @@ from scipy.linalg import fractional_matrix_power
 from .config import use_config_defaults
 from .transformer import StreamingTransformer
 from .timed_data_source import ArrayWithTime
+import copy
 
 # TODO: save frozen vs estimator frozen
 # TODO: make this a parameter?
@@ -533,6 +534,14 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         self.dt = None
         self.last_timepoint = None
         self.n_steps_to_predict = n_steps_to_predict
+
+    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
+        original_data = None
+        if self.log_level > 0:
+            original_data = copy.deepcopy(data)
+        ret = self._partial_fit_transform(data, stream, return_output_stream)
+        self.log_for_partial_fit(original_data if original_data is not None else data, stream)
+        return ret
 
     def _partial_fit_transform(self, data, stream=0, return_output_stream=False):
         if self.input_streams[stream] == 'X':
