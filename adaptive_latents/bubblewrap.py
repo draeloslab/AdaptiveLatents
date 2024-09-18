@@ -634,7 +634,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
     def get_alpha_at_t(self, t, alpha=None, relative_t=False):
         alpha = alpha or self.alpha
         t = t if relative_t else t - self.last_timepoint
-        return numpy.array(alpha @ fractional_matrix_power(self.A, t))
+        return numpy.real(alpha @ fractional_matrix_power(self.A, t))
 
     def show_bubbles_2d(self, ax, data, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45, show_names=True, tail_length=0, no_bubbles=False):
         ax.cla()
@@ -720,10 +720,10 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         live_nodes = [x for x in numpy.arange(self.N) if x not in self.dead_nodes]
         ax.set_yticks(live_nodes)
 
-    def show_alpha(self, ax, show_log=False):
+    def show_alpha(self, ax, history_length=20, show_log=False):
         ax.cla()
 
-        to_show = numpy.array(self.log['alpha'][-20:]).T
+        to_show = numpy.array(self.log['alpha'][-history_length:]).T
 
         if show_log:
             to_show = numpy.log(to_show)
