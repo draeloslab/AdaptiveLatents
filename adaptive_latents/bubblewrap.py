@@ -760,6 +760,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         pdf = numpy.zeros(shape=(density, density))
         for i in range(density):
             for j in range(density):
+                # TODO: you could really speed this up by calculating alpha and only plotting the non-zero bubbles
                 x = numpy.array([x_bins[i] + x_bins[i + 1], y_bins[j] + y_bins[j + 1]]) / 2
                 b_values = self.logB_jax(x, self.mu, self.L, self.L_diag)
                 pdf[i, j] = self.alpha @ numpy.linalg.matrix_power(self.A, offset) @ numpy.exp(b_values)

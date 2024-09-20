@@ -98,6 +98,7 @@ class mmICA(TypicalTransformer, BaseMMICA):
         self.processing_queue.extend(X)
         if len(self.processing_queue) >= self.p:
             self.observe_new_batch(np.array(self.processing_queue).T)
+            self.processing_queue = []
 
     def log_for_partial_fit(self, data, stream=0, pre_initialization=False):
         if not pre_initialization and self.input_streams[stream] == 'X' and self.log_level >= 1:
