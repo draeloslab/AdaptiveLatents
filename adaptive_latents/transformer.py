@@ -86,6 +86,7 @@ class StreamingTransformer(ABC):
         return type(self)
 
     def get_params(self, deep=True):
+        # TODO: should this deep copy?
         if deep:
             return dict(input_streams=self.input_streams, output_streams=self.output_streams, log_level=self.log_level)
         else:
@@ -219,7 +220,7 @@ class Pipeline(DecoupledTransformer):
 
     def get_params(self, deep=True):
         # TODO: make this actually SKLearn compatible
-        p = dict(steps=[type(x) for x in self.steps])
+        p = dict(steps=self.steps)
         if deep:
             for i, step in enumerate(self.steps):
                 for k, v in step.get_params(deep).items():
@@ -289,7 +290,7 @@ class Pipeline(DecoupledTransformer):
 class TypicalTransformer(DecoupledTransformer):
     def __init__(self, input_streams=None, output_streams=None, **kwargs):
         input_streams = input_streams or {0: 'X'}
-        super().__init__(input_streams, output_streams, **kwargs)
+        super().__init__(input_streams=input_streams, output_streams=output_streams, **kwargs)
         self.is_initialized = False
 
     def get_params(self, deep=True):
@@ -466,3 +467,46 @@ class Concatenator(StreamingTransformer):
 
         stream = self.output_streams[stream]
         return data, stream if return_output_stream else data
+
+
+class SwitchingParallelTransformer(DecoupledTransformer):
+
+    def __init__(self, sub_transformers, **kwargs):
+        self.sub_transformers: list[DecoupledTransformer] = sub_transformers
+        assert "input_streams" not in kwargs
+        assert "output_streams" not in kwargs
+        super().__init__(**kwargs)
+
+    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
+        rets = []
+        for sub_t in self.sub_transformers:
+            ret = sub_t.partial_fit_transform(copy.deepcopy(data), stream, return_output_stream=return_output_stream)
+            rets.append(ret)
+
+        # TODO: determine best sub_transformer so we return that one
+        return rets[0]
+
+    def _partial_fit(self, data, stream):
+        for sub_t in self.sub_transformers:
+            sub_t.partial_fit(copy.deepcopy(data), stream)
+
+    def transform(self, data, stream=0, return_output_stream=False):
+        rets = []
+        for sub_t in self.sub_transformers:
+            ret = sub_t.transform(copy.deepcopy(data), stream, return_output_stream=return_output_stream)
+            rets.append(ret)
+
+        # TODO: determine best sub_transformer so we return that one
+        return rets[0]
+
+    def freeze(self, b=True):
+        for sub_t in self.sub_transformers:
+            sub_t.freeze(b)
+
+    def get_params(self, deep=True):
+        p = dict(steps=self.sub_transformers)
+        if deep:
+            for i, step in enumerate(self.sub_transformers):
+                for k, v in step.get_params(deep).items():
+                    p[f'__sub_transformers[{i}]__{k}'] = v
+        return p | super().get_params(deep)

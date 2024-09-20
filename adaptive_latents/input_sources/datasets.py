@@ -13,6 +13,9 @@ from abc import ABC, abstractmethod
 import sys
 import scipy.io
 import matplotlib
+import pims
+from PIL import Image
+
 import enum
 
 from contextlib import contextmanager
@@ -713,7 +716,8 @@ Please ask Anne Draelos how to acquire the Naumann lab dataset we use here. (hin
         a = (a + 30) % 360
         return matplotlib.cm.ScalarMappable(matplotlib.colors.Normalize(vmin=0, vmax=360), cmap=matplotlib.cm.hsv).to_rgba(a)
 
-class Leventhal24uDataset:
+
+class Leventhal24uDataset(Dataset):
     doi = None
     model_organism = ModelOrganism.RAT
     dataset_base_path = DATA_BASE_PATH / 'leventhal24u'
@@ -809,6 +813,94 @@ Please place a copy of '{sub_dataset_identifier}' into '{self.dataset_base_path}
         # t = np.fromfile(subset_base_path/'time.dat', dtype='int32') / sampling_frequency
 
 
+class Zong22Dataset(Dataset):
+    doi = "https://dx.doi.org/10.11582/2022.00008"
+    automatically_downloadable = False
+    model_organism = ModelOrganism.MOUSE
+    dataset_base_path = DATA_BASE_PATH / 'zong22'
+
+    def make_cookie_entry(area, animal_id, date, f_part, f_total, cookie_status, filtered):
+        assert type(area) == str  # this can become static after 3.10
+        cookie_status = 'with' if cookie_status else 'no'
+        filtered = 'filtered' if filtered else ''
+        return {
+            'basepath':       f'{area}_recordings/{animal_id}/{date}/',
+            'raw_frames':     f'{animal_id}_imaging_{date}_{cookie_status}cookies_00001.tif',
+            'behavior_csv':   f'{animal_id}_imaging_{date}_{cookie_status}cookies_00001_trackingVideoDLC_resnet50_OPENMINI2P_bottomcameraAug26shuffle1_1030000{filtered}.csv',
+            'behavior_video': f'{animal_id}_imaging_{date}_{cookie_status}cookies_00001_trackingVideo.avi',
+            'part_of_F': (f_part,f_total)
+        }
+
+    def make_object_entry(area, animal_id, date, f_part, f_total, object_n, filtered):
+        assert type(area) == str  # this can become static after 3.10
+        object_str = f'object{object_n}' if object_n is not None else 'noobject'
+        filtered = 'filtered' if filtered else ''
+        return {
+            'basepath':       f'{area}_recordings/{animal_id}/{date}/',
+            'raw_frames':     f'{animal_id}_imaging_{date}_{object_str}_00001.tif',
+            'behavior_csv':   f'{animal_id}_imaging_{date}_{object_str}_00001_trackingVideoDLC_resnet50_OPENMINI2P_bottomcameraAug26shuffle1_1030000{filtered}.csv',
+            # 'behavior_video': f'{animal_id}_imaging_{date}_{object_str}_00001_trackingVideo.avi',
+            'part_of_F': (f_part,f_total)
+        }
+
+    sub_datset_info = pd.DataFrame([
+        make_cookie_entry('VC', '93562', '20200817', 1, 2, False, True),
+        make_cookie_entry('VC', '93562', '20200817', 2, 2, True, True),
+
+        make_cookie_entry('MEC', '94557', '20200822', 1, 2, False, False),
+        make_cookie_entry('MEC', '94557', '20200822', 1, 2, True, False),
+
+        make_object_entry('MEC', '94557', '20201008', 1, 3, None, True),
+        make_object_entry('MEC', '94557', '20201008', 2, 3, 1, True),
+        make_object_entry('MEC', '94557', '20201008', 3, 3, 2, True),
+
+        {
+            'basepath': 'CA1_recordings/97288/20210315/',
+            'raw_frames': '97288_20210315_00002.tif',
+            'part_of_F': (1,1)
+        },
+    ])
+
+    sub_datasets = list(sub_datset_info.index)
+
+    def __init__(self, sub_dataset_identifier=sub_datasets[0]):
+        self.sub_dataset = sub_dataset_identifier
+        self.neural_Fs = 15
+        self.F, self.raw_images, self.behavior_video, self.behavior_df, self.n_cells, self.stat, self.ops = self.acquire()
+
+        self.neural_data = NumpyTimedDataSource(self.F.T, np.arange(self.F.shape[1]) * 1 / self.neural_Fs)
+        self.behavioral_data = NumpyTimedDataSource(self.behavior_df.loc[:, ["mouse_x", "mouse_y"]].to_numpy(), self.behavior_df.t.to_numpy())
+        self.video_t = np.squeeze(self.behavioral_data.t)
+
+    def acquire(self):
+        sub_dataset_base_path = self.dataset_base_path / self.sub_datset_info.basepath[self.sub_dataset]
+        if not sub_dataset_base_path.is_dir():
+            print(f"Go download the dataset from {self.doi}.")
+            raise FileNotFoundError()
+
+        iscell = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'iscell.npy')
+        F_all = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'F.npy')
+        n_cells = int(sum(iscell[:, 0]))
+
+        stat = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'stat.npy', allow_pickle=True)
+        ops = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'ops.npy', allow_pickle=True).item()
+
+        def make_beh(fpath):
+            pre_beh = pd.read_csv(fpath)
+            columns = ["t"] + list(map(lambda a: f"{a[0]}_{a[1]}", zip(pre_beh.iloc[0, 1:], pre_beh.iloc[1, 1:])))
+            columns = {pre_beh.columns[i]: columns[i] for i in range(len(columns))}
+            beh = pre_beh.rename(columns=columns).iloc[2:].astype(float).reset_index(drop=True)
+            beh.t = beh.t / self.neural_Fs
+            return beh
+
+        part, total = self.sub_datset_info.part_of_F[self.sub_dataset]
+        block_length = F_all.shape[1] // total
+        F = F_all[:, (part - 1) * block_length: part * block_length]
+        img = Image.open(sub_dataset_base_path / self.sub_datset_info.raw_frames[self.sub_dataset])
+        video = pims.Video(sub_dataset_base_path / self.sub_datset_info.behavior_video[self.sub_dataset])
+        beh = make_beh(sub_dataset_base_path / self.sub_datset_info.behavior_csv[self.sub_dataset])
+
+        return F, img, video, beh, n_cells, stat, ops
 
 
 """
