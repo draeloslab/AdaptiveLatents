@@ -103,8 +103,18 @@ class BaseVanillaOnlineRegressor(OnlineRegressor):
 
         return (x.T @ beta).flatten()
 
+    # def project_input(self, x):
+    #     if self.c is None:
+    #         return np.array(np.nan)
+    #
+    #     x = self.format_x(x)
+    #     beta = self.get_beta()
+    #
+    #     u, s, vh = np.linalg.svd(beta)
+    #     return (x.T @ u).flatten()
 
-class NearestNeighborRegressor(OnlineRegressor):
+
+class BaseNearestNeighborRegressor(OnlineRegressor):
     def __init__(self, maxlen=1_000):
         super().__init__()
         self.maxlen = maxlen
