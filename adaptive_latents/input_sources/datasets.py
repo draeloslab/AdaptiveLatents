@@ -866,16 +866,18 @@ class Zong22Dataset(Dataset):
     def __init__(self, sub_dataset_identifier=sub_datasets[0]):
         self.sub_dataset = sub_dataset_identifier
         self.neural_Fs = 15
+        self.bin_width = 1/self.neural_Fs  # todo: make this universal?
         self.F, self.raw_images, self.behavior_video, self.behavior_df, self.n_cells, self.stat, self.ops = self.acquire()
 
         self.neural_data = NumpyTimedDataSource(self.F.T, np.arange(self.F.shape[1]) * 1 / self.neural_Fs)
-        self.behavioral_data = NumpyTimedDataSource(self.behavior_df.loc[:, ["mouse_x", "mouse_y"]].to_numpy(), self.behavior_df.t.to_numpy())
+        self.behavioral_data = NumpyTimedDataSource(timepoints=self.behavior_df.loc[:, 't'], source=self.behavior_df.loc[:, ['x', 'y', 'hd', 'h2b']])
+
         self.video_t = np.squeeze(self.behavioral_data.t)
 
     def acquire(self):
         sub_dataset_base_path = self.dataset_base_path / self.sub_datset_info.basepath[self.sub_dataset]
         if not sub_dataset_base_path.is_dir():
-            print(f"Go download the dataset from {self.doi}.")
+            print(f"Go download the dataset from {self.doi}. (Or remount the external drive on Tycho)")
             raise FileNotFoundError()
 
         iscell = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'iscell.npy')
@@ -900,7 +902,39 @@ class Zong22Dataset(Dataset):
         video = pims.Video(sub_dataset_base_path / self.sub_datset_info.behavior_video[self.sub_dataset])
         beh = make_beh(sub_dataset_base_path / self.sub_datset_info.behavior_csv[self.sub_dataset])
 
+        nose = self.get_behavior_trace(beh, 'nose')
+        body = self.get_behavior_trace(beh, 'bodycenter')
+        head = self.get_behavior_trace(beh, 'mouse')
+
+        beh['hd'] = np.arctan2(*(nose - head).T)
+        beh['h2b'] = np.linalg.norm(head - body, axis=1)
+        beh['x'] = head[:,0]
+        beh['y'] = head[:,1]
+
+
         return F, img, video, beh, n_cells, stat, ops
+
+    def show_stim_pattern(self, ax, desired_stim):
+        planes = []
+        for i in range(500):
+            self.raw_images.seek(i)
+            planes.append(np.array(self.raw_images))
+
+        im = np.mean(planes, axis=0)
+
+        ax.matshow(-im, cmap='Grays')
+        xs, ys = list(zip(*[cell['med'] for cell in self.stat]))
+        map = ax.scatter(ys, xs, s=7, c=desired_stim)
+
+        ax.get_figure().colorbar(map)
+
+    @staticmethod
+    def get_behavior_trace(beh, point_str, threshold=.999):
+        point_trace = np.array([beh.loc[:, point_str + '_x'].to_numpy(),
+                                beh.loc[:, point_str + '_y'].to_numpy()]).T
+        s = beh.loc[:, point_str + '_likelihood'].to_numpy() < threshold
+        point_trace[s] *= np.nan
+        return point_trace
 
 
 """

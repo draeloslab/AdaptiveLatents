@@ -1,4 +1,4 @@
-from adaptive_latents.regressions import NearestNeighborRegressor, BaseVanillaOnlineRegressor, auto_regression_decorator, VanillaOnlineRegressor
+from adaptive_latents.regressions import BaseNearestNeighborRegressor, BaseVanillaOnlineRegressor, auto_regression_decorator, VanillaOnlineRegressor
 import pytest
 import numpy as np
 
@@ -6,11 +6,11 @@ import numpy as np
 @pytest.fixture(params=["nearest_n", "vanilla", "vanilla_regularized"])
 def base_reg_maker(request):
     if request.param == "nearest_n":
-        return NearestNeighborRegressor
+        return BaseNearestNeighborRegressor
     elif request.param == "vanilla":
-        return BaseVanillaOnlineRegressor
+        return lambda: BaseVanillaOnlineRegressor(regularization_factor=0)
     elif request.param == "vanilla_regularized":
-        return VanillaOnlineRegressor
+        return BaseVanillaOnlineRegressor
 
 
 @pytest.fixture(params=["no autoregression", "autoregression 0", "autoregression 2"])

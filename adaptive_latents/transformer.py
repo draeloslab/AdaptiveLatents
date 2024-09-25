@@ -41,7 +41,7 @@ class StreamingTransformer(ABC):
 
         super().__init__(**kwargs)
 
-        self.input_streams = PassThroughDict(input_streams or {0: 'X'})
+        self.input_streams = PassThroughDict(input_streams or {})
         self.output_streams = PassThroughDict(output_streams or {})
         self.log_level = log_level
         self.mid_run_sources = None
@@ -446,7 +446,7 @@ class Concatenator(StreamingTransformer):
         input_streams = input_streams or PassThroughDict({0:0, 1:1})
 
         output_stream = max(input_streams.keys()) + 1
-        output_streams = output_streams or PassThroughDict({k: output_stream for k in input_streams.keys()})
+        output_streams = output_streams or PassThroughDict({k: output_stream for k in input_streams.keys()} | {'skip': -1})
         super().__init__(input_streams=input_streams, output_streams=output_streams, **kwargs)
         self.last_seen = {}
 
@@ -464,6 +464,7 @@ class Concatenator(StreamingTransformer):
                 self.last_seen = {}
             else:
                 data = np.nan * data
+                stream = 'skip'
 
         stream = self.output_streams[stream]
         return data, stream if return_output_stream else data
