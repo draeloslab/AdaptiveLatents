@@ -26,6 +26,7 @@ dependencies:
   - requests
   - aiohttp
   - frozendict
+  - pims
   - numba # todo: this is for mmica, do I really need it?
   - pip
   - pip:
