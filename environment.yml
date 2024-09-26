@@ -29,10 +29,10 @@ dependencies:
   - numba # todo: this is for mmica, do I really need it?
   - pip
   - pip:
-     - jax
+     - jax[cuda12]
      - jaxlib
      - datahugger
      - python-picard
      - "git+https://github.com/Jonathan-Gould/mmica"
-     - matlabengine # todo: this might be removable
+#     - matlabengine # todo: this might be removable
      # cd /usr/local/MATLAB/R*/extern/engines/python && pip install .

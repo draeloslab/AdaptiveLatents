@@ -8,7 +8,10 @@ def base_reg_maker(request):
     if request.param == "nearest_n":
         return BaseNearestNeighborRegressor
     elif request.param == "vanilla":
-        return lambda: BaseVanillaOnlineRegressor(regularization_factor=0)
+        class NoRegularizationTempVersion(BaseVanillaOnlineRegressor):
+            def __init__(self, *args, regularization_factor=0, **kwargs):
+                super().__init__(*args, regularization_factor=regularization_factor, **kwargs)
+        return NoRegularizationTempVersion
     elif request.param == "vanilla_regularized":
         return BaseVanillaOnlineRegressor
 

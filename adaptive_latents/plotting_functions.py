@@ -2,8 +2,9 @@ import datetime
 import pathlib
 import matplotlib.pylab as plt
 from matplotlib import pyplot as plt
-from matplotlib.animation import FFMpegFileWriter
+from matplotlib.animation import FFMpegWriter, PillowWriter
 import matplotlib.gridspec as gridspec
+import itertools
 from adaptive_latents import CONFIG
 import numpy as np
 from typing import TYPE_CHECKING
@@ -14,13 +15,17 @@ if TYPE_CHECKING:
 
 
 class AnimationManager:
-    def __init__(self, filename=None, outdir=None, n_rows=1, n_cols=1, fps=20, dpi=100, extension="mp4", figsize=(10,10), projection='rectilinear', make_axs=True, fig=None):
+    def __init__(self, filename=None, outdir=None, n_rows=1, n_cols=1, fps=20, dpi=100, filetype="mp4", figsize=(10, 10), projection='rectilinear', make_axs=True, fig=None):
         outdir = outdir or CONFIG['plot_save_path']
         if filename is None:
             time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-            filename = f'movie_{time_string}'
-        self.outfile = pathlib.Path(outdir).resolve() / f"{filename}.{extension}"
-        self.movie_writer = FFMpegFileWriter(fps=fps)
+            filename = f"movie_{time_string}-{str(hash(id(self)))[-3:]}"
+
+        self.outfile = pathlib.Path(outdir).resolve() / f"{filename}.{filetype}"
+        Writer = FFMpegWriter
+        if filetype == 'gif':
+            Writer = PillowWriter
+        self.movie_writer = Writer(fps=fps)
         if fig is None:
             if make_axs:
                 self.fig, self.axs = plt.subplots(n_rows, n_cols, figsize=figsize, layout='tight', squeeze=False, subplot_kw={'projection': projection})
@@ -78,11 +83,10 @@ def plot_history_with_tail(ax, data, tail_length=10):
 
 
 class PredictionVideo:
-    def __init__(self, d, initialization_phase_cutoff_t=20, tail_length=2, fps=None):
+    def __init__(self, d, tail_length=2, fps=None, filetype='mp4'):
         self.d = d
         self.tail_length = tail_length
         self.pred_color = '#b337a4'
-        self.initialization_phase_cutoff_t = initialization_phase_cutoff_t
         fps = fps or 10
 
         self.fig = plt.figure(constrained_layout=False, dpi=200, figsize=(15, 5))
@@ -92,21 +96,15 @@ class PredictionVideo:
         self.joint_latent_ax = self.fig.add_subplot(spec[:, 1])
         self.prediction_ax = self.fig.add_subplot(spec[:, 2])
 
-        self.am = AnimationManager(fig=self.fig, fps=fps, dpi=self.fig.dpi)
+        self.am = AnimationManager(fig=self.fig, fps=fps, dpi=self.fig.dpi, filetype=filetype)
 
     def plot_for_video_t(self, current_t, latents, latent_ts, latent_predictions, beh_predictions, prediction_ts):
         latents = np.squeeze(latents)
         latent_ts = np.squeeze(latent_ts)
-        s = latent_ts > self.initialization_phase_cutoff_t
-        latents, latent_ts = latents[s], latent_ts[s]
 
         latent_predictions = np.squeeze(latent_predictions)
         beh_predictions = np.squeeze(beh_predictions)
         prediction_ts = np.squeeze(prediction_ts)
-        s = prediction_ts > self.initialization_phase_cutoff_t
-        latent_predictions, beh_predictions, prediction_ts = latent_predictions[s], beh_predictions[s], prediction_ts[s]
-        if not s.sum():
-            return
 
         for array in [latents, latent_predictions, beh_predictions]:
             assert len(array.shape) == 2
@@ -130,8 +128,9 @@ class PredictionVideo:
         ax = self.joint_latent_ax
         old_lims = ax.axis()
         plot_history_with_tail(ax, latents)
-        ax.plot([latents[-1, 0], latent_predictions[-1, 0]], [latents[-1, 1], latent_predictions[-1, 1]],
-                '--', color=self.pred_color)
+        lines = ax.plot([latents[-1, 0], latent_predictions[-1, 0]], [latents[-1, 1], latent_predictions[-1, 1]],
+                '--', color=self.pred_color,)
+        ax.scatter(latents[-1, 0], latents[-1, 1], s=lines[0].get_linewidth(), color=self.pred_color, zorder=4)
         use_bigger_lims(ax, old_lims=old_lims)
 
 

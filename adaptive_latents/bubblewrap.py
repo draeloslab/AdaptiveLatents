@@ -216,6 +216,8 @@ class BaseBubblewrap:
 
         self.dead_nodes_ind[node] = 0
 
+        self.n_obs.at[node].set(1.0)
+
         if self.copy_row_on_teleport:
             # TODO: other updates here?
             nearest_bubble = numpy.argsort(numpy.linalg.norm(self.mu - x, axis=1))[1]
@@ -528,8 +530,9 @@ def update_cov(cov, last, curr, mean, n):
 class Bubblewrap(StreamingTransformer, BaseBubblewrap):
     base_algorithm = BaseBubblewrap
 
-    def __init__(self, n_steps_to_predict=1, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, n_steps_to_predict=1, input_streams=None, **kwargs):
+        input_streams = input_streams or {0 : 'X'}
+        super().__init__(input_streams=input_streams, **kwargs)
         self.unevaluated_predictions = {}
         self.dt = None
         self.last_timepoint = None
@@ -609,7 +612,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
 
     def log_for_partial_fit(self, data, stream):
 
-        if self.log_level > 0 and self.is_initialized:
+        if self.log_level > 0 and self.is_initialized and self.input_streams[stream] == 'X':
             if 'alpha' not in self.log:
                 for key in ['alpha', 'entropy', 't', 'log_pred_p', 'log_pred_p_origin_t']:
                     self.log[key] = []
@@ -636,7 +639,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         t = t if relative_t else t - self.last_timepoint
         return numpy.array(numpy.real(alpha @ fractional_matrix_power(self.A, t)))
 
-    def show_bubbles_2d(self, ax, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45, show_names=True):
+    def show_bubbles_2d(self, ax, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45, show_names=True, n_obs_thresh=.1):
         n_obs = numpy.array(self.n_obs)
 
         for n in reversed(numpy.arange(self.A.shape[0])):
@@ -648,35 +651,25 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
             self.add_2d_bubble(ax, cov=self.L[n], center=self.mu[n], n_sds=n_sds, dim_1=dim_1, dim_2=dim_2, name=n, facecolor=color, alpha=alpha, show_name=show_names, name_theta=name_theta)
 
         mask = numpy.ones(self.mu.shape[0], dtype=bool)
-        mask[n_obs < .1] = False
+        mask[n_obs < n_obs_thresh] = False
         mask[self.dead_nodes] = False
         ax.scatter(self.mu[mask, dim_1], self.mu[mask, dim_2], c='k', zorder=10)
 
     def scatter_data_with_decay(self, ax, data, dim_1=0, dim_2=1, tail_length=0,):
         ax.scatter(data[:, dim_1], data[:, dim_2], s=5, color='#004cff', alpha=numpy.power(1 - self.eps, numpy.arange(data.shape[0], 0, -1)))
-        try:
-            if tail_length > 0:
-                start = max(data.shape[0] - tail_length, 0)
-                ax.plot(data[start:, 0], data[start:, 1], linewidth=3, color='#004cff', alpha=.5)
-        except:
-            pass
+        if tail_length > 0:
+            start = max(data.shape[0] - tail_length, 0)
+            ax.plot(data[start:, 0], data[start:, 1], linewidth=3, color='#004cff', alpha=.5)
 
         ax.scatter(data[0, 0], data[0, 1], color="#004cff", s=10)
 
-    def show_active_bubbles_2d(self, ax, data, name_theta=45, n_sds=3, history_length=1):
-        ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff', alpha=numpy.power(1 - self.eps, numpy.arange(data.shape[0], 0, -1)))
-        # ax.scatter(data[-1, 0], data[-1, 1], s=10, color='red')
-
-        if history_length > 1:
-            start = max(data.shape[0] - history_length, 0)
-            ax.plot(data[start:, 0], data[start:, 1], linewidth=3, color='#af05ed', alpha=.5)
-
+    def show_active_bubbles_2d(self, ax, dim_1=0, dim_2=1, name_theta=45, n_sds=3):
         to_draw = numpy.argsort(numpy.array(self.alpha))[-3:]
         opacities = numpy.array(self.alpha)[to_draw]
         opacities = opacities * .5 / opacities.max()
 
         for i, n in enumerate(to_draw):
-            self.add_2d_bubble(ax, self.L[n], self.mu[n], n_sds, name=n, alpha=opacities[i], name_theta=name_theta)
+            self.add_2d_bubble(ax, self.L[n], self.mu[n], n_sds=n_sds, dim_1=dim_1, dim_2=dim_2, name=n, alpha=opacities[i], name_theta=name_theta)
 
 
     def show_active_bubbles_and_connections_2d(self, ax, data, name_theta=45, n_sds=3, history_length=1):
@@ -796,7 +789,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
 
 
     @classmethod
-    def add_2d_bubble(cls, ax, cov, center, dim_1=0, dim_2=1, passed_sig=False, **kwargs):
+    def add_2d_bubble(cls, ax, cov, center, passed_sig=False, dim_1=0, dim_2=1, **kwargs):
         if not passed_sig:
             el = numpy.linalg.inv(cov)
             sig = el.T @ el
