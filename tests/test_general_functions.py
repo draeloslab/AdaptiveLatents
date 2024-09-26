@@ -30,7 +30,7 @@ def test_utils_run(rng):
     t = np.arange(A.shape[0])
 
     t, old_t = np.linspace(0, 10), t
-    adaptive_latents.utils.resample_matched_timeseries(A, t, old_t)
+    adaptive_latents.utils.resample_matched_timeseries(A, old_t, t)
     A, t = adaptive_latents.utils.clip(A, t)
 
 

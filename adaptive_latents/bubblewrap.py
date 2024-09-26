@@ -825,7 +825,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         return a * b / numpy.sqrt((numpy.cos(theta) * b)**2 + (numpy.sin(theta) * a)**2)
 
     @staticmethod
-    def compare_runs(bws):
+    def compare_runs(bws, behaviors=None, t_in_samples=False):
         import matplotlib.pyplot as plt
         def _one_sided_ewma(data, com=100):
             import pandas as pd
@@ -840,8 +840,11 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         for bw in bws:
             assert bw.log_level > 0
 
+        has_behavior = behaviors is not None
+        assert not has_behavior # this should be implemented later
 
-        fig, axs = plt.subplots(figsize=(14, 5), nrows=2, ncols=2, sharex='col', layout='tight',
+
+        fig, axs = plt.subplots(figsize=(14, 5), nrows=2 + has_behavior, ncols=2, sharex='col', layout='tight',
                                 gridspec_kw={'width_ratios': [7, 1]})
 
         common_time_start = max([min(bw.log['t']) for bw in bws])
@@ -855,22 +858,42 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
 
             # plot prediction
             t = numpy.array(bw.log['log_pred_p_origin_t'])
+            t_to_plot = t
+            if t_in_samples:
+                t_to_plot = t / bw.dt
             to_plot = numpy.array(bw.log['log_pred_p'])
-            plot_with_trendline(axs[0, 0], t, to_plot, color)
+            plot_with_trendline(axs[0, 0], t_to_plot, to_plot, color)
             last_half_mean = to_plot[(halfway_time < t) & (t < common_time_end)].mean()
             to_write[0].append((idx, f'{last_half_mean:.2f}', {'color': color}))
             axs[0, 0].set_ylabel('log pred. p')
 
             # plot entropy
             t = numpy.array(bw.log['t'])
+            t_to_plot = t
+            if t_in_samples:
+                t_to_plot = t / bw.dt
             to_plot = numpy.array(bw.log['entropy'])
-            plot_with_trendline(axs[1, 0], t, to_plot, color)
+            plot_with_trendline(axs[1, 0], t_to_plot, to_plot, color)
             last_half_mean = to_plot[(halfway_time < t) & (t < common_time_end)].mean()
             to_write[1].append((idx, f'{last_half_mean:.2f}', {'color': color}))
             axs[1, 0].set_ylabel('entropy')
 
             max_entropy = numpy.log2(bw.N)
             axs[1, 0].axhline(max_entropy, color='k', linestyle='--')
+
+            # plot behavior
+            if has_behavior:
+                t = numpy.array(behaviors[idx]['t'])
+                t_to_plot = t
+                if t_in_samples:
+                    t_to_plot = t / bw.dt
+                to_plot = numpy.array(behaviors[idx]['behavior'])
+                axs[2,0].plot(t_to_plot, to_plot, color=color)
+
+                last_half_mean = to_plot[(halfway_time < t) & (t < common_time_end)].mean()
+                to_write[2].append((idx, f'{last_half_mean:.2f}', {'color': color}))
+                axs[0, 2].set_ylabel('behavior')
+
 
         # this sets the axis bounds for the text
         for axis in axs[:, 0]:
@@ -906,5 +929,5 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
                     continue
             super_param_dict[key] = values
         to_write = "\n".join(f"{k}: {v}" for k, v in super_param_dict.items())
-        axbig.text(0, 1, to_write, transform=axbig.transAxes, verticalalignment="top");
+        axbig.text(0, 1, to_write, transform=axbig.transAxes, verticalalignment="top")
 
