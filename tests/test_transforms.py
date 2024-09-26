@@ -370,9 +370,9 @@ class TestBubblewrap:
         axs = axs.flatten()
 
         i = -1
-        bw.show_bubbles_2d(axs[(i:=i+1)], observations)
+        bw.show_bubbles_2d(axs[(i:=i+1)])
         bw.show_alpha(axs[(i:=i+1)])
-        bw.show_active_bubbles_2d(axs[(i:=i+1)], observations)
+        bw.show_active_bubbles_2d(axs[(i:=i+1)])
         bw.show_active_bubbles_and_connections_2d(axs[(i:=i+1)], observations)
         bw.show_A(axs[(i:=i+1)])
         bw.show_nstep_pdf(ax=axs[(i:=i+1)], other_axis=axs[0], fig=fig, density=2)

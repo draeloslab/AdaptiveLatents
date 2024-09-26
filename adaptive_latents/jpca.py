@@ -3,8 +3,6 @@ from scipy.linalg import block_diag
 from .transformer import TypicalTransformer
 from adaptive_latents.regressions import BaseVanillaOnlineRegressor
 from .utils import principle_angles, align_column_spaces
-import warnings
-import tqdm
 from scipy.stats import special_ortho_group
 
 
@@ -104,20 +102,24 @@ class BaseSJPCA:
 
 class sjPCA(TypicalTransformer, BaseSJPCA):
     base_algorithm = BaseSJPCA
-    def __init__(self, **kwargs):
+    def __init__(self, init_size=10, **kwargs):
         super().__init__(**kwargs)
         self.log = {'U': [], 't':[]}
+        self.init_size = init_size
+        self.init_samples = []
 
     def instance_get_params(self, deep=True):
         return {}
 
     def pre_initialization_fit_for_X(self, X):
-        if self.last_x is None: #  round 1
-            self.initialize(X)
-        else:
-            self.observe(X)
-            self.is_initialized = True
+        self.init_samples.append(X)
 
+        if len(self.init_samples) >= self.init_size:
+            self.initialize(self.init_samples[0])
+            for X in self.init_samples[1:]:
+                self.observe(X)
+            self.is_initialized = True
+            self.init_samples = []
 
     def partial_fit_for_X(self, X):
         self.observe(X)
@@ -128,8 +130,8 @@ class sjPCA(TypicalTransformer, BaseSJPCA):
     def inverse_transform_for_X(self, X):
         return self.project(X, project_up=True)
 
-    def log_for_partial_fit(self, data, stream=0, pre_initialization=False):
-        if not pre_initialization and self.input_streams[stream] == 'X' and self.log_level >= 1:
+    def log_for_partial_fit(self, data, stream=0):
+        if self.is_initialized and self.input_streams[stream] == 'X' and self.log_level >= 1:
             self.log['U'].append(self.get_U())
             self.log['t'].append(data.t)
 
