@@ -692,7 +692,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         opacities = opacities * .5 / opacities.max()
 
         for i, n in enumerate(to_draw):
-            self.add_2d_bubble(ax, self.L[n], self.mu[n], n_sds, name=n, alpha=opacities[i], name_theta=name_theta)
+            self.add_2d_bubble(ax, self.L[n], self.mu[n], passed_sig=False, n_sds=n_sds, name=n, alpha=opacities[i], name_theta=name_theta)
 
             if i == 2:
                 connections = numpy.array(self.A[n])

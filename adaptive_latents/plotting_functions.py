@@ -131,6 +131,7 @@ class PredictionVideo:
         lines = ax.plot([latents[-1, 0], latent_predictions[-1, 0]], [latents[-1, 1], latent_predictions[-1, 1]],
                 '--', color=self.pred_color,)
         ax.scatter(latents[-1, 0], latents[-1, 1], s=lines[0].get_linewidth(), color=self.pred_color, zorder=4)
+        ax.axis('equal')
         use_bigger_lims(ax, old_lims=old_lims)
 
 
@@ -152,7 +153,7 @@ class PredictionVideo:
 
         beh_dt = np.median(np.diff(prediction_ts))
         n_columns = np.floor(self.tail_length / beh_dt).astype(int)
-        idx = np.nonzero(~(prediction_ts < current_t))[0][0]
+        idx = np.nonzero(prediction_ts > current_t)[0][0]
         s = slice(idx - n_columns, idx)
         for i in range(3):
             ax.plot(prediction_ts[s], beh_predictions[s,i], color=f'C{i}', alpha=.25)
