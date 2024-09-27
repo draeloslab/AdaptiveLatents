@@ -69,17 +69,17 @@ def use_bigger_lims(ax, old_lims=None, y=True, x=True):
         future_lims[:2] = new_lims[:2]
     ax.axis(future_lims)
 
-def plot_history_with_tail(ax, data, tail_length=10):
+def plot_history_with_tail(ax, data, tail_length=10, dim_1=0, dim_2=1,):
     ax.cla()
 
-    ax.scatter(data[:,0], data[:,1], s=5, alpha=.1, c='C0', edgecolors='none')
+    ax.scatter(data[:,dim_1], data[:,dim_2], s=5, alpha=.1, c='C0', edgecolors='none')
 
     linewidth = 2
     s = 10
-    ax.plot(data[-tail_length:, 0], data[-tail_length:, 1], color='white', linewidth=linewidth * 1.5)
-    ax.scatter(data[-1, 0], data[-1, 1], s=s * 1.5, color='white')
-    ax.plot(data[-tail_length:, 0], data[-tail_length:, 1], color='C0', linewidth=linewidth)
-    ax.scatter(data[-1,0], data[-1,1], s=s, zorder=3)
+    ax.plot(data[-tail_length:, dim_1], data[-tail_length:, dim_2], color='white', linewidth=linewidth * 1.5)
+    ax.scatter(data[-1, dim_1], data[-1, dim_2], s=s * 1.5, color='white')
+    ax.plot(data[-tail_length:, dim_1], data[-tail_length:, dim_2], color='C0', linewidth=linewidth)
+    ax.scatter(data[-1,dim_1], data[-1,dim_2], s=s, zorder=3)
 
 
 class PredictionVideo:

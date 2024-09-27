@@ -355,16 +355,20 @@ class TypicalTransformer(DecoupledTransformer):
 
 
 class CenteringTransformer(TypicalTransformer):
-    def __init__(self, **kwargs):
+    def __init__(self, init_size=0, **kwargs):
         super().__init__(**kwargs)
-        self.is_initialized = True
+        self.init_size = init_size
         self.samples_seen = 0
         self.center = 0
 
+    def pre_initialization_fit_for_X(self, X):
+        self.partial_fit_for_X(X)
+        if self.samples_seen >= self.init_size:
+            self.is_initialized = True
+
     def partial_fit_for_X(self, X):
-        if not self.frozen:
-            self.samples_seen += X.shape[0]
-            self.center = self.center + (X.sum(axis=0) - X.shape[0] * self.center) / self.samples_seen
+        self.samples_seen += X.shape[0]
+        self.center = self.center + (X.sum(axis=0) - X.shape[0] * self.center) / self.samples_seen
 
     def transform_for_X(self, X):
         return X - self.center
@@ -373,7 +377,7 @@ class CenteringTransformer(TypicalTransformer):
         return X + self.center
 
     def instance_get_params(self, deep=True):
-        return {}
+        return {'init_size': self.init_size}
 
 
 class KernelSmoother(TypicalTransformer):
