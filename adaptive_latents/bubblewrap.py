@@ -255,6 +255,8 @@ class BaseBubblewrap:
         if not self.is_initialized:
             return lambda x: numpy.nan
 
+        assert round(steps) == steps
+
         mu = numpy.array(self.mu)
         L = numpy.array(self.L)
         L_diag = numpy.array(self.L_diag)
@@ -263,7 +265,7 @@ class BaseBubblewrap:
 
         def f(future_point):
             b = self.logB_jax(future_point, mu, L, L_diag)
-            AT = fractional_matrix_power(A, steps)
+            AT = jnp.linalg.matrix_power(A, steps)
             p = jnp.log(alpha @ AT @ jnp.exp(b) + 1e-16)
             return numpy.array(p)
         return f
@@ -272,11 +274,12 @@ class BaseBubblewrap:
         if not self.is_initialized:
             return numpy.nan
         b = self.logB_jax(future_point, self.mu, self.L, self.L_diag)
-        if numpy.isclose(n_steps, round(n_steps)):
-            p = self._pred_ahead(b, self.A, self.alpha, n_steps)
-        else:
-            AT = fractional_matrix_power(self.A, n_steps)
-            p = jnp.log(self.alpha @ AT @ jnp.exp(b) + 1e-16)
+
+        assert round(n_steps) == n_steps
+        n_steps = int(n_steps)
+        p = self._pred_ahead(b, self.A, self.alpha, n_steps)
+        # AT = fractional_matrix_power(self.A, n_steps)
+        # p = jnp.log(self.alpha @ AT @ jnp.exp(b) + 1e-16)
         return numpy.array(p)
 
     def entropy(self, n_steps, alpha=None):
@@ -285,12 +288,12 @@ class BaseBubblewrap:
         if alpha is None:
             alpha = self.alpha
 
-        if numpy.isclose(n_steps, round(n_steps)):
-            e = self._get_entropy(self.A, alpha, n_steps)
-        else:
-            AT = fractional_matrix_power(self.A, n_steps)
-            one = alpha @ AT
-            e = -jnp.sum(one.dot(jnp.log2(alpha @ AT)))
+        assert round(n_steps) == n_steps
+        n_steps = int(n_steps)
+        e = self._get_entropy(self.A, alpha, n_steps)
+        # AT = fractional_matrix_power(self.A, n_steps)
+        # one = alpha @ AT
+        # e = -jnp.sum(one.dot(jnp.log2(alpha @ AT)))
 
         return numpy.array(e)
 
@@ -637,7 +640,11 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
     def get_alpha_at_t(self, t, alpha=None, relative_t=False):
         alpha = alpha or self.alpha
         t = t if relative_t else t - self.last_timepoint
-        return numpy.array(numpy.real(alpha @ fractional_matrix_power(self.A, t)))
+        n_steps = t/self.dt
+        assert numpy.isclose(round(n_steps), n_steps)
+        n_steps = int(n_steps)
+        return numpy.array(numpy.real(alpha @ jnp.linalg.matrix_power(self.A, n_steps)))
+
 
     def show_bubbles_2d(self, ax, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45, show_names=True, n_obs_thresh=.1):
         n_obs = numpy.array(self.n_obs)
