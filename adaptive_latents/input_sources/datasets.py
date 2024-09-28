@@ -106,12 +106,12 @@ class Odoherty21Dataset(DandiDataset):
     dataset_base_path = DATA_BASE_PATH / "odoherty21"
     automatically_downloadable = True
 
-    def __init__(self, bin_width=0.03, downsample_behavior=False, behavior_lag=0, add_velocity=False):
+    def __init__(self, bin_width=0.03, downsample_behavior=False, neural_lag=0, add_velocity=False):
         self.bin_width = bin_width
         self.downsample_behavior = downsample_behavior
         self.add_velocity = add_velocity
-        self.behavior_lag = behavior_lag
-        assert self.behavior_lag >= 0
+        self.neural_lag = neural_lag
+        assert self.neural_lag >= 0
         self.units, self.finger_pos, finger_kinematics, finger_t, A, bin_ends = self.construct()
         self.neural_data = NumpyTimedDataSource(A, bin_ends)
         self.behavioral_data = NumpyTimedDataSource(finger_kinematics, finger_t)
@@ -146,8 +146,7 @@ class Odoherty21Dataset(DandiDataset):
         else:
             finger_kinematics = finger_pos
 
-
-        finger_t = finger_t + self.behavior_lag
+        bin_ends = bin_ends + self.neural_lag
 
 
         return units, finger_pos, finger_kinematics, finger_t, A, bin_ends
