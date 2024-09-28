@@ -902,7 +902,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
                 test_s = t > (t[0] + t[-1]) / 2
 
                 correlations = [numpy.corrcoef(estimates[test_s, i], targets[test_s, i])[0, 1] for i in range(estimates.shape[1])]
-                corr_str = ' '.join([f'{r:.2f}' for r in correlations] )
+                corr_str = '\n'.join([f'{r:.2f}' for r in correlations] )
                 to_write[2].append((idx, corr_str, {'fontsize': 'x-small'}))
 
                 t_to_plot = t

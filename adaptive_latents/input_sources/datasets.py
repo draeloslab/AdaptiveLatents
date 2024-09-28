@@ -106,12 +106,15 @@ class Odoherty21Dataset(DandiDataset):
     dataset_base_path = DATA_BASE_PATH / "odoherty21"
     automatically_downloadable = True
 
-    def __init__(self, bin_width=0.03, downsample_behavior=False):
+    def __init__(self, bin_width=0.03, downsample_behavior=False, behavior_lag=0, add_velocity=False):
         self.bin_width = bin_width
         self.downsample_behavior = downsample_behavior
-        self.units, self.finger_pos, finger_t, A, bin_ends = self.construct()
+        self.add_velocity = add_velocity
+        self.behavior_lag = behavior_lag
+        assert self.behavior_lag >= 0
+        self.units, self.finger_pos, finger_kinematics, finger_t, A, bin_ends = self.construct()
         self.neural_data = NumpyTimedDataSource(A, bin_ends)
-        self.behavioral_data = NumpyTimedDataSource(self.finger_pos, finger_t)
+        self.behavioral_data = NumpyTimedDataSource(finger_kinematics, finger_t)
 
     def construct(self):
         with self.acquire("sub-Indy/sub-Indy_desc-train_behavior+ecephys.nwb") as fhan:
@@ -130,13 +133,24 @@ class Odoherty21Dataset(DandiDataset):
         for i, (_, row) in enumerate(units.iterrows()):
             A[:, i], _ = np.histogram(row['spike_times'], bins=bins)
 
+
         factor = 4
         if self.downsample_behavior:
             finger_pos = finger_pos[::factor]
             finger_t = finger_t[::factor]
 
+        if self.add_velocity:
+            finger_vel = np.diff(finger_pos, axis=0) / np.diff(finger_t)[:,None]
+            finger_kinematics = np.hstack([finger_pos[1:], finger_vel])
+            finger_t = finger_t[1:]
+        else:
+            finger_kinematics = finger_pos
 
-        return units, finger_pos, finger_t, A, bin_ends
+
+        finger_t = finger_t + self.behavior_lag
+
+
+        return units, finger_pos, finger_kinematics, finger_t, A, bin_ends
 
 
 class Schaffer23Datset(Dataset):
@@ -937,6 +951,39 @@ class Zong22Dataset(Dataset):
         return point_trace
 
 
+class DummyCircleDataset(Dataset):
+    # meant to mock Odoherty21
+    doi = None
+    automatically_downloadable = False
+    model_organism = None
+
+    def __init__(self, Fs=33, total_time=600):
+        self.rng = np.random.default_rng()
+        self.Fs = Fs
+        self.bin_width = 1 / self.Fs
+        self.t = np.linspace(0, total_time, total_time * self.Fs + 1)
+
+        neural_data, behavioral_data = self.construct()
+
+        self.neural_data = NumpyTimedDataSource(neural_data, self.t)
+        self.behavioral_data = NumpyTimedDataSource(behavioral_data, self.t)
+
+    def acquire(self):
+        pass
+
+    def construct(self):
+        self.acquire()
+        # 15 samples is about 2pi end_time
+        # 1 sample is bin_width start_time
+        speed_factor = self.Fs * np.pi * 2 / 15
+        neural_data = np.sin(np.vstack(3 * [self.t]).T * speed_factor)
+        neural_data = neural_data + self.rng.normal(scale=.1, size=neural_data.shape)
+
+        behavioral_data = np.sin(np.vstack(3 * [self.t]).T * speed_factor)
+        behavioral_data = behavioral_data + self.rng.normal(scale=.1, size=behavioral_data.shape)
+        return neural_data, behavioral_data
+
+
 """
 class Low21Dataset(MultiDataset):
     doi = "https://doi.org/10.17632/hntn6m2pgk.1"
@@ -953,3 +1000,5 @@ class Low21Dataset(MultiDataset):
     # def get_sub_datasets(self):
     #     pass
 """
+
+
