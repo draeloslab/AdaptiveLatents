@@ -909,8 +909,8 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
                 if t_in_samples:
                     t_to_plot = t / bw.dt
                 for i in range(estimates.shape[1]):
-                    axs[2,0].plot(t_to_plot, estimates[:, i], color=f'C{i}')
-                    axs[2,0].plot(t_to_plot, targets[:, i], color=f'C{i}', alpha=.5)
+                    axs[2,0].plot(t_to_plot, targets[:, i], color=f'C{i}')
+                    axs[2,0].plot(t_to_plot, estimates[:, i], color=f'C{i}', alpha=.5)
                 # axs[2,0].axvline(t[test_s].min(), color='k')
                 axs[2,0].set_xlabel("time")
                 axs[2,0].set_ylabel("behavior")

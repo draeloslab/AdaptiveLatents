@@ -106,22 +106,28 @@ class Odoherty21Dataset(DandiDataset):
     dataset_base_path = DATA_BASE_PATH / "odoherty21"
     automatically_downloadable = True
 
-    def __init__(self, bin_width=0.03, downsample_behavior=False, neural_lag=0, add_velocity=False):
+    def __init__(self, bin_width=0.03, downsample_behavior=False, neural_lag=0):
         self.bin_width = bin_width
         self.downsample_behavior = downsample_behavior
-        self.add_velocity = add_velocity
         self.neural_lag = neural_lag
         assert self.neural_lag >= 0
-        self.units, self.finger_pos, finger_kinematics, finger_t, A, bin_ends = self.construct()
+
+        self.units, self.finger_pos, self.finger_vel, self.finger_t, A, bin_ends = self.construct()
         self.neural_data = NumpyTimedDataSource(A, bin_ends)
-        self.behavioral_data = NumpyTimedDataSource(finger_kinematics, finger_t)
+        self.behavioral_data = NumpyTimedDataSource(self.finger_pos, self.finger_t)
+
+        self.beh_pos = NumpyTimedDataSource(self.finger_pos, self.finger_t)
+        self.beh_vel = NumpyTimedDataSource(self.finger_vel, self.finger_t)
+        self.beh_pos_vel = NumpyTimedDataSource(np.hstack([self.finger_pos, self.finger_vel]), self.finger_t)
 
     def construct(self):
         with self.acquire("sub-Indy/sub-Indy_desc-train_behavior+ecephys.nwb") as fhan:
             ds = fhan.read()
             units = ds.units.to_dataframe()
             finger_pos = ds.processing['behavior'].data_interfaces['finger_pos'].data[:]
-            finger_t = np.arange(finger_pos.shape[0]) * ds.processing['behavior'].data_interfaces['finger_pos'].conversion
+            finger_pos_t = np.arange(finger_pos.shape[0]) * ds.processing['behavior'].data_interfaces['finger_pos'].conversion
+            finger_vel = ds.processing['behavior'].data_interfaces['finger_pos'].data[:]
+            finger_vel_t = np.arange(finger_pos.shape[0]) * ds.processing['behavior'].data_interfaces['finger_vel'].conversion
 
         start_time = units.iloc[0, 2].min()
         end_time = units.iloc[0, 2].max()
@@ -137,19 +143,16 @@ class Odoherty21Dataset(DandiDataset):
         factor = 4
         if self.downsample_behavior:
             finger_pos = finger_pos[::factor]
-            finger_t = finger_t[::factor]
-
-        if self.add_velocity:
-            finger_vel = np.diff(finger_pos, axis=0) / np.diff(finger_t)[:,None]
-            finger_kinematics = np.hstack([finger_pos[1:], finger_vel])
-            finger_t = finger_t[1:]
-        else:
-            finger_kinematics = finger_pos
+            finger_pos_t = finger_pos_t[::factor]
+            finger_vel = finger_vel[::factor]
+            finger_vel_t = finger_vel_t[::factor]
 
         bin_ends = bin_ends + self.neural_lag
+        assert (finger_pos_t == finger_vel_t).all()
+        finger_t = finger_pos_t
 
 
-        return units, finger_pos, finger_kinematics, finger_t, A, bin_ends
+        return units, finger_pos, finger_vel, finger_t, A, bin_ends
 
 
 class Schaffer23Datset(Dataset):
