@@ -106,9 +106,10 @@ class Odoherty21Dataset(DandiDataset):
     dataset_base_path = DATA_BASE_PATH / "odoherty21"
     automatically_downloadable = True
 
-    def __init__(self, bin_width=0.03, downsample_behavior=False, neural_lag=0):
+    def __init__(self, bin_width=0.03, downsample_behavior=True, neural_lag=0, drop_third_coord=False):
         self.bin_width = bin_width
         self.downsample_behavior = downsample_behavior
+        self.drop_third_coord = drop_third_coord
         self.neural_lag = neural_lag
         assert self.neural_lag >= 0
 
@@ -150,6 +151,10 @@ class Odoherty21Dataset(DandiDataset):
         bin_ends = bin_ends + self.neural_lag
         assert (finger_pos_t == finger_vel_t).all()
         finger_t = finger_pos_t
+
+        if self.drop_third_coord:
+            finger_pos = finger_pos[:,:2]
+            finger_vel = finger_vel[:,:2]
 
 
         return units, finger_pos, finger_vel, finger_t, A, bin_ends

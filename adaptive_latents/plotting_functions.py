@@ -98,7 +98,15 @@ class PredictionVideo:
 
         self.am = AnimationManager(fig=self.fig, fps=fps, dpi=self.fig.dpi, filetype=filetype)
 
-    def plot_for_video_t(self, current_t, latents, latent_ts, latent_predictions, beh_predictions, prediction_ts):
+    def plot_for_video_t(self, current_t, latents, latent_ts, latent_predictions, beh_predictions, prediction_ts, streams):
+        # TODO: this is pretty inflexible, remove refrences to `d.` with assumptions
+        neural_ds, s = streams[0]
+        assert s == 0
+        beh_input, s = streams[1]
+        assert s == 1
+        beh_to_predict, s = streams[2]
+        assert s == 3
+
         latents = np.squeeze(latents)
         latent_ts = np.squeeze(latent_ts)
 
@@ -112,18 +120,20 @@ class PredictionVideo:
 
         ax = self.neural_data_ax
         ax.cla()
-        n_columns = np.floor(self.tail_length / self.d.bin_width).astype(int)
-        idx = np.nonzero(~(self.d.neural_data.t < current_t))[0][0]
-        ax.imshow(self.d.neural_data.a[idx - n_columns:idx, 0, :].T, aspect='auto', interpolation='none',
-                  extent=[current_t - self.tail_length, current_t, self.d.neural_data.a.shape[2], 0])
+        bin_width = np.median(np.diff(neural_ds.t))
+        assert np.isclose(bin_width, self.d.bin_width)
+        n_columns = np.floor(self.tail_length / bin_width).astype(int)
+        idx = np.nonzero(~(neural_ds.t < current_t))[0][0]
+        ax.imshow(neural_ds.a[idx - n_columns:idx, 0, :].T, aspect='auto', interpolation='none',
+                  extent=[current_t - self.tail_length, current_t, neural_ds.a.shape[2], 0])
 
         ax = self.beh_data_ax
         ax.cla()
-        beh_dt = np.median(np.diff(self.d.behavioral_data.t))
+        beh_dt = np.median(np.diff(beh_input.t))
         n_columns = np.floor(self.tail_length / beh_dt).astype(int)
-        idx = np.nonzero(~(self.d.behavioral_data.t < current_t))[0][0]
-        ax.imshow(self.d.behavioral_data.a[idx - n_columns:idx, 0, :].T, aspect='auto', interpolation='none',
-                  extent=[current_t - self.tail_length, current_t, self.d.neural_data.a.shape[2], 0])
+        idx = np.nonzero(~(beh_input.t < current_t))[0][0]
+        ax.imshow(beh_input.a[idx - n_columns:idx, 0, :].T, aspect='auto', interpolation='none',
+                  extent=[current_t - self.tail_length, current_t, beh_input.a.shape[2], 0])
 
         ax = self.joint_latent_ax
         old_lims = ax.axis()
@@ -138,24 +148,24 @@ class PredictionVideo:
         ax = self.prediction_ax
         old_lims = ax.axis()
         ax.cla()
-        beh_dt = np.median(np.diff(self.d.behavioral_data.t))
+        beh_dt = np.median(np.diff(beh_to_predict.t))
         n_columns = np.floor(self.tail_length / beh_dt).astype(int)
-        idx = np.nonzero(~(self.d.behavioral_data.t < current_t))[0][0]
+        idx = np.nonzero(~(beh_to_predict.t < current_t))[0][0]
         s = slice(idx - n_columns, idx)
-        beh = self.d.behavioral_data.a[s, 0, :]
-        beh_t = self.d.behavioral_data.t[s]
+        beh = beh_to_predict.a[s, 0, :]
+        beh_t = beh_to_predict.t[s]
         ax.plot(beh_t, beh)
         use_bigger_lims(ax, old_lims=old_lims, x=False)
 
-        for i in range(3):
-            ax.plot([self.d.behavioral_data.t[idx], prediction_ts[-1]],
-                    [self.d.behavioral_data.a[idx, 0, i], beh_predictions[-1,i]], '--', color=f'C{i}', alpha=.5)
+        for i in range(beh_to_predict.a.shape[2]):
+            ax.plot([beh_to_predict.t[idx], prediction_ts[-1]],
+                    [beh_to_predict.a[idx, 0, i], beh_predictions[-1,i]], '--', color=f'C{i}', alpha=.5)
 
         beh_dt = np.median(np.diff(prediction_ts))
         n_columns = np.floor(self.tail_length / beh_dt).astype(int)
         idx = np.nonzero(prediction_ts > current_t)[0][0]
         s = slice(idx - n_columns, idx)
-        for i in range(3):
+        for i in range(beh_to_predict.a.shape[2]):
             ax.plot(prediction_ts[s], beh_predictions[s,i], color=f'C{i}', alpha=.25)
 
             for ax in self.fig.get_axes():
