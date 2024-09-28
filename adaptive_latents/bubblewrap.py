@@ -832,7 +832,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         return a * b / numpy.sqrt((numpy.cos(theta) * b)**2 + (numpy.sin(theta) * a)**2)
 
     @staticmethod
-    def compare_runs(bws, behaviors=None, t_in_samples=False):
+    def compare_runs(bws, behavior_dict=None, t_in_samples=False):
         import matplotlib.pyplot as plt
         def _one_sided_ewma(data, com=100):
             import pandas as pd
@@ -847,8 +847,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         for bw in bws:
             assert bw.log_level > 0
 
-        has_behavior = behaviors is not None
-        assert not has_behavior # this should be implemented later
+        has_behavior = behavior_dict is not None
 
 
         fig, axs = plt.subplots(figsize=(14, 5), nrows=2 + has_behavior, ncols=2, sharex='col', layout='tight',
@@ -890,16 +889,31 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
 
             # plot behavior
             if has_behavior:
-                t = numpy.array(behaviors[idx]['t'])
+                from adaptive_latents.utils import resample_matched_timeseries
+
+                t = behavior_dict[idx]['predicted_behavior_t']
+                targets = resample_matched_timeseries(
+                    behavior_dict[idx]['true_behavior'],
+                    behavior_dict[idx]['true_behavior_t'],
+                    t
+                )
+                estimates = behavior_dict[idx]['predicted_behavior']
+
+                test_s = t > (t[0] + t[-1]) / 2
+
+                correlations = [numpy.corrcoef(estimates[test_s, i], targets[test_s, i])[0, 1] for i in range(estimates.shape[1])]
+                corr_str = ' '.join([f'{r:.2f}' for r in correlations] )
+                to_write[2].append((idx, corr_str, {'fontsize': 'x-small'}))
+
                 t_to_plot = t
                 if t_in_samples:
                     t_to_plot = t / bw.dt
-                to_plot = numpy.array(behaviors[idx]['behavior'])
-                axs[2,0].plot(t_to_plot, to_plot, color=color)
-
-                last_half_mean = to_plot[(halfway_time < t) & (t < common_time_end)].mean()
-                to_write[2].append((idx, f'{last_half_mean:.2f}', {'color': color}))
-                axs[0, 2].set_ylabel('behavior')
+                for i in range(estimates.shape[1]):
+                    axs[2,0].plot(t_to_plot, estimates[:, i], color=f'C{i}')
+                    axs[2,0].plot(t_to_plot, targets[:, i], color=f'C{i}', alpha=.5)
+                # axs[2,0].axvline(t[test_s].min(), color='k')
+                axs[2,0].set_xlabel("time")
+                axs[2,0].set_ylabel("behavior")
 
 
         # this sets the axis bounds for the text
@@ -914,7 +928,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         # this prints the last-half means
         for i, l in enumerate(to_write):
             for idx, text, kw in l:
-                x, y = .93, .93 - .1 * idx
+                x, y = .92, .93 - .1 * idx
                 x, y = axs[i, 0].transLimits.inverted().transform([x, y])
                 axs[i, 0].text(x, y, text, clip_on=True, verticalalignment='top', **kw)
 
