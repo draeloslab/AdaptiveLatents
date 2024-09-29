@@ -20,6 +20,11 @@ class DataSource(ABC):
     def current_sample_time(self) -> float:
         pass
 
+    @property
+    @abstractmethod
+    def dt(self) -> float:
+        pass
+
 
 class GeneratorDataSource(DataSource):
     def __init__(self, source, dt=1):
@@ -106,6 +111,13 @@ class NumpyTimedDataSource(DataSource):
         t0 = self.t.min()
         total_time = self.t.max() - self.t.min()
         return self.time_slice(t0 + start * total_time, t0 + stop * total_time)
+
+    @property
+    def dt(self):
+        dts = np.diff(self.t)
+        dt = np.median(dts)
+        assert np.ptp(dts)/dt < 0.001
+        return dt
 
 
     @staticmethod

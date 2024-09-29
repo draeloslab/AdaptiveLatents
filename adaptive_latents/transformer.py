@@ -379,6 +379,39 @@ class CenteringTransformer(TypicalTransformer):
     def instance_get_params(self, deep=True):
         return {'init_size': self.init_size}
 
+class ZScoringTransformer(TypicalTransformer):
+    # see https://math.stackexchange.com/a/1769248/701602
+    def __init__(self, init_size=100, freeze_after_init=True, **kwargs):
+        super().__init__(**kwargs)
+        self.init_size = init_size
+        self.freeze_after_init = freeze_after_init
+        self.mean = 0
+        self.m2 = 1e-8
+        self.samples_seen = 0
+
+    def pre_initialization_fit_for_X(self, X):
+        self.partial_fit_for_X(X)
+        if self.samples_seen >= self.init_size:
+            self.is_initialized = True
+            if self.freeze_after_init:
+                self.freeze(True)
+
+    def partial_fit_for_X(self, X):
+        for x in X:
+            delta = x - self.mean
+            self.mean += delta / (self.samples_seen + 1)
+            self.m2 += delta * (x - self.mean)
+            self.samples_seen += 1
+
+    def transform_for_X(self, X):
+        return (X - self.mean) / self.get_std()
+
+    def get_std(self):
+        return np.sqrt(self.m2 / (self.samples_seen - 1))
+
+    def instance_get_params(self, deep=True):
+        return dict(init_size=self.init_size, freeze_after_init=self.freeze_after_init)
+
 
 class KernelSmoother(TypicalTransformer):
     # TODO: make time aware
