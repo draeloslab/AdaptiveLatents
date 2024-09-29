@@ -1,6 +1,6 @@
 import numpy as np
 import adaptive_latents as al
-from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother, proPLS, Bubblewrap, RandomProjection, VanillaOnlineRegressor
+from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother, proPLS, Bubblewrap, RandomProjection, VanillaOnlineRegressor, ZScoringTransformer
 from adaptive_latents.transformer import DecoupledTransformer, StreamingTransformer
 from adaptive_latents.jpca import generate_circle_embedded_in_high_d
 from adaptive_latents.utils import column_space_distance
@@ -20,6 +20,7 @@ streaming_only_transformers = [
 
 decoupled_transformers = [
     CenteringTransformer,
+    ZScoringTransformer,
     lambda: proSVD(k=DIM, whiten=True),
     lambda: proPLS(k=DIM),
     sjPCA,
@@ -356,7 +357,6 @@ class TestProPLS:
 
         pls.get_distance_from_subspace_over_time(x_common_basis)
 
-
 class TestBubblewrap:
     def test_plots(self, rng):
         bw = Bubblewrap(num=10, M=10, log_level=1)
@@ -377,6 +377,16 @@ class TestBubblewrap:
         bw.show_A(axs[(i:=i+1)])
         bw.show_nstep_pdf(ax=axs[(i:=i+1)], other_axis=axs[0], fig=fig, density=2)
         Bubblewrap.compare_runs([bw])
+
+class TestZScoringTransformer:
+    def test_consistent(self, rng):
+        X = rng.normal(size=(1000, 5)) * np.arange(5)
+        z = ZScoringTransformer(freeze_after_init=False)
+        z.offline_run_on(X)
+        assert np.allclose(z.get_std(), np.std(X, axis=0), atol=0.01)
+
+    # def test_unbiased(self, rng):
+    #     pass
 
 
 def test_miscellaneous_plots():

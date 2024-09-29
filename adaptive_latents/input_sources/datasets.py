@@ -106,7 +106,7 @@ class Odoherty21Dataset(DandiDataset):
     dataset_base_path = DATA_BASE_PATH / "odoherty21"
     automatically_downloadable = True
 
-    def __init__(self, bin_width=0.03, downsample_behavior=True, neural_lag=0, drop_third_coord=False):
+    def __init__(self, bin_width=0.03, downsample_behavior=True, neural_lag=0, drop_third_coord=True):
         self.bin_width = bin_width
         self.downsample_behavior = downsample_behavior
         self.drop_third_coord = drop_third_coord
