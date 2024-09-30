@@ -614,8 +614,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         return params | super().get_params()
 
     def log_for_partial_fit(self, data, stream):
-
-        if self.log_level > 0 and self.is_initialized and self.input_streams[stream] == 'X':
+        if self.log_level > 0 and self.is_initialized and self.input_streams[stream] == 'X' and not numpy.isnan(data).any():
             if 'alpha' not in self.log:
                 for key in ['alpha', 'entropy', 't', 'log_pred_p', 'log_pred_p_origin_t']:
                     self.log[key] = []
