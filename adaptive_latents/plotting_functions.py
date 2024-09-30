@@ -153,7 +153,7 @@ def plot_bw_pipeline(bws, behavior_dict_list=None, t_in_samples=False):
 
         correlations = [np.corrcoef(estimates[test_s, i], targets[test_s, i])[0, 1] for i in range(estimates.shape[1])]
         corr_str = '\n'.join([f'{r:.2f}' for r in correlations] )
-        to_write[ax_n].append((idx, corr_str, {'fontsize': 'x-small'}))
+        to_write[ax_n].append((idx, corr_str, {'fontsize': 'large'}))
 
         t_to_plot = t
         if t_in_samples:

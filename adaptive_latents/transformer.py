@@ -483,13 +483,14 @@ class KernelSmoother(TypicalTransformer):
 
 
 class Concatenator(StreamingTransformer):
-    def __init__(self, input_streams=None, output_streams=None, **kwargs):
+    def __init__(self, input_streams=None, output_streams=None, zero_sreams=(), **kwargs):
         input_streams = input_streams or PassThroughDict({0:0, 1:1})
 
         output_stream = max(input_streams.keys()) + 1
         output_streams = output_streams or PassThroughDict({k: output_stream for k in input_streams.keys()} | {'skip': -1})
         super().__init__(input_streams=input_streams, output_streams=output_streams, **kwargs)
         self.last_seen = {}
+        self.zero_streams = zero_sreams
 
     def _partial_fit_transform(self, data, stream, return_output_stream):
         if stream in self.input_streams:
@@ -498,7 +499,7 @@ class Concatenator(StreamingTransformer):
             if len(self.last_seen) == len(self.input_streams):
                 data = [(k, v) for k, v in self.last_seen.items()]
                 data.sort()
-                data = np.hstack([v for k, v in data])
+                data = np.hstack([v if k not in self.zero_streams else v * 0 for k, v in data])
                 if all([isinstance(x, ArrayWithTime) for x in self.last_seen.values()]):
                     t = max((x.t for x in self.last_seen.values()))
                     data = ArrayWithTime(input_array=data, t=t)
