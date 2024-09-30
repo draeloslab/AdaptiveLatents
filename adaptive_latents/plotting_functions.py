@@ -1,11 +1,10 @@
 import datetime
 import pathlib
-import matplotlib.pylab as plt
 from matplotlib import pyplot as plt
 from matplotlib.animation import FFMpegWriter, PillowWriter
 import matplotlib.gridspec as gridspec
 import itertools
-from adaptive_latents import CONFIG
+import adaptive_latents
 import numpy as np
 from typing import TYPE_CHECKING
 import warnings
@@ -80,6 +79,128 @@ def plot_history_with_tail(ax, data, tail_length=10, dim_1=0, dim_2=1,):
     ax.scatter(data[-1, dim_1], data[-1, dim_2], s=s * 1.5, color='white')
     ax.plot(data[-tail_length:, dim_1], data[-tail_length:, dim_2], color='C0', linewidth=linewidth)
     ax.scatter(data[-1,dim_1], data[-1,dim_2], s=s, zorder=3)
+
+
+def plot_bw_pipeline(bws, behavior_dict_list=None, t_in_samples=False):
+    import matplotlib.pyplot as plt
+    def _one_sided_ewma(data, com=100):
+        import pandas as pd
+        return pd.DataFrame(data=dict(data=data)).ewm(com).mean()["data"]
+
+    def plot_with_trendline(ax, times, data, color, com=100):
+        ax.plot(times, data, alpha=.25, color=color)
+        smoothed_data = _one_sided_ewma(data, com, )
+        ax.plot(times, smoothed_data, color=color)
+
+    bws: [adaptive_latents.Bubblewrap]
+    assert len(bws) == 1
+    for bw in bws:
+        assert bw.log_level > 0
+
+
+    fig, axs = plt.subplots(figsize=(14, 5 + 2 * len(behavior_dict_list)), nrows=2 + len(behavior_dict_list), ncols=2, sharex='col', layout='tight',
+                            gridspec_kw={'width_ratios': [7, 1]})
+
+    common_time_start = max([min(bw.log['t']) for bw in bws])
+    common_time_end = min([max(bw.log['t']) for bw in bws])
+    halfway_time = (common_time_start + common_time_end) / 2
+
+    to_write = [[] for _ in range(axs.shape[0])]
+    colors = ['C0'] + ['k'] * (len(bws) - 1)
+
+    for idx, bw in enumerate(bws): # only happens once
+        color = colors[idx]
+
+        # plot prediction
+        t = np.array(bw.log['log_pred_p_origin_t'])
+        t_to_plot = t
+        if t_in_samples:
+            t_to_plot = t / bw.dt
+        to_plot = np.array(bw.log['log_pred_p'])
+        plot_with_trendline(axs[0, 0], t_to_plot, to_plot, color)
+        last_half_mean = to_plot[(halfway_time < t) & (t < common_time_end)].mean()
+        to_write[0].append((idx, f'{last_half_mean:.2f}', {'color': color}))
+        axs[0, 0].set_ylabel('log pred. p')
+
+        # plot entropy
+        t = np.array(bw.log['t'])
+        t_to_plot = t
+        if t_in_samples:
+            t_to_plot = t / bw.dt
+        to_plot = np.array(bw.log['entropy'])
+        plot_with_trendline(axs[1, 0], t_to_plot, to_plot, color)
+        last_half_mean = to_plot[(halfway_time < t) & (t < common_time_end)].mean()
+        to_write[1].append((idx, f'{last_half_mean:.2f}', {'color': color}))
+        axs[1, 0].set_ylabel('entropy')
+
+        max_entropy = np.log2(bw.N)
+        axs[1, 0].axhline(max_entropy, color='k', linestyle='--')
+
+    # plot behavior
+    for idx, behavior_dict in enumerate(behavior_dict_list):
+        from adaptive_latents.utils import resample_matched_timeseries
+        ax_n = 2 + idx
+
+        t = behavior_dict['predicted_behavior_t']
+        targets = resample_matched_timeseries(
+            behavior_dict['true_behavior'],
+            behavior_dict['true_behavior_t'],
+            t
+        )
+        estimates = behavior_dict['predicted_behavior']
+
+        test_s = t > (t[0] + t[-1]) / 2
+
+        correlations = [np.corrcoef(estimates[test_s, i], targets[test_s, i])[0, 1] for i in range(estimates.shape[1])]
+        corr_str = '\n'.join([f'{r:.2f}' for r in correlations] )
+        to_write[ax_n].append((idx, corr_str, {'fontsize': 'x-small'}))
+
+        t_to_plot = t
+        if t_in_samples:
+            t_to_plot = t / np.median(np.diff(t))
+        for i in range(estimates.shape[1]):
+            axs[ax_n,0].plot(t_to_plot, targets[:, i], color=f'C{i}')
+            axs[ax_n,0].plot(t_to_plot, estimates[:, i], color=f'C{i}', alpha=.5)
+        axs[ax_n,0].set_xlabel("time")
+        axs[ax_n,0].set_ylabel(behavior_dict['label'])
+
+
+    # this sets the axis bounds for the text
+    for axis in axs[:, 0]:
+        data_lim = np.array(axis.dataLim).T.flatten()
+        bounds = data_lim
+        bounds[:2] = (bounds[:2] - bounds[:2].mean()) * np.array([1.02, 1.2]) + bounds[:2].mean()
+        bounds[2:] = (bounds[2:] - bounds[2:].mean()) * np.array([1.05, 1.05]) + bounds[2:].mean()
+        axis.axis(bounds)
+        axis.format_coord = lambda x, y: 'x={:g}, y={:g}'.format(x, y)
+
+    # this prints the last-half means
+    for i, l in enumerate(to_write):
+        for idx, text, kw in l:
+            x, y = .92, .93 - .1 * idx
+            x, y = axs[i, 0].transLimits.inverted().transform([x, y])
+            axs[i, 0].text(x, y, text, clip_on=True, verticalalignment='top', **kw)
+
+    # this creates the axis for the parameters
+    gs = axs[0, 1].get_gridspec()
+    for a in axs[:, 1]:
+        a.remove()
+    axbig = fig.add_subplot(gs[:, 1])
+    axbig.axis("off")
+
+    # this generates and prints the parameters
+    params_per_bw_list = [bw.get_params() for bw in bws]
+    super_param_dict = {}
+    for key in params_per_bw_list[0].keys():
+        values = [p[key] for p in params_per_bw_list]
+        if len(set(values)) == 1:
+            values = values[0]
+            if key in {'input_streams', 'output_streams', 'log_level'}:
+                continue
+        super_param_dict[key] = values
+    to_write = "\n".join(f"{k}: {v}" for k, v in super_param_dict.items())
+    axbig.text(0, 1, to_write, transform=axbig.transAxes, verticalalignment="top")
+
 
 
 class PredictionVideo:

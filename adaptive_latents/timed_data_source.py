@@ -152,3 +152,9 @@ class ArrayWithTime(np.ndarray):
     #         self._new_t_index = item[0]
     #
     #     return super().__getitem__(item)
+
+    @classmethod
+    def from_list(cls, input_list):
+        # TODO: check the shapes?
+        t = np.array([x.t for x in input_list])
+        return cls(input_array=np.squeeze(input_list), t=t)

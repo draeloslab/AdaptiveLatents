@@ -74,13 +74,15 @@ class BaseMMICA:
 class mmICA(TypicalTransformer, BaseMMICA):
     base_algorithm = BaseMMICA
 
-    def __init__(self, **kwargs):
+    def __init__(self, init_size=0, **kwargs):
         super().__init__(**kwargs)
         self.processing_queue = []
+        self.init_size = init_size
         self.log = {'W': [], 't': []}
 
     def instance_get_params(self, deep=True):
         return dict(
+            init_size=self.init_size,
             density_name=self.density_name,
             maxiter_cg=self.maxiter_cg,
             greedy=self.greedy,
@@ -90,9 +92,13 @@ class mmICA(TypicalTransformer, BaseMMICA):
         )
 
     def pre_initialization_fit_for_X(self, X):
-        self.set_p(X.shape[1])
-        self.is_initialized = True
-        self.partial_fit_for_X(X)
+        if self.p is None:
+            self.set_p(X.shape[1])
+        else:
+            self.partial_fit_for_X(X)
+
+            if self.columns_seen > self.init_size:
+                self.is_initialized = True
 
     def partial_fit_for_X(self, X):
         self.processing_queue.extend(X)
