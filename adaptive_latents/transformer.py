@@ -208,13 +208,17 @@ class DecoupledTransformer(StreamingTransformer):
 
 
 class Pipeline(DecoupledTransformer):
-    def __init__(self, steps=(), input_streams=None, **kwargs):
+    # TODO: reroute_inputs should be False
+    def __init__(self, steps=(), input_streams=None, reroute_inputs=True, **kwargs):
         self.steps: list[DecoupledTransformer] = steps
 
         expected_streams = set(k for step in self.steps for k in step.input_streams.keys())
         self.expected_streams = sorted(expected_streams, key=lambda x: str(x))
         if input_streams is None:
-            input_streams = dict(zip(range(len(self.expected_streams)), self.expected_streams))
+            if reroute_inputs:
+                input_streams = dict(zip(range(len(self.expected_streams)), self.expected_streams))
+            else:
+                input_streams = PassThroughDict({})
 
         super().__init__(input_streams, **kwargs)
 
