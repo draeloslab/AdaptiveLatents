@@ -106,11 +106,13 @@ class Odoherty21Dataset(DandiDataset):
     dataset_base_path = DATA_BASE_PATH / "odoherty21"
     automatically_downloadable = True
 
-    def __init__(self, bin_width=0.03, downsample_behavior=True, neural_lag=0, drop_third_coord=True):
+    def __init__(self, bin_width=0.03, downsample_behavior=True, neural_lag=0, drop_third_coord=True, pos_rescale_factor=1, vel_rescale_factor=1):
         self.bin_width = bin_width
         self.downsample_behavior = downsample_behavior
         self.drop_third_coord = drop_third_coord
         self.neural_lag = neural_lag
+        self.pos_rescale_factor = pos_rescale_factor
+        self.vel_rescale_factor = vel_rescale_factor
         assert self.neural_lag >= 0
 
         self.units, self.finger_pos, self.finger_vel, self.finger_t, A, bin_ends = self.construct()
@@ -156,8 +158,23 @@ class Odoherty21Dataset(DandiDataset):
             finger_pos = finger_pos[:,:2]
             finger_vel = finger_vel[:,:2]
 
+        finger_pos = finger_pos * self.pos_rescale_factor
+        finger_vel = finger_vel * self.vel_rescale_factor
+
 
         return units, finger_pos, finger_vel, finger_t, A, bin_ends
+
+    def plot_variances(self, ax):
+        ax.hist(np.squeeze(self.neural_data.a).std(axis=0), bins=50, label='neural')
+        for x in np.nanstd(np.squeeze(self.beh_pos.a), axis=0):
+            ax.axvline(x, color='C1', label='pos')
+
+        for x in np.nanstd(np.squeeze(self.beh_vel.a), axis=0):
+            ax.axvline(x, color='C2', label='vel')
+
+        ax.legend()
+        ax.set_xlabel('variance')
+        ax.set_ylabel('count')
 
 
 class Schaffer23Datset(Dataset):
