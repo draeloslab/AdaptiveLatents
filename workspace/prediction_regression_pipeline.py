@@ -32,17 +32,27 @@ class PipelineRun:
             concat_zero_streams=(),
             latents_for_bw='jpca',
             pre_bw_latent_dims_to_drop=0,
+            pos_rescale_factor=1,
+            vel_rescale_factor=1,
+            alpha_pred_method='normal',
+            bw_step=1,
+            n_bubbles=1100,
+            shortrun=None,
     ):
         """
         Parameters
         ----------
         latents_for_bw: {'prosvd', 'jpca', 'mmica'}
-        ...
+        pos_rescale_factor
+            1/30
+        vel_rescale_factor
+            1/75
         """
 
-        shortrun = socket.gethostname() == 'tycho' and True
+        if shortrun is None:
+            shortrun = socket.gethostname() == 'tycho' and True
 
-        d = datasets.Odoherty21Dataset(neural_lag=neural_lag, pos_rescale_factor=1 / 30 * 2, vel_rescale_factor=1 / 75 * 2)
+        d = datasets.Odoherty21Dataset(neural_lag=neural_lag, pos_rescale_factor=pos_rescale_factor, vel_rescale_factor=vel_rescale_factor)
 
         streams = []
         streams.append((d.neural_data, 0))
@@ -55,24 +65,24 @@ class PipelineRun:
         # this pipeline makes the latent space
         p1 = Pipeline([
             neural_centerer := CenteringTransformer(init_size=100, input_streams={0: 'X'}, output_streams={0: 0}),
-            CenteringTransformer(init_size=100, input_streams={1: 'X'}, output_streams={1: 1}),
+            # CenteringTransformer(init_size=100, input_streams={1: 'X'}, output_streams={1: 1}),
             nerual_smoother := KernelSmoother(tau=neural_smoothing_tau / d.bin_width, input_streams={0: 'X'}, output_streams={0: 0}),
             Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 2, 1: 2, 'skip': -1}, zero_sreams=concat_zero_streams),
         ])
 
-        pro = proSVD(k=6, init_size=100, input_streams={2: 'X'}, output_streams={2: 2})
+        pro = proSVD(k=6 + pre_bw_latent_dims_to_drop, init_size=100, input_streams={2: 'X'}, output_streams={2: 2})
         jpca = sjPCA(init_size=100, input_streams={2: 'X'}, output_streams={2: 2})
         ica = mmICA(init_size=100, input_streams={2: 'X'}, output_streams={2: 2})
 
 
         # this pipeline handles the prediction and regression
         bw = Bubblewrap(
-            num=1100,
+            num=n_bubbles,
             M=500,
             lam=1e-3,
             nu=1e-3,
             eps=1e-4,
-            step=1,
+            step=bw_step,
             num_grad_q=1,
             sigma_orig_adjustment=100,  # 0
             input_streams={2: 'X'},
@@ -84,16 +94,13 @@ class PipelineRun:
             input_streams={2: 'X', 3: 'Y'},
         )
 
-        neural_only_reg_pipeline = Pipeline([
-            CenteringTransformer(
-                **(neural_centerer.get_params() | dict(input_streams={4: 'X'}, output_streams={4: 4}))),
-            KernelSmoother(**(nerual_smoother.get_params() | dict(input_streams={4: 'X'}, output_streams={4: 4}))),
-            proSVD(k=4, init_size=100, input_streams={4: 'X'}, output_streams={4: 4}),
-            alpha_to_neural_reg := VanillaOnlineRegressor(
-                input_streams={2: 'X', 4: 'Y'},
-            )
-
-        ],
+        neural_only_reg_pipeline = Pipeline(
+        [
+                CenteringTransformer(**(neural_centerer.get_params() | dict(input_streams={4: 'X'}, output_streams={4: 4}))),
+                KernelSmoother(**(nerual_smoother.get_params() | dict(input_streams={4: 'X'}, output_streams={4: 4}))),
+                proSVD(k=4, init_size=100, input_streams={4: 'X'}, output_streams={4: 4}),
+                alpha_to_neural_reg := VanillaOnlineRegressor(input_streams={2: 'X', 4: 'Y'})
+            ],
             reroute_inputs=False
         )
 
@@ -101,7 +108,7 @@ class PipelineRun:
             input_streams={2: 'X', 5: 'Y'},
         )
 
-        exit_time = 40 if shortrun else 300
+        exit_time = 40 if shortrun else 600
 
         pbar = tqdm(total=exit_time)
         pro_latents = []
@@ -165,13 +172,19 @@ class PipelineRun:
             if stream == 2 and np.isfinite(output).all():  # do predictions
                 prediction_t = output.t + bw.dt
 
-                # alpha_pred = bw.get_alpha_at_t(0, relative_t=True)
+                if alpha_pred_method == 'normal':
+                    alpha_pred = bw.get_alpha_at_t(prediction_t)
 
-                alpha_pred = bw.get_alpha_at_t(prediction_t)
+                elif alpha_pred_method == 'current_alpha':
+                    alpha_pred = bw.get_alpha_at_t(0, relative_t=True)
 
-                # alpha_pred[np.argmax(bw.alpha)] = 0
-                # alpha_pred[alpha_pred < alpha_pred.max()] = 0
-                # alpha_pred = alpha_pred / alpha_pred.sum()
+                elif alpha_pred_method == 'force_one_bubble':
+                    alpha_pred = bw.get_alpha_at_t(prediction_t)
+                    alpha_pred[np.argmax(bw.alpha)] = 0
+                    alpha_pred[alpha_pred < alpha_pred.max()] = 0
+                    alpha_pred = alpha_pred / alpha_pred.sum()
+
+
 
                 next_bubble_predictions.append(ArrayWithTime(bw.mu[np.argmax(alpha_pred)], t=prediction_t))
 
@@ -184,7 +197,8 @@ class PipelineRun:
 
             pbar.update(round(output.t, 1) - pbar.n)
 
-        # next_bubble_predictions = ArrayWithTime.from_list(next_bubble_predictions)
+        # these were only used in making videos
+        next_bubble_predictions = ArrayWithTime.from_list(next_bubble_predictions)
 
         self.pro = pro
         self.ica = ica
