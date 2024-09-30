@@ -35,7 +35,11 @@ class GeneratorDataSource(DataSource):
         self.generator = enumerate(generator)
         self.next_sample = next(self.generator)
         self._current_time = None
-        self.dt = dt
+        self._dt = dt
+
+    @property
+    def dt(self):
+        return self._dt
 
     def __iter__(self):
         return self
