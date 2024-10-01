@@ -18,6 +18,7 @@ from adaptive_latents.timed_data_source import ArrayWithTime
 from adaptive_latents.utils import resample_matched_timeseries
 from adaptive_latents import datasets
 import numpy as np
+import timeit
 import matplotlib.pyplot as plt
 from IPython.display import Video, Image, display
 import socket
@@ -35,18 +36,25 @@ class PipelineRun:
             pos_rescale_factor=1,
             vel_rescale_factor=1,
             alpha_pred_method='normal',
-            bw_step=1,
+            bw_step=10**-1.5,
             n_bubbles=1100,
             shortrun=None,
     ):
         """
         Parameters
         ----------
+        neural_lag
+            optimized to 0, 1.7 is also interesting
+        neural_smoothing_tau
+            optimized to 0.12, should try again with behavior small
+        pos_rescale_factor, vel_rescale_factor
+            optimized to 1, but performance could increase with higer values
+            1/30, 1/75 is also a local minimum
+        bw_step
+            optimized to 10**-1.5, but it's pretty flat, we could go bigger maybe
+
+
         latents_for_bw: {'prosvd', 'jpca', 'mmica'}
-        pos_rescale_factor
-            1/30
-        vel_rescale_factor
-            1/75
         """
 
         if shortrun is None:
@@ -124,6 +132,7 @@ class PipelineRun:
         neural_target = []
         joint_target = []
 
+        start_time = timeit.default_timer()
         for output, stream in p1.streaming_run_on(streams, return_output_stream=True):
             # prosvd step
             pro_output, pro_stream = pro.partial_fit_transform(output, stream, return_output_stream=True)
@@ -193,12 +202,15 @@ class PipelineRun:
                 joint_predictions.append(ArrayWithTime(alpha_to_joint_latents_reg.predict(alpha_pred), t=prediction_t))
 
             if output.t >= exit_time:
+                end_time = timeit.default_timer()
                 break
 
             pbar.update(round(output.t, 1) - pbar.n)
 
         # these were only used in making videos
         next_bubble_predictions = ArrayWithTime.from_list(next_bubble_predictions)
+
+        self.d = d
 
         self.pro = pro
         self.ica = ica
@@ -220,9 +232,12 @@ class PipelineRun:
         self.neural_target = ArrayWithTime.from_list(neural_target)
         self.joint_target = ArrayWithTime.from_list(joint_target)
 
-        self.beh_correlations = self.evaluate_regression(self.beh_predictions, self.beh_target)[-1]
-        self.neural_correlations = self.evaluate_regression(self.neural_predictions, self.neural_target)[-1]
-        self.joint_correlations = self.evaluate_regression(self.joint_predictions, self.joint_target)[-1]
+        self.beh_correlations, self.beh_nrmses = self.evaluate_regression(self.beh_predictions, self.beh_target)[-2:]
+        self.neural_correlations, self.neural_nrmses = self.evaluate_regression(self.neural_predictions, self.neural_target)[-2:]
+        self.joint_correlations, self.joint_nrmses = self.evaluate_regression(self.joint_predictions, self.joint_target)[-2:]
+
+        self.time_elapsed = end_time - start_time
+
 
     @staticmethod
     def evaluate_regression(estimates, targets):
@@ -236,8 +251,9 @@ class PipelineRun:
         test_s = t > (t[0] + t[-1]) / 2
 
         correlations = np.array([np.corrcoef(estimates[test_s, i], targets[test_s, i])[0, 1] for i in range(estimates.shape[1])])
+        nrmse_s = np.sqrt(((estimates[test_s] - targets[test_s])**2).mean(axis=0))/targets[test_s].std(axis=0)
 
-        return targets, estimates, correlations
+        return targets, estimates, correlations, nrmse_s
 
 
     def plot_results(self):
@@ -319,7 +335,7 @@ class PipelineRun:
         for idx, behavior_dict in enumerate(behavior_dict_list):
             ax_n = 2 + idx
 
-            targets, estimates, correlations = self.evaluate_regression(behavior_dict['predicted'], behavior_dict['true'])
+            targets, estimates, correlations, _ = self.evaluate_regression(behavior_dict['predicted'], behavior_dict['true'])
 
             corr_str = '\n'.join([f'{r:.2f}' for r in correlations] )
             to_write[ax_n].append((idx, corr_str, {'fontsize': 'large'}))
