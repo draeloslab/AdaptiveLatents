@@ -24,8 +24,45 @@ from IPython.display import Video, Image, display
 import socket
 
 
-
 class PipelineRun:
+    default_parameter_values = {
+        'odoherty21': dict(
+            # validated
+            neural_lag=0,
+            neural_smoothing_tau=.12,
+            concat_zero_streams=(),
+            bw_step=10 ** -1.5,
+            pos_rescale_factor=1, vel_rescale_factor=1,
+
+            # not validated
+            concat_stream_scaling_factors=None,
+            latents_for_bw='jpca',
+            pre_bw_latent_dims_to_drop=0,
+            alpha_pred_method='normal',
+            n_bubbles=1100,
+            exit_time=-1,
+            dataset='odoherty21',
+            drop_third_coord = True,
+    ),
+        'zong22': dict(
+            # validated
+            bw_step=10**0.1,  # 0.138
+
+            # not validated
+            neural_smoothing_tau=.12,
+            n_bubbles=1100,
+            pos_scale=1/160, hd_scale=1/1.8, h2b_scale=1/8.5,
+            concat_stream_scaling_factors={0:1/1000, 1:1},
+            neural_lag=0,
+            concat_zero_streams=(),
+            latents_for_bw='jpca',
+            pre_bw_latent_dims_to_drop=0,
+            alpha_pred_method='normal',
+            exit_time=-1,
+            dataset='zong22',
+            sub_dataset_identifier=3,
+        )
+    }
     def __init__(
             self,
             neural_lag=0,
@@ -397,3 +434,26 @@ class PipelineRun:
             super_param_dict[key] = values
         to_write = "\n".join(f"{k}: {v}" for k, v in super_param_dict.items())
         axbig.text(0, 1, to_write, transform=axbig.transAxes, verticalalignment="top")
+
+    @staticmethod
+    def compare_metrics_across_runs(tried, runs, fig=None, axs=None):
+        tried = sorted(tried)
+        if fig is None:
+            fig, axs = plt.subplots(nrows=3, ncols=2, squeeze=False, figsize=(4*2,5), sharex=True)
+        else:
+            for ax in axs.flatten():
+                ax.cla()
+
+        for idx, target_str in enumerate(['beh', 'neural', 'joint']):
+            correlations = np.array([getattr(run, f'{target_str}_correlations') for run in runs])
+            mses = np.array([getattr(run, f'{target_str}_nrmses') for run in runs])
+            for jdx, metric in enumerate([correlations, mses]):
+                axs[idx,jdx].plot(tried, metric)
+                metric = -metric if jdx == 1 else metric
+                best_tried = tried[np.argmax(metric.sum(axis=1))]
+                axs[idx, jdx].axvline(best_tried, color='k')
+                axs[idx, jdx].text(.99, .99, f'{best_tried:.3f}', ha='right', va='top', transform=axs[idx, jdx].transAxes)
+            axs[idx,0].set_ylabel(target_str)
+        axs[0,0].set_title('correlation')
+        axs[0,1].set_title('NRMSE')
+        return fig, axs
