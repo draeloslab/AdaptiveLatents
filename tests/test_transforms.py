@@ -1,6 +1,6 @@
 import numpy as np
 import adaptive_latents as al
-from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother, proPLS, Bubblewrap, RandomProjection, VanillaOnlineRegressor, ZScoringTransformer
+from adaptive_latents import NumpyTimedDataSource, CenteringTransformer, sjPCA, proSVD, mmICA, Pipeline, KernelSmoother, proPLS, Bubblewrap, RandomProjection, VanillaOnlineRegressor, ZScoringTransformer, Concatenator
 from adaptive_latents.transformer import DecoupledTransformer, StreamingTransformer
 from adaptive_latents.jpca import generate_circle_embedded_in_high_d
 from adaptive_latents.utils import column_space_distance
@@ -31,7 +31,8 @@ decoupled_transformers = [
         CenteringTransformer(),
         proSVD(k=DIM, whiten=False),
     ]),
-    lambda: Pipeline([])
+    lambda: Pipeline([]),
+    Concatenator,
     ]
 
 all_transformers = streaming_only_transformers + decoupled_transformers
@@ -387,6 +388,29 @@ class TestZScoringTransformer:
 
     # def test_unbiased(self, rng):
     #     pass
+
+class TestConcatenator:
+    def test_concatenates(self):
+        c = Concatenator(input_streams={1:1, 2:2}, output_streams={1:0, 2:0})
+        a = np.array([0,1,2]).reshape(-1,1)
+        b = np.array([0,1,2]).reshape(-1,1)
+        output = c.offline_run_on([(a,1), (b, 2)])
+        assert (output == np.hstack((a,b))).all()
+
+    def test_scales(self):
+        c = Concatenator(input_streams={1:1, 2:2}, output_streams={1:0, 2:0}, stream_scaling_factors={1:1, 2:1})
+        a = np.array([0,1,2]).reshape(-1,1)
+        b = np.array([0,1,2]).reshape(-1,1)
+        output = c.offline_run_on([(a,1), (b, 2)])
+        assert (output == np.hstack((a,b))).all()
+
+        c = Concatenator(input_streams={1:1, 2:2}, output_streams={1:0, 2:0}, stream_scaling_factors={1:2, 2:1})
+        a = np.array([0,1,2]).reshape(-1,1)
+        b = np.array([0,1,2]).reshape(-1,1)
+        output = c.offline_run_on([(a,1), (b, 2)])
+        assert (output == np.hstack((a*2,b))).all()
+
+
 
 
 def test_miscellaneous_plots():
