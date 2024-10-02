@@ -437,7 +437,8 @@ class PipelineRun:
 
     @staticmethod
     def compare_metrics_across_runs(tried, runs, fig=None, axs=None):
-        tried = sorted(tried)
+        runs = sorted(runs, key=tried)
+        tried = sorted(tried, key=tried)
         if fig is None:
             fig, axs = plt.subplots(nrows=3, ncols=2, squeeze=False, figsize=(4*2,5), sharex=True)
         else:
