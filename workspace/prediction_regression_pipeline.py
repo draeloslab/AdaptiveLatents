@@ -141,79 +141,83 @@ class PipelineRun:
         joint_target = []
 
         start_time = timeit.default_timer()
-        for output, stream in p1.streaming_run_on(streams, return_output_stream=True):
-            # prosvd step
-            pro_output, pro_stream = pro.partial_fit_transform(output, stream, return_output_stream=True)
-            if pro_stream == 2 and np.isfinite(pro_output).all():
-                pro_latents.append(pro_output)
+        try:
+            for output, stream in p1.streaming_run_on(streams, return_output_stream=True):
+                # prosvd step
+                pro_output, pro_stream = pro.partial_fit_transform(output, stream, return_output_stream=True)
+                if pro_stream == 2 and np.isfinite(pro_output).all():
+                    pro_latents.append(pro_output)
 
-            # sjpca step
-            jpca_output, jpca_stream = jpca.partial_fit_transform(pro_output, pro_stream, return_output_stream=True)
-            if jpca_stream == 2 and np.isfinite(jpca_output).all():
-                jpca_latents.append(jpca_output)
+                # sjpca step
+                jpca_output, jpca_stream = jpca.partial_fit_transform(pro_output, pro_stream, return_output_stream=True)
+                if jpca_stream == 2 and np.isfinite(jpca_output).all():
+                    jpca_latents.append(jpca_output)
 
-            # ica step (not in main line)
-            ica_output, ica_stream = ica.partial_fit_transform(pro_output, pro_stream, return_output_stream=True)
-            if ica_stream == 2 and np.isfinite(ica_output).all():
-                ica_latents.append(ica_output)
+                # ica step (not in main line)
+                ica_output, ica_stream = ica.partial_fit_transform(pro_output, pro_stream, return_output_stream=True)
+                if ica_stream == 2 and np.isfinite(ica_output).all():
+                    ica_latents.append(ica_output)
 
-            # bw step
-            pre_bw_output, pre_bw_stream = {
-                'prosvd': (pro_output, pro_stream),
-                'jpca': (jpca_output, jpca_stream),
-                'mmica': (ica_output, ica_stream),
-            }[latents_for_bw]
+                # bw step
+                pre_bw_output, pre_bw_stream = {
+                    'prosvd': (pro_output, pro_stream),
+                    'jpca': (jpca_output, jpca_stream),
+                    'mmica': (ica_output, ica_stream),
+                }[latents_for_bw]
 
-            if pre_bw_stream == 2 and pre_bw_latent_dims_to_drop > 0:
-                pre_bw_output = pre_bw_output[:, :-pre_bw_latent_dims_to_drop]
+                if pre_bw_stream == 2 and pre_bw_latent_dims_to_drop > 0:
+                    pre_bw_output = pre_bw_output[:, :-pre_bw_latent_dims_to_drop]
 
-            output, stream = bw.partial_fit_transform(pre_bw_output, pre_bw_stream, return_output_stream=True)
+                output, stream = bw.partial_fit_transform(pre_bw_output, pre_bw_stream, return_output_stream=True)
 
-            # fit all the regressions on alpha
-            alpha_to_beh_reg.partial_fit_transform(output, stream)
-            neural_stream_output, neural_stream_stream = neural_only_reg_pipeline.partial_fit_transform(output, stream,
-                                                                                                        return_output_stream=True)
+                # fit all the regressions on alpha
+                alpha_to_beh_reg.partial_fit_transform(output, stream)
+                neural_stream_output, neural_stream_stream = neural_only_reg_pipeline.partial_fit_transform(output, stream,
+                                                                                                            return_output_stream=True)
 
-            alpha_to_joint_latents_reg.partial_fit_transform(output, stream)
-            alpha_to_joint_latents_reg.partial_fit_transform(pre_bw_output, 5 if pre_bw_stream == 2 else pre_bw_stream)
+                alpha_to_joint_latents_reg.partial_fit_transform(output, stream)
+                alpha_to_joint_latents_reg.partial_fit_transform(pre_bw_output, 5 if pre_bw_stream == 2 else pre_bw_stream)
 
-            if stream == 3:
-                beh_target.append(output)
+                if stream == 3:
+                    beh_target.append(output)
 
-            if neural_stream_stream == 4 and not np.isnan(neural_stream_output).any():
-                neural_target.append(neural_stream_output)
+                if neural_stream_stream == 4 and not np.isnan(neural_stream_output).any():
+                    neural_target.append(neural_stream_output)
 
-            if pre_bw_stream == 2 and np.isfinite(pre_bw_output).all():
-                joint_target.append(pre_bw_output)
+                if pre_bw_stream == 2 and np.isfinite(pre_bw_output).all():
+                    joint_target.append(pre_bw_output)
 
-            if stream == 2 and np.isfinite(output).all():  # do predictions
-                prediction_t = output.t + bw.dt
+                if stream == 2 and np.isfinite(output).all():  # do predictions
+                    prediction_t = output.t + bw.dt
 
-                if alpha_pred_method == 'normal':
-                    alpha_pred = bw.get_alpha_at_t(prediction_t)
+                    if alpha_pred_method == 'normal':
+                        alpha_pred = bw.get_alpha_at_t(prediction_t)
 
-                elif alpha_pred_method == 'current_alpha':
-                    alpha_pred = bw.get_alpha_at_t(0, relative_t=True)
+                    elif alpha_pred_method == 'current_alpha':
+                        alpha_pred = bw.get_alpha_at_t(0, relative_t=True)
 
-                elif alpha_pred_method == 'force_one_bubble':
-                    alpha_pred = bw.get_alpha_at_t(prediction_t)
-                    alpha_pred[np.argmax(bw.alpha)] = 0
-                    alpha_pred[alpha_pred < alpha_pred.max()] = 0
-                    alpha_pred = alpha_pred / alpha_pred.sum()
+                    elif alpha_pred_method == 'force_one_bubble':
+                        alpha_pred = bw.get_alpha_at_t(prediction_t)
+                        alpha_pred[np.argmax(bw.alpha)] = 0
+                        alpha_pred[alpha_pred < alpha_pred.max()] = 0
+                        alpha_pred = alpha_pred / alpha_pred.sum()
 
 
 
-                next_bubble_predictions.append(ArrayWithTime(bw.mu[np.argmax(alpha_pred)], t=prediction_t))
+                    next_bubble_predictions.append(ArrayWithTime(bw.mu[np.argmax(alpha_pred)], t=prediction_t))
 
-                beh_predictions.append(ArrayWithTime(alpha_to_beh_reg.predict(alpha_pred), t=prediction_t))
-                neural_predictions.append(ArrayWithTime(alpha_to_neural_reg.predict(alpha_pred), t=prediction_t))
-                joint_predictions.append(ArrayWithTime(alpha_to_joint_latents_reg.predict(alpha_pred), t=prediction_t))
+                    beh_predictions.append(ArrayWithTime(alpha_to_beh_reg.predict(alpha_pred), t=prediction_t))
+                    neural_predictions.append(ArrayWithTime(alpha_to_neural_reg.predict(alpha_pred), t=prediction_t))
+                    joint_predictions.append(ArrayWithTime(alpha_to_joint_latents_reg.predict(alpha_pred), t=prediction_t))
 
-            if output.t >= exit_time:
-                end_time = timeit.default_timer()
-                break
+                if output.t >= exit_time:
+                    break
 
-            pbar.update(round(output.t, 1) - pbar.n)
+                pbar.update(round(output.t, 1) - pbar.n)
+        except KeyboardInterrupt:
+            pass
+
+        end_time = timeit.default_timer()
 
         # these were only used in making videos
         next_bubble_predictions = ArrayWithTime.from_list(next_bubble_predictions)
@@ -343,10 +347,10 @@ class PipelineRun:
         for idx, behavior_dict in enumerate(behavior_dict_list):
             ax_n = 2 + idx
 
-            targets, estimates, correlations, _ = self.evaluate_regression(behavior_dict['predicted'], behavior_dict['true'])
+            targets, estimates, correlations, nrmse_s = self.evaluate_regression(behavior_dict['predicted'], behavior_dict['true'])
 
-            corr_str = '\n'.join([f'{r:.2f}' for r in correlations] )
-            to_write[ax_n].append((idx, corr_str, {'fontsize': 'large'}))
+            performance_str = '\n'.join([f'{r:.2f}' for r, e in zip(correlations, nrmse_s)] )
+            to_write[ax_n].append((idx, performance_str, {'fontsize': 'large'}))
 
             t_to_plot = estimates.t
             if t_in_samples:
