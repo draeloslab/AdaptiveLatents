@@ -46,13 +46,12 @@ class PipelineRun:
     ),
         'zong22': dict(
             # validated
-            bw_step=10**0.1,  # 0.138
+            bw_step=10**0.138,
+            neural_smoothing_tau=.688,
+            n_bubbles=875,
 
             # not validated
-            neural_smoothing_tau=.12,
-            n_bubbles=1100,
-            pos_scale=1/160, hd_scale=1/1.8, h2b_scale=1/8.5,
-            concat_stream_scaling_factors={0:1/1000, 1:1},
+            pos_scale=1/160, hd_scale=1/1.8, h2b_scale=1/8.5, neural_scale=1/1000,
             neural_lag=0,
             concat_zero_streams=(),
             latents_for_bw='jpca',
@@ -68,7 +67,6 @@ class PipelineRun:
             neural_lag=0,
             neural_smoothing_tau=.12,
             concat_zero_streams=(),
-            concat_stream_scaling_factors=None,
             latents_for_bw='jpca',
             pre_bw_latent_dims_to_drop=0,
             alpha_pred_method='normal',
@@ -121,7 +119,7 @@ class PipelineRun:
             neural_centerer := CenteringTransformer(init_size=100, input_streams={0: 'X'}, output_streams={0: 0}),
             # CenteringTransformer(init_size=100, input_streams={1: 'X'}, output_streams={1: 1}),
             nerual_smoother := KernelSmoother(tau=neural_smoothing_tau / d.bin_width, input_streams={0: 'X'}, output_streams={0: 0}),
-            Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 2, 1: 2, 'skip': -1}, zero_streams=concat_zero_streams, stream_scaling_factors=concat_stream_scaling_factors),
+            Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 2, 1: 2, 'skip': -1}, zero_streams=concat_zero_streams),
         ])
 
         pro = proSVD(k=6 + pre_bw_latent_dims_to_drop, init_size=100, input_streams={2: 'X'}, output_streams={2: 2})
@@ -163,7 +161,7 @@ class PipelineRun:
         )
 
 
-        pbar = tqdm(total=exit_time)
+        pbar = tqdm(total=round(exit_time,1))
         pro_latents = []
         jpca_latents = []
         ica_latents = []
@@ -260,6 +258,8 @@ class PipelineRun:
         next_bubble_predictions = ArrayWithTime.from_list(next_bubble_predictions)
 
         self.d = d
+
+        self.p1 = p1
 
         self.pro = pro
         self.ica = ica
@@ -437,10 +437,10 @@ class PipelineRun:
 
     @staticmethod
     def compare_metrics_across_runs(tried, runs, fig=None, axs=None):
-        runs = sorted(runs, key=tried)
-        tried = sorted(tried, key=tried)
+        last_tried = tried[-1]
+        tried, runs = zip(*sorted(zip(tried, runs)))
         if fig is None:
-            fig, axs = plt.subplots(nrows=3, ncols=2, squeeze=False, figsize=(4*2,5), sharex=True)
+            fig, axs = plt.subplots(nrows=3, ncols=2, squeeze=False, figsize=(4*2,5), sharex=False)
         else:
             for ax in axs.flatten():
                 ax.cla()
@@ -454,6 +454,9 @@ class PipelineRun:
                 best_tried = tried[np.argmax(metric.sum(axis=1))]
                 axs[idx, jdx].axvline(best_tried, color='k')
                 axs[idx, jdx].text(.99, .99, f'{best_tried:.3f}', ha='right', va='top', transform=axs[idx, jdx].transAxes)
+                if idx != 2:
+                    axs[idx, jdx].set_xticks(tried)
+                    axs[idx, jdx].set_xticklabels([])
             axs[idx,0].set_ylabel(target_str)
         axs[0,0].set_title('correlation')
         axs[0,1].set_title('NRMSE')

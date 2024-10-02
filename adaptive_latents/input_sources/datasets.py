@@ -901,15 +901,16 @@ class Zong22Dataset(Dataset):
 
     sub_datasets = list(sub_datset_info.index)
 
-    def __init__(self, sub_dataset_identifier=sub_datasets[0], neural_lag=0, pos_scale=1, hd_scale=1, h2b_scale=1):
+    def __init__(self, sub_dataset_identifier=sub_datasets[0], neural_lag=0, neural_scale=1, pos_scale=1, hd_scale=1, h2b_scale=1):
         self.sub_dataset = sub_dataset_identifier
         self.neural_Fs = 15
         self.neural_lag = neural_lag
+        self.neural_scale = neural_scale
         self.bin_width = 1/self.neural_Fs  # todo: make this universal?
         self.F, self.raw_images, self.behavior_video, self.behavior_df, self.n_cells, self.stat, self.ops = self.acquire()
 
 
-        self.neural_data = NumpyTimedDataSource(self.F.T, (np.arange(self.F.shape[1]) * 1 / self.neural_Fs) + self.neural_lag)
+        self.neural_data = NumpyTimedDataSource(self.F.T * self.neural_scale, (np.arange(self.F.shape[1]) * 1 / self.neural_Fs) + self.neural_lag)
         self.behavioral_data = NumpyTimedDataSource(timepoints=self.behavior_df.loc[:, 't'], source=self.behavior_df.loc[:, ['x', 'y', 'hd', 'h2b']] * np.array([pos_scale, pos_scale, hd_scale, h2b_scale]))
 
         self.video_t = np.squeeze(self.behavioral_data.t)
