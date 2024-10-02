@@ -31,14 +31,15 @@ class PipelineRun:
             neural_lag=0,
             neural_smoothing_tau=.12,
             concat_zero_streams=(),
+            concat_stream_scaling_factors=None,
             latents_for_bw='jpca',
             pre_bw_latent_dims_to_drop=0,
-            pos_rescale_factor=1,
-            vel_rescale_factor=1,
             alpha_pred_method='normal',
             bw_step=10**-1.5,
             n_bubbles=1100,
-            shortrun=None,
+            exit_time=None,
+            dataset='odoherty21',
+            **dataset_args
     ):
         """
         Parameters
@@ -57,16 +58,24 @@ class PipelineRun:
         latents_for_bw: {'prosvd', 'jpca', 'mmica'}
         """
 
-        if shortrun is None:
-            shortrun = socket.gethostname() == 'tycho' and True
 
-        d = datasets.Odoherty21Dataset(neural_lag=neural_lag, pos_rescale_factor=pos_rescale_factor, vel_rescale_factor=vel_rescale_factor)
+        if dataset == 'odoherty21':
+            d = datasets.Odoherty21Dataset(neural_lag=neural_lag, **dataset_args)
+        elif dataset == 'zong22':
+            d = datasets.Zong22Dataset(neural_lag=neural_lag, **dataset_args)
+
+        if exit_time is None:
+            if socket.gethostname() == 'tycho':
+                exit_time = 40 if dataset=='odoherty21' else 80
+        if exit_time == -1:
+            exit_time = d.neural_data.t.max()
+
 
         streams = []
         streams.append((d.neural_data, 0))
-        streams.append((d.beh_pos, 1))
+        streams.append((d.behavioral_data, 1))
         # 2 is reserved for the post-concatination pipeline
-        streams.append((d.beh_pos, 3))
+        streams.append((d.behavioral_data, 3))
         streams.append((d.neural_data, 4))
         # 5 for the alpha to joint
 
@@ -75,7 +84,7 @@ class PipelineRun:
             neural_centerer := CenteringTransformer(init_size=100, input_streams={0: 'X'}, output_streams={0: 0}),
             # CenteringTransformer(init_size=100, input_streams={1: 'X'}, output_streams={1: 1}),
             nerual_smoother := KernelSmoother(tau=neural_smoothing_tau / d.bin_width, input_streams={0: 'X'}, output_streams={0: 0}),
-            Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 2, 1: 2, 'skip': -1}, zero_sreams=concat_zero_streams),
+            Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 2, 1: 2, 'skip': -1}, zero_streams=concat_zero_streams, stream_scaling_factors=concat_stream_scaling_factors),
         ])
 
         pro = proSVD(k=6 + pre_bw_latent_dims_to_drop, init_size=100, input_streams={2: 'X'}, output_streams={2: 2})
@@ -116,7 +125,6 @@ class PipelineRun:
             input_streams={2: 'X', 5: 'Y'},
         )
 
-        exit_time = 40 if shortrun else 600
 
         pbar = tqdm(total=exit_time)
         pro_latents = []
