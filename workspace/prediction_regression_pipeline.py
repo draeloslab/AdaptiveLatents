@@ -46,20 +46,22 @@ class PipelineRun:
     ),
         'zong22': dict(
             # validated
-            bw_step=10**0.138,
+            bw_step=10**0.25,
             neural_smoothing_tau=.688,
             n_bubbles=875,
+            neural_scale=1 / 1000 * 10**-1, # -2.96 for beh (-3.1 without h2b?), 0.312 for neural
+            # check the neural scale in the commit on Brontes
+            neural_lag=0,
+            sub_dataset_identifier=2,
 
             # not validated
-            pos_scale=1/160, hd_scale=1/1.8, h2b_scale=1/8.5, neural_scale=1/1000,
-            neural_lag=0,
+            pos_scale=1/160, hd_scale=1/1.8, h2b_scale=1/8.5,
             concat_zero_streams=(),
             latents_for_bw='jpca',
             pre_bw_latent_dims_to_drop=0,
             alpha_pred_method='normal',
             exit_time=-1,
             dataset='zong22',
-            sub_dataset_identifier=3,
         )
     }
     def __init__(
