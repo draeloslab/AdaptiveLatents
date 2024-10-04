@@ -8,6 +8,7 @@ import adaptive_latents
 import numpy as np
 from typing import TYPE_CHECKING
 import warnings
+from adaptive_latents import CONFIG
 
 if TYPE_CHECKING:
     from adaptive_latents import CONFIG
@@ -101,7 +102,6 @@ class PredictionVideo:
         self.am = AnimationManager(fig=self.fig, fps=fps, dpi=self.fig.dpi, filetype=filetype)
 
     def plot_for_video_t(self, current_t, latents, latent_ts, latent_predictions, beh_predictions, prediction_ts, streams):
-        # TODO: this is pretty inflexible, remove refrences to `d.` with assumptions
         neural_ds, s = streams[0]
         assert s == 0
         beh_input, s = streams[1]

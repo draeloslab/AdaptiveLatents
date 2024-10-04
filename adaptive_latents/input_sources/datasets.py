@@ -66,6 +66,7 @@ class Dataset(ABC):
 
 
 class DandiDataset(Dataset):
+    # TODO: should name be DANDIDataset?
     automatically_downloadable = True
 
     @property
@@ -93,7 +94,7 @@ class DandiDataset(Dataset):
 
         with fs.open(s3_url, "rb") as f:
             with h5py.File(f) as file:
-                fhan = NWBHDF5IO(file=file)
+                fhan = NWBHDF5IO(file=file, load_namespaces=True)
                 yield fhan
 
 
@@ -178,6 +179,7 @@ class Odoherty21Dataset(DandiDataset):
 
 
 class Schaffer23Datset(Dataset):
+    # TODO: make this subclass DandiDataset
     doi = 'https://doi.org/10.6084/m9.figshare.23749074'
     model_organism = ModelOrganism.FLY
     dataset_base_path = DATA_BASE_PATH / 'schaffer23'
