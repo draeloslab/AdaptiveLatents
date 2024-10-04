@@ -35,7 +35,6 @@ class PipelineRun:
             pos_rescale_factor=1, vel_rescale_factor=1,
 
             # not validated
-            concat_stream_scaling_factors=None,
             latents_for_bw='jpca',
             pre_bw_latent_dims_to_drop=0,
             alpha_pred_method='normal',
@@ -50,7 +49,7 @@ class PipelineRun:
             neural_smoothing_tau=.688,
             n_bubbles=875,
             neural_scale=1 / 1000 * 10**-1, # -2.96 for beh (-3.1 without h2b?), 0.312 for neural
-            # check the neural scale in the commit on Brontes
+            # -0.15625 seemed to have a good mix?
             neural_lag=0,
             sub_dataset_identifier=2,
 
@@ -257,9 +256,9 @@ class PipelineRun:
         end_time = timeit.default_timer()
 
         # these were only used in making videos
-        next_bubble_predictions = ArrayWithTime.from_list(next_bubble_predictions)
 
         self.d = d
+        self.streams = streams
 
         self.p1 = p1
 
@@ -278,6 +277,7 @@ class PipelineRun:
         self.beh_predictions = ArrayWithTime.from_list(beh_predictions)
         self.neural_predictions = ArrayWithTime.from_list(neural_predictions)
         self.joint_predictions = ArrayWithTime.from_list(joint_predictions)
+        self.next_bubble_joint_predictions = ArrayWithTime.from_list(next_bubble_predictions)
 
         self.beh_target = ArrayWithTime.from_list(beh_target)
         self.neural_target = ArrayWithTime.from_list(neural_target)
@@ -463,3 +463,53 @@ class PipelineRun:
         axs[0,0].set_title('correlation')
         axs[0,1].set_title('NRMSE')
         return fig, axs
+
+    def plot_flow_fields(self, grid_n=13, square_radius=None, arrow_alpha=0, scatter_alpha=0):
+        fig, axs = plt.subplots(nrows=1, ncols=3, squeeze=False, layout='tight', figsize=(12, 4))
+        axs = axs.T
+        e1, e2 = np.zeros(6), np.zeros(6)
+        e1[0] = 1
+        e2[1] = 1
+
+        for idx, latents in enumerate([self.pro_latents, self.jpca_latents, self.ica_latents]):
+            ax: plt.Axes = axs[idx,0]
+            ax.scatter(latents[:,0], latents[:,1], s=5, alpha=scatter_alpha)
+
+            d_latents = np.diff(latents, axis=0)
+            d_latents = d_latents / np.linalg.norm(d_latents, axis=1)[:, np.newaxis]
+            if square_radius is None:
+                ax.quiver(latents[:-1] @ e1, latents[:-1]@e2, d_latents@e1, d_latents@e2, scale=1 / 20, units='dots', alpha=arrow_alpha)
+            x1, x2, y1, y2 = ax.axis()
+            x_points = np.linspace(x1, x2, grid_n)
+            y_points = np.linspace(y1, y2, grid_n)
+            if square_radius is not None:
+                x_points = np.linspace(-square_radius, square_radius, grid_n)
+                y_points = np.linspace(-square_radius, square_radius, grid_n)
+
+            origins = []
+            arrows = []
+            n_points = []
+            for i in range(len(x_points) - 1):
+                for j in range(len(y_points) - 1):
+                    proj_1 = (latents[:-1] @ e1)
+                    proj_2 = (latents[:-1] @ e2)
+                    s = (x_points[i] <= proj_1) & (proj_1 < x_points[i + 1]) & (y_points[j] <= proj_2) & (
+                            proj_2 < y_points[j + 1])
+                    if s.sum():
+                        arrow = d_latents[s].mean(axis=0)
+                        arrow = arrow / np.linalg.norm(arrow)
+                        arrows.append(arrow)
+                        origins.append([x_points[i:i + 2].mean(), y_points[j:j + 2].mean()])
+                        n_points.append(s.sum())
+            origins, arrows, n_points = np.array(origins), np.array(arrows), np.array(n_points)
+            n_points = n_points / 5
+            n_points[n_points > 1] = 1
+            n_points = 1
+            ax.quiver(origins[:, 0], origins[:, 1], arrows @ e1, arrows @ e2, scale=1 / 20, alpha=n_points, units='dots', color='red')
+
+            ax.axis('equal')
+            ax.axis('off')
+
+        axs[0, 0].set_ylabel('pro')
+        axs[1, 0].set_ylabel('jpca')
+        axs[2, 0].set_ylabel('ica')
