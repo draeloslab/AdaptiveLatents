@@ -40,6 +40,7 @@ class PipelineRun:
             alpha_pred_method='normal',
             n_bubbles=1100,
             exit_time=-1,
+            drop_behavior = False,
             dataset='odoherty21',
             drop_third_coord = True,
     ),
@@ -59,6 +60,7 @@ class PipelineRun:
             latents_for_bw='jpca',
             pre_bw_latent_dims_to_drop=0,
             alpha_pred_method='normal',
+            drop_behavior = True,
             exit_time=-1,
             dataset='zong22',
         )
@@ -74,6 +76,7 @@ class PipelineRun:
             bw_step=10**-1.5,
             n_bubbles=1100,
             exit_time=None,
+            drop_behavior = False,
             dataset='odoherty21',
             **dataset_args
     ):
@@ -115,12 +118,16 @@ class PipelineRun:
         streams.append((d.neural_data, 4))
         # 5 for the alpha to joint
 
+        if drop_behavior:
+            concatenator = Concatenator(input_streams={0: 0}, output_streams={0: 2, 'skip': -1}, zero_streams=concat_zero_streams)
+        else:
+            concatenator = Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 2, 1: 2, 'skip': -1}, zero_streams=concat_zero_streams)
+
         # this pipeline makes the latent space
         p1 = Pipeline([
             neural_centerer := CenteringTransformer(init_size=100, input_streams={0: 'X'}, output_streams={0: 0}),
-            # CenteringTransformer(init_size=100, input_streams={1: 'X'}, output_streams={1: 1}),
             nerual_smoother := KernelSmoother(tau=neural_smoothing_tau / d.bin_width, input_streams={0: 'X'}, output_streams={0: 0}),
-            Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 2, 1: 2, 'skip': -1}, zero_streams=concat_zero_streams),
+            concatenator
         ])
 
         pro = proSVD(k=6 + pre_bw_latent_dims_to_drop, init_size=100, input_streams={2: 'X'}, output_streams={2: 2})

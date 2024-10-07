@@ -69,17 +69,32 @@ def use_bigger_lims(ax, old_lims=None, y=True, x=True):
         future_lims[:2] = new_lims[:2]
     ax.axis(future_lims)
 
-def plot_history_with_tail(ax, data, tail_length=10, dim_1=0, dim_2=1,):
+
+def plot_history_with_tail(ax, data, current_t, tail_length=1, scatter_all=True, dim_1=0, dim_2=1, hist_bins=None, invisible=False):
     ax.cla()
 
-    ax.scatter(data[:,dim_1], data[:,dim_2], s=5, alpha=.1, c='C0', edgecolors='none')
+    s = np.ones_like(data.t).astype(bool)
+    if scatter_all:
+        s = data.t <= current_t
+    if hist_bins is None:
+        ax.scatter(data[s,dim_1], data[s,dim_2], s=5, c='gray', edgecolors='none', alpha= 0 if invisible else .1)
+        back_color = 'white'
+        forward_color = 'C0'
+    else:
+        s = s & np.isfinite(data).all(axis=1)
+        ax.hist2d(data[s,dim_1], data[s,dim_2], bins=hist_bins)
+        back_color = 'black'
+        forward_color = 'white'
+
 
     linewidth = 2
-    s = 10
-    ax.plot(data[-tail_length:, dim_1], data[-tail_length:, dim_2], color='white', linewidth=linewidth * 1.5)
-    ax.scatter(data[-1, dim_1], data[-1, dim_2], s=s * 1.5, color='white')
-    ax.plot(data[-tail_length:, dim_1], data[-tail_length:, dim_2], color='C0', linewidth=linewidth)
-    ax.scatter(data[-1,dim_1], data[-1,dim_2], s=s, zorder=3)
+    size = 10
+    s = (current_t - tail_length < data.t) & (data.t <= current_t)
+    ax.plot(data[s, dim_1], data[s, dim_2], color=back_color, linewidth=linewidth * 1.5, alpha= 0 if invisible else 1)
+    ax.scatter(data[s, dim_1][-1], data[s, dim_2][-1], s=size * 1.5, color=back_color, alpha= 0 if invisible else 1)
+    ax.plot(data[s, dim_1], data[s, dim_2], color=forward_color, linewidth=linewidth, alpha= 0 if invisible else 1)
+    ax.scatter(data[s,dim_1][-1], data[s,dim_2][-1], color=forward_color, s=size, zorder=3, alpha= 0 if invisible else 1)
+    ax.axis('off')
 
 
 
@@ -139,10 +154,15 @@ class PredictionVideo:
 
         ax = self.joint_latent_ax
         old_lims = ax.axis()
-        plot_history_with_tail(ax, latents)
-        lines = ax.plot([latents[-1, 0], latent_predictions[-1, 0]], [latents[-1, 1], latent_predictions[-1, 1]],
-                '--', color=self.pred_color,)
-        ax.scatter(latents[-1, 0], latents[-1, 1], s=lines[0].get_linewidth(), color=self.pred_color, zorder=4)
+        idx = np.nonzero(~(latents.t < current_t))[0][0]
+        
+        plot_history_with_tail(ax, latents, current_t, tail_length=.5)
+
+        idx2 = np.nonzero(~(latent_predictions.t < current_t))[0][0]
+        lines = ax.plot([latents[idx-1, 0], latent_predictions[idx2, 0]], [latents[idx-1, 1], latent_predictions[idx2, 1]], '--', color=self.pred_color,)
+        ax.scatter(latent_predictions[idx2, 0], latent_predictions[idx2, 1], 
+                   s=lines[0].get_linewidth(), 
+                   color=self.pred_color, zorder=4)
         ax.axis('equal')
         use_bigger_lims(ax, old_lims=old_lims)
 
@@ -156,19 +176,21 @@ class PredictionVideo:
         s = slice(idx - n_columns, idx)
         beh = beh_to_predict.a[s, 0, :]
         beh_t = beh_to_predict.t[s]
-        ax.plot(beh_t, beh)
+        for i in range(beh_to_predict.a.shape[2]):
+            ax.plot(beh_t, beh[:,i], color=f'C{i+1}')
         use_bigger_lims(ax, old_lims=old_lims, x=False)
 
-        for i in range(beh_to_predict.a.shape[2]):
-            ax.plot([beh_to_predict.t[idx], prediction_ts[-1]],
-                    [beh_to_predict.a[idx, 0, i], beh_predictions[-1,i]], '--', color=f'C{i}', alpha=.5)
+        # idx2 = np.nonzero(~(beh_predictions.t < current_t))[0][0] + 1
+        # for i in range(beh_to_predict.a.shape[2]):
+        #     ax.plot([beh_to_predict.t[idx], prediction_ts[idx2]],
+        #             [beh_to_predict.a[idx, 0, i], beh_predictions[idx2,i]], '--', color=f'C{i+1}', alpha=.5)
 
         beh_dt = np.median(np.diff(prediction_ts))
         n_columns = np.floor(self.tail_length / beh_dt).astype(int)
         idx = np.nonzero(prediction_ts > current_t)[0][0]
         s = slice(idx - n_columns, idx)
         for i in range(beh_to_predict.a.shape[2]):
-            ax.plot(prediction_ts[s], beh_predictions[s,i], color=f'C{i}', alpha=.25)
+            ax.plot(prediction_ts[s], beh_predictions[s,i], color=f'C{i+1}', alpha=.25)
 
             for ax in self.fig.get_axes():
                 ax.axis('off')

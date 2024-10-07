@@ -4,5 +4,5 @@ attempt_to_cache: False
 
 bwrun_save_path: ./workspace/al_generated/bw_runs
 cache_path: ./workspace/al_generated/caches
-plot_save_path: ./workspace/al_generated/plots
+plot_save_path: /home/jgould/Dropbox (University of Michigan)/plots
 dataset_path: ./workspace/datasets
