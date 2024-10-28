@@ -158,7 +158,12 @@ class ArrayWithTime(np.ndarray):
     #     return super().__getitem__(item)
 
     @classmethod
-    def from_list(cls, input_list):
+    def from_list(cls, input_list, squeeze=True):
         # TODO: check the shapes?
         t = np.array([x.t for x in input_list])
-        return cls(input_array=np.squeeze(input_list), t=t)
+        if squeeze:
+            input_array = np.squeeze(input_list)
+        else:
+            input_array = np.array(input_list)
+
+        return cls(input_array=input_array, t=t)

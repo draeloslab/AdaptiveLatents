@@ -154,7 +154,9 @@ class StreamingTransformer(ABC):
     def offline_run_on(self, sources, convinient_return=True):
         outputs = {}
         for data, stream in self.streaming_run_on(sources, return_output_stream=True):
-            outputs[stream] = outputs.get(stream, []) + [data]
+            if stream not in outputs:
+                outputs[stream] = []
+            outputs[stream].append(data)
 
         if convinient_return:
             if 0 not in outputs:
@@ -163,7 +165,7 @@ class StreamingTransformer(ABC):
             data = outputs[0]
             while data and np.isnan(data[0]).any():
                 data.pop(0)
-            outputs = np.squeeze(data)
+            outputs = ArrayWithTime.from_list(data, squeeze=True)  # can be replaced with np.squeeze
 
         return outputs
 
@@ -480,6 +482,7 @@ class KernelSmoother(TypicalTransformer):
         # ax.axvline(impulse_point, color='k', alpha=.25, label='region of impulse response')
         ax.fill_between([impulse_point, impulse_point + len(self.kernel)-1], 1,  color='k', alpha=.1, label='impulse response')
         ax.legend()
+
 
 
 class Concatenator(StreamingTransformer):

@@ -63,7 +63,27 @@ class PipelineRun:
             drop_behavior = True,
             exit_time=-1,
             dataset='zong22',
-        )
+    ),
+    'naumann24u': dict(
+        # validated
+
+        # not validated
+        bw_step=10 ** 0.25,
+        neural_smoothing_tau=.688,
+        n_bubbles=875,
+        # neural_scale=1 / 1000 * 10 ** -1,  # -2.96 for beh (-3.1 without h2b?), 0.312 for neural
+        neural_lag=0,
+        sub_dataset_identifier=datasets.Naumann24uDataset.sub_datasets[1],
+        # pos_scale=1 / 160, hd_scale=1 / 1.8, h2b_scale=1 / 8.5,
+        concat_zero_streams=(),
+        latents_for_bw='jpca',
+        pre_bw_latent_dims_to_drop=0,
+        alpha_pred_method='normal',
+        drop_behavior=True,
+        exit_time=-1,
+        beh_type='angle',
+        dataset='naumann24u',
+    )
     }
     def __init__(
             self,
@@ -102,10 +122,12 @@ class PipelineRun:
             d = datasets.Odoherty21Dataset(neural_lag=neural_lag, **dataset_args)
         elif dataset == 'zong22':
             d = datasets.Zong22Dataset(neural_lag=neural_lag, **dataset_args)
+        elif dataset == 'naumann24u':
+            d = datasets.Naumann24uDataset(neural_lag=neural_lag,**dataset_args)
 
         if exit_time is None:
             if socket.gethostname() == 'tycho':
-                exit_time = 40 if dataset=='odoherty21' else 80
+                exit_time = {'odoherty21':40, 'zong22':80, 'naumann24u':60}[dataset]
         if exit_time == -1:
             exit_time = d.neural_data.t.max()
 
@@ -289,6 +311,10 @@ class PipelineRun:
         self.beh_target = ArrayWithTime.from_list(beh_target)
         self.neural_target = ArrayWithTime.from_list(neural_target)
         self.joint_target = ArrayWithTime.from_list(joint_target)
+
+        if dataset == 'naumann24u':
+            self.beh_target = self.beh_target.reshape([-1,1])
+            self.beh_predictions = self.beh_predictions.reshape([-1,1])
 
         self.beh_correlations, self.beh_nrmses = self.evaluate_regression(self.beh_predictions, self.beh_target)[-2:]
         self.neural_correlations, self.neural_nrmses = self.evaluate_regression(self.neural_predictions, self.neural_target)[-2:]
