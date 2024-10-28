@@ -1,9 +1,8 @@
 import copy
 from abc import ABC, abstractmethod
-from .timed_data_source import DataSource, GeneratorDataSource, NumpyTimedDataSource, ArrayWithTime
+from .timed_data_source import GeneratorDataSource, NumpyTimedDataSource, ArrayWithTime
 from frozendict import frozendict
 import numpy as np
-import types
 from collections import deque
 
 
@@ -31,8 +30,8 @@ class StreamingTransformer(ABC):
         """
         Parameters
         ----------
-        input_streams: dict[int, str]
-            Keys are stream numbers, values are which semantic block they correspond to.
+        input_streams: dict
+            Keys are stream numbers, values are a flag to the transformer about how to process the data.
             So {3: 'X'} would mean that stream 3 should be processed as an X variable.
             Data not in an input_stream will usually be passed through.
         output_streams: dict[int, int]
@@ -78,6 +77,7 @@ class StreamingTransformer(ABC):
 
     @abstractmethod
     def _partial_fit_transform(self, data, stream, return_output_stream):
+        # most implementations will need to handle initialization and nan values; possibly also logging?
         stream = self.output_streams[stream]
         return data, stream if return_output_stream else data
 
@@ -210,15 +210,14 @@ class DecoupledTransformer(StreamingTransformer):
 
 
 class Pipeline(DecoupledTransformer):
-    # TODO: reroute_inputs should be False
     def __init__(self, steps=(), input_streams=None, reroute_inputs=True, **kwargs):
         self.steps: list[DecoupledTransformer] = steps
+        self.reroute_inputs = reroute_inputs
 
-        expected_streams = set(k for step in self.steps for k in step.input_streams.keys())
-        self.expected_streams = sorted(expected_streams, key=lambda x: str(x))
         if input_streams is None:
             if reroute_inputs:
-                input_streams = dict(zip(range(len(self.expected_streams)), self.expected_streams))
+                expected_streams = set(k for step in self.steps for k in step.input_streams.keys())
+                input_streams = dict(zip(range(len(expected_streams)), expected_streams))
             else:
                 input_streams = PassThroughDict({})
 
@@ -226,7 +225,7 @@ class Pipeline(DecoupledTransformer):
 
     def get_params(self, deep=True):
         # TODO: make this actually SKLearn compatible
-        p = dict(steps=self.steps)
+        p = dict(steps=self.steps, reroute_inputs=self.reroute_inputs)
         if deep:
             for i, step in enumerate(self.steps):
                 for k, v in step.get_params(deep).items():
@@ -387,7 +386,7 @@ class CenteringTransformer(TypicalTransformer):
 
 class ZScoringTransformer(TypicalTransformer):
     # see https://math.stackexchange.com/a/1769248/701602
-    def __init__(self, init_size=100, freeze_after_init=True, **kwargs):
+    def __init__(self, init_size=100, freeze_after_init=False, **kwargs):
         super().__init__(**kwargs)
         self.init_size = init_size
         self.freeze_after_init = freeze_after_init
@@ -419,9 +418,7 @@ class ZScoringTransformer(TypicalTransformer):
         return dict(init_size=self.init_size, freeze_after_init=self.freeze_after_init)
 
 
-class KernelSmoother(TypicalTransformer):
-    # TODO: make time aware
-    # TODO: make a StreamingTransformer
+class KernelSmoother(StreamingTransformer):
     def __init__(self, tau=1, kernel_length=None, custom_kernel=None, **kwargs):
         super().__init__(**kwargs)
         self.tau = tau
@@ -440,28 +437,21 @@ class KernelSmoother(TypicalTransformer):
         self.last_X = None
         self.history = deque(maxlen=len(self.kernel))
 
-    def instance_get_params(self, deep=True):
-        return dict(tau=self.tau, kernel_length=self.kernel_length, custom_kernel=self.custom_kernel)
+    def _partial_fit_transform(self, data, stream, return_output_stream):
+        if self.input_streams[stream] == 'X':
+            output = []
+            for row in data:
+                self.history.append(row)
+                if len(self.history) >= len(self.kernel) and not np.isnan(a:=np.array(self.history)).any():
+                    output.append(self.kernel @ a)
+                else:
+                    output.append(np.nan*row)
+            data = np.array(output)
+        stream = self.output_streams[stream]
+        return data, stream if return_output_stream else data
 
-    def pre_initialization_fit_for_X(self, X):
-        if self.last_X is not None:
-            self.history.extend(self.last_X)
-        self.last_X = X.copy()
-        if len(self.history) == len(self.kernel):
-            self.is_initialized = True
-
-    def partial_fit_for_X(self, X):
-        if not self.frozen:
-            self.history.extend(self.last_X)
-            self.last_X = X.copy()
-
-    def transform_for_X(self, X):
-        d = self.history.copy()
-        new_X = np.empty_like(X)  # otherwise we modify the array in-place
-        for i, row in enumerate(X):
-            d.append(row)
-            new_X[i] = self.kernel @ d
-        return new_X
+    def get_params(self, deep=True):
+        return dict(tau=self.tau, kernel_length=self.kernel_length, custom_kernel=self.custom_kernel) | super().get_params()
 
     def plot_impulse_response(self, ax):
         """
@@ -486,14 +476,13 @@ class KernelSmoother(TypicalTransformer):
 
 
 class Concatenator(StreamingTransformer):
-    def __init__(self, input_streams=None, output_streams=None, zero_streams=(), stream_scaling_factors=None, **kwargs):
+    def __init__(self, input_streams=None, output_streams=None, stream_scaling_factors=None, **kwargs):
         input_streams = input_streams or PassThroughDict({0:0, 1:1})
 
         output_stream = max(input_streams.keys()) + 1
         output_streams = output_streams or PassThroughDict({k: output_stream for k in input_streams.keys()} | {'skip': -1})
         super().__init__(input_streams=input_streams, output_streams=output_streams, **kwargs)
         self.last_seen = {}
-        self.zero_streams = zero_streams
 
         if stream_scaling_factors is None:
             stream_scaling_factors = {i:1 for i in self.input_streams}
@@ -508,7 +497,6 @@ class Concatenator(StreamingTransformer):
                 data = [(k, v) for k, v in self.last_seen.items()]
                 data.sort()
                 data = [(k, v * self.stream_scaling_factors[k] if k in self.stream_scaling_factors else v) for k, v in data]
-                data = [(k, v if k not in self.zero_streams else v*0) for k, v in data]
                 data = np.hstack([v for k, v in data])
                 if all([isinstance(x, ArrayWithTime) for x in self.last_seen.values()]):
                     t = max((x.t for x in self.last_seen.values()))
@@ -520,6 +508,10 @@ class Concatenator(StreamingTransformer):
 
         stream = self.output_streams[stream]
         return data, stream if return_output_stream else data
+
+    def get_params(self, deep=True):
+        p = dict(stream_scaling_factors=self.stream_scaling_factors)
+        return p | super().get_params(deep)
 
 
 class SwitchingParallelTransformer(DecoupledTransformer):
