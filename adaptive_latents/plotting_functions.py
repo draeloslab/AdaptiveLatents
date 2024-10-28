@@ -3,29 +3,35 @@ import pathlib
 from matplotlib import pyplot as plt
 from matplotlib.animation import FFMpegWriter, PillowWriter
 import matplotlib.gridspec as gridspec
+import functools
 import itertools
 import adaptive_latents
 import numpy as np
 from typing import TYPE_CHECKING
 import warnings
 from adaptive_latents import CONFIG
+from IPython import display
 
 if TYPE_CHECKING:
     from adaptive_latents import CONFIG
 
 
 class AnimationManager:
-    def __init__(self, filename=None, outdir=None, n_rows=1, n_cols=1, fps=20, dpi=100, filetype="mp4", figsize=(10, 10), projection='rectilinear', make_axs=True, fig=None):
+    def __init__(self, filename=None, outdir=None, n_rows=1, n_cols=1, fps=20, dpi=100, filetype="webm", figsize=(10, 10), projection='rectilinear', make_axs=True, fig=None):
         outdir = outdir or CONFIG['plot_save_path']
         if filename is None:
             time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
             filename = f"movie_{time_string}-{str(hash(id(self)))[-3:]}"
 
+        self.filetype = filetype
         self.outfile = pathlib.Path(outdir).resolve() / f"{filename}.{filetype}"
         Writer = FFMpegWriter
         if filetype == 'gif':
             Writer = PillowWriter
-        self.movie_writer = Writer(fps=fps)
+        if filetype == 'webm':
+            Writer = functools.partial(FFMpegWriter, codec='libvpx-vp9')
+
+        self.movie_writer = Writer(fps=fps, bitrate=-1)
         if fig is None:
             if make_axs:
                 self.fig, self.axs = plt.subplots(n_rows, n_cols, figsize=figsize, layout='tight', squeeze=False, subplot_kw={'projection': projection})
@@ -55,6 +61,12 @@ class AnimationManager:
         self.movie_writer.grab_frame()
         self.seen_frames += 1
 
+    def display_video(self, embed=False, width=None):
+        if self.filetype == 'gif':
+            display.display(display.Image(self.outfile, embed=embed, width=width))
+        else:
+            display.display(display.Video(self.outfile, embed=embed, width=width))
+
 
 def use_bigger_lims(ax, old_lims=None, y=True, x=True):
     new_lims = ax.axis()
@@ -70,14 +82,14 @@ def use_bigger_lims(ax, old_lims=None, y=True, x=True):
     ax.axis(future_lims)
 
 
-def plot_history_with_tail(ax, data, current_t, tail_length=1, scatter_all=True, dim_1=0, dim_2=1, hist_bins=None, invisible=False):
+def plot_history_with_tail(ax, data, current_t, tail_length=1, scatter_all=True, dim_1=0, dim_2=1, hist_bins=None, invisible=False, scatter_alpha=.1, scatter_s=5):
     ax.cla()
 
     s = np.ones_like(data.t).astype(bool)
     if scatter_all:
         s = data.t <= current_t
     if hist_bins is None:
-        ax.scatter(data[s,dim_1], data[s,dim_2], s=5, c='gray', edgecolors='none', alpha= 0 if invisible else .1)
+        ax.scatter(data[s,dim_1], data[s,dim_2], s=scatter_s, c='gray', edgecolors='none', alpha= 0 if invisible else scatter_alpha)
         back_color = 'white'
         forward_color = 'C0'
     else:
