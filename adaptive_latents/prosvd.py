@@ -105,6 +105,7 @@ class proSVD(TypicalTransformer, BaseProSVD):
     def __init__(self, init_size=None, **kwargs):
         super().__init__(**kwargs)
         self.init_size = init_size or self.k
+        self.on_nan_width = self.k
         self.init_samples = []
         self.is_partially_initialized = False
         self.log = {'Q': [], 't': []}

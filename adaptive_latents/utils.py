@@ -129,6 +129,22 @@ def resample_matched_timeseries(old_timeseries, old_sample_times, new_sample_tim
     return resampled_behavior
 
 
+def evaluate_regression(estimate, estimate_t,  target, target_t):
+    t = estimate_t
+    targets = resample_matched_timeseries(
+        target,
+        target_t,
+        estimate_t
+    )
+
+    test_s = t > (t[0] + t[-1]) / 2
+
+    correlations = np.array([np.corrcoef(estimate[test_s, i], targets[test_s, i])[0, 1] for i in range(estimate.shape[1])])
+    nrmse_s = np.sqrt(((estimate[test_s] - targets[test_s]) ** 2).mean(axis=0)) / targets[test_s].std(axis=0)
+
+    return correlations, nrmse_s
+
+
 def align_column_spaces(A, B):
     # https://simonensemble.github.io/posts/2018-10-27-orthogonal-procrustes/
     # R = argmin(lambda omega: norm(omega @ A - B))

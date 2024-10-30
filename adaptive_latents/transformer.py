@@ -293,10 +293,11 @@ class Pipeline(DecoupledTransformer):
 
 
 class TypicalTransformer(DecoupledTransformer):
-    def __init__(self, input_streams=None, output_streams=None, **kwargs):
+    def __init__(self, input_streams=None, output_streams=None, on_nan_width=None, **kwargs):
         input_streams = input_streams or {0: 'X'}
         super().__init__(input_streams=input_streams, output_streams=output_streams, **kwargs)
         self.is_initialized = False
+        self.on_nan_width = on_nan_width
 
     def get_params(self, deep=True):
         p = super().get_params(deep)
@@ -309,7 +310,7 @@ class TypicalTransformer(DecoupledTransformer):
                 idx = np.isnan(data).any(axis=1)
                 if idx.all():
                     return
-                data = data[np.isnan(data).any(axis=1)]
+                data = data[~np.isnan(data).any(axis=1)]
 
             if not self.is_initialized:
                 self.pre_initialization_fit_for_X(data)
@@ -319,7 +320,10 @@ class TypicalTransformer(DecoupledTransformer):
     def transform(self, data, stream=0, return_output_stream=False):
         if self.input_streams[stream] == 'X':
             if not self.is_initialized or np.isnan(data).any():
-                data = np.nan * data
+                if self.on_nan_width is None:
+                    data = np.nan * data
+                else:
+                    data = (np.nan * data)[:,:self.on_nan_width]
             else:
                 data = self.transform_for_X(data)
 
@@ -446,7 +450,7 @@ class KernelSmoother(StreamingTransformer):
                     output.append(self.kernel @ a)
                 else:
                     output.append(np.nan*row)
-            data = np.array(output)
+            data = ArrayWithTime.from_transformed_data(output, data)
         stream = self.output_streams[stream]
         return data, stream if return_output_stream else data
 

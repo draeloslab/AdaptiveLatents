@@ -105,24 +105,12 @@ class NumpyTimedDataSource(DataSource):
             return None
         return self.t[self.index-1]
 
-    def time_slice(self, start, stop):
-        assert start <= stop
-        s = (start <= self.t) & (self.t <= stop)
-        return NumpyTimedDataSource(self.a[s], self.t[s])
-
-    def relative_time_slice(self, start, stop):
-        assert 0 <= start <= stop <= 1
-        t0 = self.t.min()
-        total_time = self.t.max() - self.t.min()
-        return self.time_slice(t0 + start * total_time, t0 + stop * total_time)
-
     @property
     def dt(self):
         dts = np.diff(self.t)
         dt = np.median(dts)
         assert np.ptp(dts)/dt < 0.001
         return dt
-
 
     @staticmethod
     def from_nwb_timeseries(timeseries):
@@ -167,3 +155,12 @@ class ArrayWithTime(np.ndarray):
             input_array = np.array(input_list)
 
         return cls(input_array=input_array, t=t)
+
+    @classmethod
+    def from_transformed_data(cls, new_data, old_data):
+        # refers to the outputs of a transformer
+        new_data = np.array(new_data)
+        if hasattr(old_data, 't'):
+            return cls(new_data, old_data.t)
+        else:
+            return new_data
