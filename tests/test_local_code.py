@@ -25,12 +25,13 @@ class TestDatasets:
         datasets.Churchland10Dataset,
         datasets.Nason20Dataset,
         datasets.Temmar24uDataset,
+        datasets.Odoherty21Dataset,
         # datasets.Musall19Dataset, # TODO: this takes too long to run
     ]
 
     mult_datasets = [
         # datasets.Low21Dataset,
-        datasets.Odoherty21Dataset,
+        datasets.Zong22Dataset,
         datasets.Schaffer23Datset,
         datasets.Peyrache15Dataset,
         datasets.Naumann24uDataset,
@@ -59,6 +60,7 @@ class TestDatasets:
 
     @staticmethod
     def check_runs_in_pipeline(d):
+        print(f"{type(d).__name__} length (in s): {d.neural_data.t[-1] - d.neural_data.t[0]:.2f}")
         iterator = CenteringTransformer().streaming_run_on(d.neural_data)
         for _ in range(10):
             next(iterator)

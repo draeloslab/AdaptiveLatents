@@ -38,10 +38,8 @@ def make_video(outdir=None):
 
         outputs = [[],[],[],[],[],[]]
         for row in d.neural_data:
-            p._partial_fit(row, stream=0)
             current_time = d.neural_data.current_sample_time()
-
-            output = p.transform(row, stream=0)
+            output = p.partial_fit_transform(row, stream=0)
             for i in range(len(outputs)):
                 outputs[i].append(output[0][i])
 
