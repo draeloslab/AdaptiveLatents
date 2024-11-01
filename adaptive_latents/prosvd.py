@@ -21,10 +21,10 @@ class BaseProSVD:
         assert n_samples >= self.k, "please init with # of cols >= k"
         assert sample_d >= self.k, "k size doesn't make sense"
 
-        Q, R = np.linalg.qr(x, mode='reduced')
+        Q, R_diag, _ = np.linalg.svd(x, full_matrices=False)
 
-        self.Q = Q[:, :self.k]  # TODO: why isn't Q square here?
-        self.R = R[:self.k, :self.k]
+        self.Q = Q[:, :self.k]
+        self.R = np.diag(R_diag[:self.k])
         self.n_samples_observed = n_samples
 
     def add_new_input_channels(self, n):
