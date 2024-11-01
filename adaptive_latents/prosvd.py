@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.linalg import rq
+import scipy.linalg
 from .transformer import TypicalTransformer
 from .utils import save_to_cache, principle_angles
 
@@ -41,7 +41,11 @@ class BaseProSVD:
             [np.zeros((x_orth_r.shape[0], self.R.shape[1])), x_orth_r]
         ])
 
-        u_high_d, diag_high_d, vh_high_d = np.linalg.svd(r_new, full_matrices=False)
+        try:
+            u_high_d, diag_high_d, vh_high_d = np.linalg.svd(r_new, full_matrices=False)
+        except np.linalg.LinAlgError:
+            u_high_d, diag_high_d, vh_high_d = scipy.linalg.svd(r_new, full_matrices=False, lapack_driver='gesvd')
+
 
         u_low_d = u_high_d[:,:self.k]
         vh_low_d = vh_high_d[:,:self.k]
@@ -59,7 +63,7 @@ class BaseProSVD:
         u_low_d_stabilized = u_low_d @ u_stabilizing_rotation.T
 
         # TODO: we don't actually stabilize anything here, I think this can be dropped
-        vh_low_d_stabilized, vh_stabilizing_rotation = rq(vh_low_d)
+        vh_low_d_stabilized, vh_stabilizing_rotation = scipy.linalg.rq(vh_low_d)
 
         # elif 'alignment_method' == 'Baker 2012':
         #     # Baker refers to e.g. https://doi.org/10.1016/j.laa.2011.07.018
