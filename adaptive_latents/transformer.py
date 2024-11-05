@@ -165,7 +165,7 @@ class StreamingTransformer(ABC):
             data = outputs[0]
             while data and np.isnan(data[0]).any():
                 data.pop(0)
-            outputs = ArrayWithTime.from_list(data, squeeze=True)  # can be replaced with np.squeeze
+            outputs = ArrayWithTime.from_list(data, squeeze_type='to_2d')  # can be replaced with np.squeeze
 
         return outputs
 

@@ -7,8 +7,10 @@ from adaptive_latents import (
     proSVD,
     Bubblewrap,
     VanillaOnlineRegressor,
+    sjPCA,
+    mmICA,
 )
-from adaptive_latents.timed_data_source import ArrayWithTime
+from adaptive_latents.timed_data_source import ArrayWithTime, NumpyTimedDataSource
 from adaptive_latents.utils import evaluate_regression
 import numpy as np
 import timeit
@@ -43,7 +45,7 @@ class PredictionRegressionRun:
         streams.append((behavioral_data, 1))
         streams.extend((value, key) for key, value in targets.items())
 
-        exit_time = exit_time or max([source.t[-1] for source, stream in streams])
+        exit_time = exit_time if exit_time >= 0 else max([max(source.t) for source, stream in streams])
 
         initial_common_pipeline = Pipeline([
             CenteringTransformer(init_size=100),
@@ -92,7 +94,7 @@ class PredictionRegressionRun:
                     if bw is not None:
                         reg[stream].partial_fit_transform(data, stream=1)
 
-            pbar.update(round(data.t - pbar.n, 1))
+            pbar.update(round(data.t, 1) - pbar.n)
             if data.t > exit_time:
                 break
 
@@ -102,13 +104,13 @@ class PredictionRegressionRun:
 
         self.initial_common_pipeline = initial_common_pipeline
         self.dim_red_branches = {key: (dim_red_method, bw.uninitialized_copy() if bw is not None else bw, reg_constructor) for key, (dim_red_method, bw, reg_constructor) in dim_red_branches.items()}
-        self.dim_reduced_data = {key: ArrayWithTime.from_list(value) for key, value in dim_reduced_data.items()}
+        self.dim_reduced_data = {key: ArrayWithTime.from_list(value, squeeze_type='to_2d') for key, value in dim_reduced_data.items()}
 
         self.target_estimates = {}
         for dim_red_name, estimates in target_estimates.items():
             self.target_estimates[dim_red_name] = {}
             for target_name, estimate in estimates.items():
-                self.target_estimates[dim_red_name][target_name] = ArrayWithTime.from_list(estimate)
+                self.target_estimates[dim_red_name][target_name] = ArrayWithTime.from_list(estimate, squeeze_type='to_2d')
 
         self.reg_performances = {}
         for dim_red_name, estimates in self.target_estimates.items():
@@ -117,41 +119,97 @@ class PredictionRegressionRun:
                 self.reg_performances[dim_red_name][target_name] = {}
                 estimate = self.target_estimates[dim_red_name][target_name]
                 target = self.targets[target_name]
-                corr, nrmse = evaluate_regression(estimate, estimate.t, target.a[:,0,:], target.t)
-                self.reg_performances[dim_red_name][target_name]['corr'] = corr
-                self.reg_performances[dim_red_name][target_name]['nrmse'] = np.array(nrmse)
+                if len(estimate):
+                    corr, nrmse = evaluate_regression(estimate, estimate.t, target.a[:,0,:], target.t)
+
+                    self.reg_performances[dim_red_name][target_name]['corr'] = corr
+                    self.reg_performances[dim_red_name][target_name]['nrmse'] = np.array(nrmse)
 
 
     @classmethod
-    def convenience_constructor(
-            cls,
-            n_bubbles=1100,
-            bw_step=10**-1.5,
-    ):
-        # TODO: finish this to replicate the SFN graphs
-        d = datasets.Odoherty21Dataset()
+    def convenience_constructor(cls, ds_name, **kwargs):
+        if ds_name == 'odoherty21':
+            args = dict(
+                neural_smoothing_tau=.12,
+                bw_step=10 ** -1.5,
+                n_bubbles=1100,
+                exit_time=-1,
+                stream_scaling_factors={0: 1, 1: 1},
+                drop_third_coord=True,
+            )
+
+            args |= kwargs
+
+            d = datasets.Odoherty21Dataset(drop_third_coord=args['drop_third_coord'])
+            neural_data = d.neural_data
+            behavioral_data = d.behavioral_data
+        elif ds_name == 'zong22':
+            args = dict(
+                n_bubbles = 875,
+                bw_step = 10 ** 0.25,
+                neural_smoothing_tau=.688,
+                sub_dataset_identifier=2,
+                pos_scale=1 / 160, hd_scale=1 / 1.8, h2b_scale=1 / 8.5,
+                stream_scaling_factors={0: 1 / 1000 * 10 ** -1, 1: 0},
+                exit_time=-1,
+            )
+            args |= kwargs
+
+            d = datasets.Zong22Dataset(sub_dataset_identifier=args['sub_dataset_identifier'], pos_scale=args['pos_scale'], hd_scale=args['hd_scale'], h2b_scale=args['h2b_scale'])
+            neural_data = d.neural_data
+            behavioral_data = d.behavioral_data
+        elif ds_name == 'naumann24u':
+            args = dict(
+                n_bubbles = 875,
+                bw_step = 10 ** 0.25,
+                neural_smoothing_tau=.688,
+                sub_dataset_identifier=datasets.Naumann24uDataset.sub_datasets[1],
+                stream_scaling_factors={0: 1, 1: 0},
+                beh_type='angle',
+                exit_time=-1,
+            )
+            args |= kwargs
+
+            d = datasets.Naumann24uDataset(sub_dataset_identifier=args['sub_dataset_identifier'], beh_type=args['beh_type'])
+            neural_data = d.neural_data
+            behavioral_data = d.behavioral_data
+            d = datasets.Naumann24uDataset()
+        else:
+            raise ValueError()
+
         bw = Bubblewrap(
-            num=n_bubbles,
+            num=args['n_bubbles'],
             M=500,
             lam=1e-3,
             nu=1e-3,
             eps=1e-4,
-            step=bw_step,
+            step=args['bw_step'],
             num_grad_q=1,
             sigma_orig_adjustment=100,
             log_level=1,
         )
         dim_red_branches = {
-            'p6': [proSVD(k=6), bw, functools.partial(VanillaOnlineRegressor)],
-            'p1': [proSVD(k=1), None, None]
+            'pro':   [proSVD(k=6), bw, functools.partial(VanillaOnlineRegressor)],
+            'jpca':  [Pipeline([proSVD(k=6), sjPCA()]), None, None],
+            'mmica': [Pipeline([proSVD(k=6), mmICA()]), None, None]
         }
+
+        neural_only_pipeline = Pipeline([CenteringTransformer(), KernelSmoother(tau=args['neural_smoothing_tau'] / neural_data.dt), proSVD(k=4)])
+        neural_targets = ArrayWithTime.from_list(neural_only_pipeline.offline_run_on(neural_data, convinient_return=False)[0], squeeze_type='to_2d')
         targets = {
-            'beh': d.behavioral_data
+            'beh': copy.deepcopy(d.behavioral_data),
+            'neural': NumpyTimedDataSource(neural_targets, neural_targets.t)
         }
 
-        p = PredictionRegressionRun(d.neural_data, d.behavioral_data, dim_red_branches=dim_red_branches, targets=targets, exit_time=50)
 
-        return p
+        return PredictionRegressionRun(
+            neural_data,
+            behavioral_data,
+            dim_red_branches=dim_red_branches,
+            targets=targets,
+            neural_smoothing_tau=args['neural_smoothing_tau'],
+            exit_time=args['exit_time']
+        )
 
 
     def plot_flow_fields(self, x_direction=0, y_direction=1, grid_n=13, scatter_alpha=0, normalize_method=None):
@@ -160,8 +218,8 @@ class PredictionRegressionRun:
 
         for idx, (name, latents) in enumerate(self.dim_reduced_data.items()):
             e1, e2 = np.zeros(latents.shape[1]), np.zeros(latents.shape[1])
-            e1[0] = x_direction
-            e2[1] = y_direction
+            e1[x_direction] = 1
+            e2[y_direction] = 1
 
             ax: plt.Axes = axs[0, idx]
             ax.scatter(latents @ e1, latents @ e2, s=5, alpha=scatter_alpha)
@@ -188,11 +246,11 @@ class PredictionRegressionRun:
                             (y_points[j] <= proj_2) & (proj_2 < y_points[j + 1])
                     )
                     if s.sum():
-                        arrow = d_latents[s].mean(axis=0)
+                        arrow = np.nanmean(d_latents[s],axis=0)
                         if normalize_method == 'hcubes':
                             arrow = arrow / np.linalg.norm(arrow)
                         arrows.append(arrow)
-                        origins.append([x_points[i:i + 2].mean(), y_points[j:j + 2].mean()])
+                        origins.append([np.nanmean(x_points[i:i + 2]), np.nanmean(y_points[j:j + 2])])
                         n_points.append(s.sum())
             origins, arrows, n_points = np.array(origins), np.array(arrows), np.array(n_points)
             arrows = np.array([arrows @ e1, arrows @ e2]).T

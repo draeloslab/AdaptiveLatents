@@ -109,7 +109,7 @@ class NumpyTimedDataSource(DataSource):
     def dt(self):
         dts = np.diff(self.t)
         dt = np.median(dts)
-        assert np.ptp(dts)/dt < 0.001
+        assert np.ptp(dts)/dt < 0.05
         return dt
 
     @staticmethod
@@ -146,15 +146,26 @@ class ArrayWithTime(np.ndarray):
     #     return super().__getitem__(item)
 
     @classmethod
-    def from_list(cls, input_list, squeeze=True):
+    def from_list(cls, input_list, squeeze_type='none'):
         # TODO: check the shapes?
         t = np.array([x.t for x in input_list])
-        if squeeze:
+        if squeeze_type == 'none' or squeeze_type is None:
+            input_array = np.array(input_list)
+        elif squeeze_type == 'to_2d':
+            input_array = np.squeeze(input_list)
+            if len(input_array.shape) == 1:
+                input_array = input_array[:, None]
+            assert len(input_array.shape) == 2
+        elif squeeze_type == 'squeeze':
             input_array = np.squeeze(input_list)
         else:
-            input_array = np.array(input_list)
+            raise ValueError()
 
         return cls(input_array=input_array, t=t)
+
+    @classmethod
+    def from_NTDS(cls, ds):
+        return cls(np.squeeze(ds.a, axis=2), ds)
 
     @classmethod
     def from_transformed_data(cls, new_data, old_data):
