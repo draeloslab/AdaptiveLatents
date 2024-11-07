@@ -228,7 +228,7 @@ class VanillaOnlineRegressor(DecoupledTransformer, BaseVanillaOnlineRegressor):
 
     def transform(self, data, stream=0, return_output_stream=False):
         stream_label = self.input_streams[stream]
-        if stream_label == 'X':
+        if stream_label in {'X', 'qX'}:
             if np.isnan(data).any():
                 data = np.nan * data
             else:

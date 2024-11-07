@@ -8,6 +8,7 @@ from adaptive_latents.config import CONFIG
 import inspect
 import warnings
 import functools
+from collections import namedtuple
 # TODO: depreciate this file
 
 
@@ -142,7 +143,8 @@ def evaluate_regression(estimate, estimate_t,  target, target_t):
     correlations = np.array([np.corrcoef(estimate[test_s, i], targets[test_s, i])[0, 1] for i in range(estimate.shape[1])])
     nrmse_s = np.sqrt(((estimate[test_s] - targets[test_s]) ** 2).mean(axis=0)) / targets[test_s].std(axis=0)
 
-    return correlations, nrmse_s
+    EvalResult = namedtuple('EvalResult', ['corr', 'nrmse'])
+    return EvalResult(correlations, nrmse_s)
 
 
 def align_column_spaces(A, B):

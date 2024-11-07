@@ -533,13 +533,14 @@ def update_cov(cov, last, curr, mean, n):
 class Bubblewrap(StreamingTransformer, BaseBubblewrap):
     base_algorithm = BaseBubblewrap
 
-    def __init__(self, n_steps_to_predict=1, input_streams=None, **kwargs):
+    def __init__(self, n_steps_to_predict=1, input_streams=None, check_consistent_dt=True, **kwargs):
         input_streams = input_streams or {0 : 'X'}
         super().__init__(input_streams=input_streams, **kwargs)
         self.unevaluated_predictions = {}
         self.dt = None
         self.last_timepoint = None
         self.n_steps_to_predict = n_steps_to_predict
+        self.check_consistent_dt = check_consistent_dt
 
     def partial_fit_transform(self, data, stream=0, return_output_stream=False):
         original_data = None
@@ -554,7 +555,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
             if hasattr(data, 't') and self.last_timepoint is not None and self.dt is not None:
                 new_dt = data.t - self.last_timepoint
                 larger, smaller = sorted([self.dt, new_dt])
-                assert larger / smaller < 1.1
+                assert (not self.check_consistent_dt) or larger / smaller < 1.01
 
             output = []
             for i in range(len(data)): # todo: how to deal with t's within a data matrix
@@ -578,7 +579,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
                 if self.is_initialized:
                     o = numpy.array(self.alpha)
                 else:
-                    o = numpy.zeros(self.N) * numpy.nan
+                    o = numpy.zeros([1, self.N]) * numpy.nan
                 output.append(o)
 
             if isinstance(data, ArrayWithTime):
@@ -588,6 +589,14 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
                 if self.last_timepoint is not None:
                     self.dt = data.t - self.last_timepoint
                 self.last_timepoint = data.t
+
+        elif self.input_streams[stream] == 'dt':
+            assert data.size == 1
+            if self.is_initialized:
+                alpha_pred = self.get_alpha_at_t(data[0,0], relative_t=True)
+                data = alpha_pred.reshape([1,-1])
+            else:
+                data = ArrayWithTime(numpy.nan * numpy.zeros([1, self.N]), data.t)
 
         stream = self.output_streams[stream]
         if return_output_stream:
@@ -609,6 +618,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
             copy_row_on_teleport=self.copy_row_on_teleport,
             num_grad_q=self.num_grad_q,
             sigma_orig_adjustment=self.sigma_orig_adjust,
+            check_consistent_dt=self.check_consistent_dt,
         )
 
         return params | super().get_params()
@@ -644,11 +654,11 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
 
     def get_alpha_at_t(self, t, alpha=None, relative_t=False):
         alpha = alpha or self.alpha
-        t = t if relative_t else t - self.last_timepoint
-        n_steps = t/self.dt
-        assert numpy.isclose(round(n_steps), n_steps)
+        dt = t if relative_t else t - self.last_timepoint
+        n_steps = dt/self.dt
+        assert (not self.check_consistent_dt) or numpy.isclose(round(n_steps), n_steps)
         n_steps = int(n_steps)
-        return numpy.array(numpy.real(alpha @ jnp.linalg.matrix_power(self.A, n_steps)))
+        return ArrayWithTime(numpy.real(alpha @ jnp.linalg.matrix_power(self.A, n_steps)), dt + self.last_timepoint)
 
 
     def show_bubbles_2d(self, ax, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45, show_names=True, n_obs_thresh=.1):

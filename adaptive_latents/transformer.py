@@ -118,6 +118,10 @@ class StreamingTransformer(ABC):
         stream: int, optional
             the stream that the outputted data belongs to
         """
+        if isinstance(sources, dict):
+            s = []
+            for stream, source in sources.items():
+                s.append((source, stream))
 
         if not (isinstance(sources, tuple) or isinstance(sources, list)):  # passed a single source
             sources = [sources]
@@ -150,13 +154,14 @@ class StreamingTransformer(ABC):
 
         self.mid_run_sources = None
 
-
-    def offline_run_on(self, sources, convinient_return=True):
+    def offline_run_on(self, sources, convinient_return=True, exit_time=None):
         outputs = {}
         for data, stream in self.streaming_run_on(sources, return_output_stream=True):
             if stream not in outputs:
                 outputs[stream] = []
             outputs[stream].append(data)
+            if exit_time is not None and data.t >= exit_time and min([s[0].current_sample_time() for s in self.mid_run_sources]) >= exit_time:
+                break
 
         if convinient_return:
             if 0 not in outputs:
@@ -559,3 +564,22 @@ class SwitchingParallelTransformer(DecoupledTransformer):
                 for k, v in step.get_params(deep).items():
                     p[f'__sub_transformers[{i}]__{k}'] = v
         return p | super().get_params(deep)
+
+
+class Tee(DecoupledTransformer):
+    def __init__(self, input_streams=None):
+        input_streams = input_streams or PassThroughDict()
+        self.observed = {}
+        super().__init__(input_streams=input_streams)
+
+    def _partial_fit(self, data, stream):
+        if stream in self.input_streams:
+            if stream not in self.observed:
+                self.observed[stream] = []
+            self.observed[stream].append(data)
+
+    def transform(self, data, stream=0, return_output_stream=False):
+        return data, stream if return_output_stream else data
+
+    def convert_to_array(self):
+        self.observed = {k: ArrayWithTime.from_list(v, squeeze_type='to_2d', drop_early_nans=True) for k, v in self.observed.items()}

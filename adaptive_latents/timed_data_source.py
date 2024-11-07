@@ -146,8 +146,13 @@ class ArrayWithTime(np.ndarray):
     #     return super().__getitem__(item)
 
     @classmethod
-    def from_list(cls, input_list, squeeze_type='none'):
-        # TODO: check the shapes?
+    def from_list(cls, input_list, squeeze_type='none', drop_early_nans=False):
+        if drop_early_nans:
+            i = 0
+            while i < len(input_list) and not np.isfinite(input_list[i]).all():
+                i += 1
+            input_list = input_list[i:]
+
         t = np.array([x.t for x in input_list])
         if squeeze_type == 'none' or squeeze_type is None:
             input_array = np.array(input_list)
