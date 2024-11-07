@@ -160,6 +160,9 @@ class ArrayWithTime(np.ndarray):
             input_array = np.squeeze(input_list)
             if len(input_array.shape) == 1:
                 input_array = input_array[:, None]
+            elif len(input_array.shape) == 3:
+                warnings.warn("squeezing 3d array to 2d, this is unusual")
+                input_array = input_array.reshape([-1, input_array.shape[-1]])
             assert len(input_array.shape) == 2
         elif squeeze_type == 'squeeze':
             input_array = np.squeeze(input_list)
