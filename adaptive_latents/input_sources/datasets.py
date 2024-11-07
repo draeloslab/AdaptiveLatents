@@ -34,7 +34,7 @@ import datahugger
 
 import urllib.request
 
-DATA_BASE_PATH = CONFIG['dataset_path']
+DATA_BASE_PATH = CONFIG.dataset_path
 
 
 class ModelOrganism(enum.Enum):

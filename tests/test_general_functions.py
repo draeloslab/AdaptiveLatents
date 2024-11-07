@@ -8,7 +8,7 @@ class TestJaxEnvironment:
     def test_can_use_configured_backend(self):
         # note that this does not check that both backends are possible
         from jax.lib import xla_bridge
-        assert xla_bridge.get_backend().platform == adaptive_latents.CONFIG["jax_platform_name"]
+        assert xla_bridge.get_backend().platform == adaptive_latents.CONFIG.jax_platform_name
 
     def test_can_use_float64(self):
         jax.config.update('jax_enable_x64', True)  # this line is for documentation, the real line is in the config load

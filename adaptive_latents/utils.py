@@ -31,8 +31,8 @@ def make_hashable_and_hash(x):
     return int(hashlib.sha1(make_hashable(x)).hexdigest(), 16)
 
 
-def save_to_cache(file, location=CONFIG["cache_path"], override_config_and_cache=False):
-    if not CONFIG["attempt_to_cache"] and not override_config_and_cache:
+def save_to_cache(file, location=CONFIG.cache_path, override_config_and_cache=False):
+    if not CONFIG.attempt_to_cache and not override_config_and_cache:
 
         def decorator(original_function):
             @functools.wraps(original_function)
@@ -70,7 +70,7 @@ def save_to_cache(file, location=CONFIG["cache_path"], override_config_and_cache
 
                 hstring = str(all_args_as_key)[-15:]
                 cache_file = os.path.join(location, f"{file}_{hstring}.pickle")
-                if CONFIG["verbose"]:
+                if CONFIG.verbose:
                     print(f"caching value in: {cache_file}")
                 with open(cache_file, "wb") as fhan:
                     pickle.dump(result, fhan)
@@ -80,7 +80,7 @@ def save_to_cache(file, location=CONFIG["cache_path"], override_config_and_cache
                     pickle.dump(cache_index, fhan)
 
             with open(os.path.join(location, cache_index[all_args_as_key]), 'rb') as fhan:
-                if CONFIG["verbose"]:
+                if CONFIG.verbose:
                     # TODO: also log here
                     # TODO: have tests globally disable caching; you can recalculate, but that doesn't get inner caching
                     print(f"retreiving cache from: {cache_index[all_args_as_key]}")

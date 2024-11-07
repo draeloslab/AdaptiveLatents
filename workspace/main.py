@@ -3,7 +3,7 @@ from adaptive_latents.jpca import generate_circle_embedded_in_high_d
 import numpy as np
 
 
-def main(output_directory=CONFIG['plot_save_path'], steps_to_run=None):
+def main(output_directory=CONFIG.plot_save_path, steps_to_run=None):
     rng = np.random.default_rng(0)
     input_data, _, _ = generate_circle_embedded_in_high_d(rng, m=steps_to_run)
 

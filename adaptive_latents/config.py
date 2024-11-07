@@ -6,64 +6,68 @@ from frozendict import frozendict
 import copy
 import importlib_resources as impresources
 
-CONFIG_FILE_NAME = "adaptive_latents_config.yaml"
+
+class ConfigObject:
+    CONFIG_FILE_NAME = "adaptive_latents_config.yaml"
+    n_instances = 0
+
+    def __init__(self, base_config=None, local_config=None):
+        self.n_instances += 1
+        assert self.n_instances == 1, "This class was originally designed to be a single global module object. Make more at your own risk."
+
+        if base_config is None:
+            base_config, local_config = self.default_search()
+
+        local_config = local_config or {}
+
+        simple_combination = base_config | local_config
+
+        self.jax_enable_x64 = simple_combination["jax_enable_x64"]
+        self.jax_platform_name = simple_combination["jax_platform_name"]
+
+        self.attempt_to_cache = simple_combination["attempt_to_cache"]
+        self.verbose = simple_combination["verbose"]
+
+        self.bwrun_save_path = self.resolve_path(base_config, local_config, "bwrun_save_path")
+        self.plot_save_path = self.resolve_path(base_config, local_config, "plot_save_path")
+        self.cache_path = self.resolve_path(base_config, local_config, "cache_path")
+        self.dataset_path = self.resolve_path(base_config, local_config, "dataset_path")
 
 
-def merge_dicts(d1, d2):
-    # d2 has higher precedence
-    common_keys = set(d1.keys()).intersection(d2.keys())
-    d3 = d1 | d2
-    for key in filter(lambda x: isinstance(x, dict), common_keys):
-        d3[key] = merge_dicts(d1[key], d2[key])
-    return d3
+        self.default_parameters = {}
+        for key, params in base_config['default_parameters'].items():
+            local_params = local_config.get(key, {})
+            self.default_parameters[key] = params | local_params
 
-
-def freeze_recursively(o):
-    if isinstance(o, dict):
-        return frozendict({k: freeze_recursively(v) for k, v in o.items()})
-    elif isinstance(o, list):
-        return tuple([freeze_recursively(x) for x in o])
-    else:
-        assert type(o) in [str, int, float, bool] or isinstance(o, pathlib.Path)
-        return o
-
-def load_config(file, path_keys, use_local=False):
-    with open(file, 'r') as fhan:
-        config = yaml.safe_load(fhan)
-
-    for key in set(path_keys).intersection(config.keys()):
-        if use_local:
-            config[key] = ('.' / pathlib.Path(config[key])).resolve()
+    @staticmethod
+    def resolve_path(base_config, local_config, key):
+        if key in local_config:
+            path  =pathlib.Path(local_config['config_file_directory'] / local_config[key])
         else:
-            config[key] = (file.parent / pathlib.Path(config[key])).resolve()
+            path = pathlib.Path(base_config[key])
 
-    return config
-
-
-def get_config():
-    path_keys = ['bwrun_save_path', 'cache_path', 'plot_save_path', 'dataset_path']
-    config = load_config(pathlib.Path(impresources.files('adaptive_latents')) / CONFIG_FILE_NAME, path_keys, use_local=True)
+        path.mkdir(exist_ok=True, parents=True)
+        return path
 
 
-    local_config = {}
-    cwd = pathlib.Path.cwd()
-    for path in [cwd] + list(cwd.parents):
-        file = path / CONFIG_FILE_NAME
-        if file.is_file():
-            local_config = load_config(file, path_keys)
-            break
+    def default_search(self):
+        with open(pathlib.Path(impresources.files('adaptive_latents')) / self.CONFIG_FILE_NAME, 'r') as fhan:
+            base_config = yaml.safe_load(fhan)
 
-    config = merge_dicts(config, local_config)
-    for path in path_keys:
-        if not config[path].is_dir():
-            print(f"constructing {config[path]}")
-            config[path].mkdir(exist_ok=True, parents=True)
-            # TODO: put a readme in each created directory?
+        local_config = {}
+        cwd = pathlib.Path.cwd()
+        for path in [cwd] + list(cwd.parents):
+            file = path / self.CONFIG_FILE_NAME
+            if file.is_file():
+                with open(file, 'r') as fhan:
+                    local_config = yaml.safe_load(fhan)
+                    local_config['config_file_directory'] = path
+                break
 
-    return freeze_recursively(config)
+        return base_config, local_config
 
 
-CONFIG = get_config()
+CONFIG = ConfigObject()
 
 
 def use_config_defaults(func):
@@ -79,7 +83,7 @@ def use_config_defaults(func):
             name = name.split(".")
             assert len(name) == 2
             name = name[0]
-        config_defaults: dict = copy.deepcopy(CONFIG['default_parameters'][name])
+        config_defaults: dict = copy.deepcopy(CONFIG.default_parameters[name])
 
         assert set(current_defaults.keys()) == set(config_defaults.keys())
 
