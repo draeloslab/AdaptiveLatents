@@ -215,37 +215,3 @@ def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, 
 
         ax.axis('equal')
         ax.axis('off')
-
-    @staticmethod
-    def compare_metrics_across_runs(tried, runs, fig=None, axs=None):
-        tried, runs = zip(*sorted(zip(tried, runs)))
-        for run in runs:
-            assert len(run.dim_red_branches) == 1
-            assert run.dim_red_branches[list(run.dim_red_branches.keys())[0]][1] is not None
-
-        targets = list(runs[0].targets.keys())
-        dim_red_name = list(runs[0].dim_red_branches.keys())[0]
-
-        if fig is None:
-            fig, axs = plt.subplots(nrows=len(targets), ncols=2, squeeze=False, figsize=(4*2,5/3 * len(targets)), sharex=False)
-        else:
-            for ax in axs.flatten():
-                ax.cla()
-
-        for idx, target_str in enumerate(targets):
-            run: PredictionRegressionRun
-            correlations = np.array([run.reg_performances[dim_red_name][target_str]['corr'] for run in runs])
-            mses = np.array([run.reg_performances[dim_red_name][target_str]['nrmse'] for run in runs])
-            for jdx, metric in enumerate([correlations, mses]):
-                axs[idx,jdx].plot(tried, metric)
-                metric = -metric if jdx == 1 else metric
-                best_tried = tried[np.argmax(metric.sum(axis=1))]
-                axs[idx, jdx].axvline(best_tried, color='k')
-                axs[idx, jdx].text(.99, .99, f'{best_tried:.3f}', ha='right', va='top', transform=axs[idx, jdx].transAxes)
-                if idx != 2:
-                    axs[idx, jdx].set_xticks(tried)
-                    axs[idx, jdx].set_xticklabels([])
-            axs[idx,0].set_ylabel(target_str)
-        axs[0,0].set_title('correlation')
-        axs[0,1].set_title('NRMSE')
-        return fig, axs

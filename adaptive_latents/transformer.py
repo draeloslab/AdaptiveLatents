@@ -87,10 +87,7 @@ class StreamingTransformer(ABC):
 
     def get_params(self, deep=True):
         # TODO: should this deep copy?
-        if deep:
-            return dict(input_streams=self.input_streams, output_streams=self.output_streams, log_level=self.log_level)
-        else:
-            return dict()
+        return dict(input_streams=self.input_streams, output_streams=self.output_streams, log_level=self.log_level)
 
     def trace_route(self, stream):
         middle_str = str(self) if stream in self.input_streams else ""
@@ -103,7 +100,7 @@ class StreamingTransformer(ABC):
         """
         Parameters
         ----------
-        sources: np.ndarray, types.GeneratorType, list[np.ndarray | types.GeneratorType], DataSource, list[DataSource], list[tuple[DataSource, int]]
+        sources: np.ndarray, types.GeneratorType, list[np.ndarray | types.GeneratorType], DataSource, list[DataSource], list[tuple[DataSource, int]], dict
             This should be the set of data sources.
             If a single DataSource, it will be promoted to [streams]
             If a list of DataSources, each source will be mapped to the equal to its index in the list.

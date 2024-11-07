@@ -109,6 +109,89 @@ def plot_history_with_tail(ax, data, current_t, tail_length=1, scatter_all=True,
     ax.axis('off')
 
 
+class UpdatingOptimizationGraph:
+    def __init__(self, metrics=None, targets=None, low_is_good_metrics=('nrmse',)):
+        """
+        Examples
+        ----------
+        >>> import time
+        >>> o = UpdatingOptimizationGraph()
+        >>> for v in o.suggest_values(0,6.28):
+        >>>     time.sleep(1)
+        >>>     o.register_result(v, {'beh':{'corr': [np.sin(v), np.cos(v)], 'nrmse': -np.sin(v)}, 'joint':{'corr': [np.cos(v), np.cos(v*2)], 'nrmse': np.cos(v)}})
+        """
+        self.fig, self.axs = None, None
+        self.low_is_good_metrics = low_is_good_metrics
+        self.tried_values = []
+        self.results = []
+        self.metrics = metrics
+        self.targets = targets
+
+    def suggest_values(self, *args, max_n_samples=100):
+        while max_n_samples is None or len(self.tried_values) < max_n_samples:
+            yield self.binary_search_next_sample(*args, tried_values=self.tried_values)
+
+    def update_plot(self):
+        if self.fig is None:
+            self.fig, self.axs = plt.subplots(nrows=len(self.targets), ncols=len(self.metrics), squeeze=False)
+        for idx, target_str in enumerate(self.targets):
+            for jdx, metric_str in enumerate(self.metrics):
+                metric = np.array([result[target_str][metric_str] for result in self.results])
+                metric = np.atleast_2d(metric.T).T
+                self.axs[idx,jdx].cla()
+                self.axs[idx,jdx].plot(self.tried_values, metric)
+
+                summaries = metric.sum(axis=1)
+                if metric_str in self.low_is_good_metrics:
+                    summaries = -summaries
+                best_tried = self.tried_values[np.argmax(summaries)]
+                self.axs[idx, jdx].axvline(best_tried, color='k', alpha=.5)
+                self.axs[idx, jdx].text(.99, .99, f'{best_tried:.3f}', ha='right', va='top', transform=self.axs[idx, jdx].transAxes)
+
+                if idx == 0:
+                    self.axs[idx, jdx].set_title(metric_str)
+                    self.axs[idx, jdx].set_xticklabels([])
+
+                if idx != len(self.targets) - 1:
+                    self.axs[idx, jdx].set_xticks(self.tried_values)
+                    self.axs[idx, jdx].set_xticklabels([])
+
+                if jdx == 0:
+                    self.axs[idx, jdx].set_ylabel(target_str)
+
+        display.clear_output()
+        display.display(self.fig)
+
+    def register_result(self, value, result):
+        if isinstance(result, tuple) and hasattr(result, '_asdict'):
+            result = result._asdict()
+        for k, v in result.items():
+            if isinstance(v, tuple) and hasattr(v, '_asdict'):
+                result[k] = v._asdict()
+
+        if self.metrics is None or self.targets is None:
+            self.targets = list(result.keys())
+            self.metrics = list(result[self.targets[0]].keys())
+
+        self.tried_values.append(value)
+        self.results.append(result)
+
+        self.tried_values, self.results = map(list, list(zip(*sorted(zip(self.tried_values, self.results)))))
+
+        self.update_plot()
+
+    @staticmethod
+    def binary_search_next_sample(*args, tried_values=()):
+        # usual args are min, max
+        tried = list(tried_values)
+
+        for new_x in args:
+            if new_x not in tried:
+                return new_x
+
+        tried = sorted(tried)
+        idx = np.argmax(np.diff(tried))
+        return (tried[idx] + tried[idx + 1]) / 2
 
 
 
