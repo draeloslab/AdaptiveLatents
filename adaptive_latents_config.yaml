@@ -1,6 +1,6 @@
 jax_platform_name: 'gpu'
 
-attempt_to_cache: False
+attempt_to_cache: True
 
 bwrun_save_path: ./workspace/al_generated/bw_runs
 cache_path: ./workspace/al_generated/caches

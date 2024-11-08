@@ -2,9 +2,10 @@ import yaml
 import pathlib
 import functools
 import inspect
-from frozendict import frozendict
 import copy
 import importlib_resources as impresources
+from joblib import Memory
+
 
 
 class ConfigObject:
@@ -33,6 +34,7 @@ class ConfigObject:
         self.cache_path = self.resolve_path(base_config, local_config, "cache_path")
         self.dataset_path = self.resolve_path(base_config, local_config, "dataset_path")
 
+        self.caching = Memory(self.cache_path, verbose=False)
 
         self.default_parameters = {}
         for key, params in base_config['default_parameters'].items():

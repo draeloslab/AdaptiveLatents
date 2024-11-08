@@ -29,6 +29,7 @@ dependencies:
   - frozendict
   - pims
   - numba # todo: this is for mmica, do I really need it?
+  - joblib
   - pip
   - pip:
      - jax[cuda12]

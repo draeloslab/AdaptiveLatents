@@ -1,4 +1,8 @@
+from unittest.mock import MagicMock
+
 import numpy as np
+
+import adaptive_latents.transformer
 from adaptive_latents import (
     NumpyTimedDataSource,
     CenteringTransformer,
@@ -14,7 +18,9 @@ from adaptive_latents import (
     ZScoringTransformer,
     Concatenator,
 )
+from joblib import Memory
 from adaptive_latents.transformer import DecoupledTransformer, StreamingTransformer
+import adaptive_latents
 import pytest
 import copy
 import itertools
@@ -52,18 +58,6 @@ all_transformers = streaming_only_transformers + decoupled_transformers
 class TestStreamingTransformer:
     transformer = CenteringTransformer()
 
-    def test_streaming_run_on(self, valid_sources):
-        for source in valid_sources:
-            self.transformer.streaming_run_on(source)
-
-    def test_offline_run_on(self, valid_sources):
-        for source in valid_sources:
-            self.transformer.offline_run_on(source, convinient_return=False)
-
-    def test_trace_route(self):
-        self.transformer.trace_route(stream=0)
-        Pipeline([Pipeline([]), Pipeline([])]).trace_route(stream=0)
-
     @pytest.fixture
     def valid_sources(self):
         return [
@@ -76,6 +70,36 @@ class TestStreamingTransformer:
             [(NumpyTimedDataSource(np.zeros((10, DIM))), 0), (NumpyTimedDataSource(np.zeros((10, DIM))), 0),
              (NumpyTimedDataSource(np.zeros((9, DIM))), 1)],
         ]
+
+    def test_streaming_run_on(self, valid_sources):
+        for source in valid_sources:
+            self.transformer.streaming_run_on(source)
+
+    def test_offline_run_on(self, valid_sources):
+        for source in valid_sources:
+            self.transformer.offline_run_on(source, convinient_return=False)
+
+    def test_trace_route(self):
+        self.transformer.trace_route(stream=0)
+        Pipeline([Pipeline([]), Pipeline([])]).trace_route(stream=0)
+
+    def test_caching(self, rng, mocker, tmp_path):
+        adaptive_latents.CONFIG.caching = Memory(location=tmp_path, verbose=False)
+        adaptive_latents.CONFIG.attempt_to_cache = True
+
+        X = rng.normal(size=(100, 5))
+        t1 = CenteringTransformer()
+        t1.offline_run_on(X, cached=True, convinient_return=False)
+
+        mocker.patch('adaptive_latents.transformer.StreamingTransformer.streaming_run_on')
+        t2 = CenteringTransformer()
+        t2.offline_run_on(X, cached=True, convinient_return=False)
+        assert not t2.streaming_run_on.called
+
+        t3 = CenteringTransformer(init_size=1)
+        t3.offline_run_on(X, cached=True, convinient_return=False)
+        assert t3.streaming_run_on.called
+
 
 
 @pytest.mark.parametrize('transformer_maker', all_transformers)

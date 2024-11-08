@@ -1,9 +1,11 @@
 import copy
+import warnings
 from abc import ABC, abstractmethod
 from .timed_data_source import GeneratorDataSource, NumpyTimedDataSource, ArrayWithTime
 from frozendict import frozendict
 import numpy as np
 from collections import deque
+from .config import CONFIG
 
 
 class PassThroughDict(frozendict):
@@ -23,6 +25,10 @@ class PassThroughDict(frozendict):
             raise IndexError('Key has too many inverses (one of which is an implicit passthrough).')
         else:
             return values[0]
+
+def _cacheable_online_run(*, transformer:'StreamingTransformer', **kwargs):
+    out = transformer.offline_run_on(cached=False, **kwargs)
+    return transformer, out
 
 
 class StreamingTransformer(ABC):
@@ -95,6 +101,24 @@ class StreamingTransformer(ABC):
             return middle_str
         return [stream, middle_str, self.output_streams[stream]]
 
+    def format_passed_sources(self, sources):
+        if isinstance(sources, dict):
+            s = []
+            for stream, source in sources.items():
+                s.append((source, stream))
+            sources = s
+
+        if not (isinstance(sources, tuple) or isinstance(sources, list)):  # passed a single source
+            sources = [sources]
+        elif sources == [] and isinstance(sources, list): # passed an empty list
+            return [(NumpyTimedDataSource([np.nan], [np.inf]), 0)]
+
+        if not isinstance(sources[0], tuple):  # passed a list of sources without streams
+            streams = range(len(sources))
+            sources = list(zip(sources, streams))
+
+        return sources
+
 
     def streaming_run_on(self, sources, return_output_stream=False):
         """
@@ -115,25 +139,11 @@ class StreamingTransformer(ABC):
         stream: int, optional
             the stream that the outputted data belongs to
         """
-        if isinstance(sources, dict):
-            s = []
-            for stream, source in sources.items():
-                s.append((source, stream))
-
-        if not (isinstance(sources, tuple) or isinstance(sources, list)):  # passed a single source
-            sources = [sources]
-        elif not len(sources): # passed an empty list
-            return
-
-        if not isinstance(sources[0], tuple):  # passed a list of sources without streams
-            streams = range(len(sources))
-            sources = zip(sources, streams)
+        sources = self.format_passed_sources(sources)
 
         sources, streams = zip(*sources)
-
         sources = [NumpyTimedDataSource(source) if isinstance(source, np.ndarray) else GeneratorDataSource(source) for source in sources]
-        sources = [copy.deepcopy(source) if isinstance(source, NumpyTimedDataSource) else source for source in sources]
-
+        sources = [copy.deepcopy(source) if isinstance(source, NumpyTimedDataSource) else source for source in sources] # todo: this can be removed if we refactor NTDS's to be only iterators
         sources = list(zip(map(iter, sources), streams))
 
         self.mid_run_sources = sources
@@ -151,14 +161,18 @@ class StreamingTransformer(ABC):
 
         self.mid_run_sources = None
 
-    def offline_run_on(self, sources, convinient_return=True, exit_time=None):
-        outputs = {}
-        for data, stream in self.streaming_run_on(sources, return_output_stream=True):
-            if stream not in outputs:
-                outputs[stream] = []
-            outputs[stream].append(data)
-            if exit_time is not None and data.t >= exit_time and min([s[0].current_sample_time() for s in self.mid_run_sources]) >= exit_time:
-                break
+    def offline_run_on(self, sources, convinient_return=True, cached=False):
+        sources = self.format_passed_sources(sources)
+
+        if cached:
+            if CONFIG.attempt_to_cache:
+                new_self, out = CONFIG.caching.cache(_cacheable_online_run)(transformer=self, sources=sources, convinient_return=convinient_return)
+                self.__dict__.update(new_self.__dict__)
+                return out
+            else:
+                warnings.warn("attempted to cache when it's disabled")
+
+        outputs = self._offline_run_on(sources=sources, cached=cached)
 
         if convinient_return:
             if 0 not in outputs:
@@ -169,6 +183,14 @@ class StreamingTransformer(ABC):
                 data.pop(0)
             outputs = ArrayWithTime.from_list(data, squeeze_type='to_2d')  # can be replaced with np.squeeze
 
+        return outputs
+
+    def _offline_run_on(self, sources, cached):
+        outputs = {}
+        for data, stream in self.streaming_run_on(sources, return_output_stream=True):
+            if stream not in outputs:
+                outputs[stream] = []
+            outputs[stream].append(data)
         return outputs
 
     def __str__(self):
@@ -212,9 +234,10 @@ class DecoupledTransformer(StreamingTransformer):
 
 
 class Pipeline(DecoupledTransformer):
-    def __init__(self, steps=(), input_streams=None, reroute_inputs=True, **kwargs):
+    def __init__(self, steps=(), input_streams=None, reroute_inputs=True, pseudobatch=False, **kwargs):
         self.steps: list[DecoupledTransformer] = steps
         self.reroute_inputs = reroute_inputs
+        self.pseudobatch = pseudobatch
 
         if input_streams is None:
             if reroute_inputs:
@@ -225,9 +248,18 @@ class Pipeline(DecoupledTransformer):
 
         super().__init__(input_streams, **kwargs)
 
+    def _offline_run_on(self, sources, cached):
+        if self.pseudobatch:
+            outputs = sources
+            for step in self.steps:
+                outputs = step.offline_run_on(outputs, convinient_return=False, cached=cached)
+            return outputs
+        else:
+            return super()._offline_run_on(sources, cached)
+
     def get_params(self, deep=True):
         # TODO: make this actually SKLearn compatible
-        p = dict(steps=self.steps, reroute_inputs=self.reroute_inputs)
+        p = dict(steps=self.steps, reroute_inputs=self.reroute_inputs, pseudobatch=self.pseudobatch)
         if deep:
             for i, step in enumerate(self.steps):
                 for k, v in step.get_params(deep).items():
