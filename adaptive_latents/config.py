@@ -4,7 +4,6 @@ import functools
 import inspect
 import copy
 import importlib_resources as impresources
-from joblib import Memory
 
 
 
@@ -34,7 +33,13 @@ class ConfigObject:
         self.cache_path = self.resolve_path(base_config, local_config, "cache_path")
         self.dataset_path = self.resolve_path(base_config, local_config, "dataset_path")
 
-        self.caching = Memory(self.cache_path, verbose=False)
+        if self.attempt_to_cache:
+            from joblib import Memory
+            caching = Memory(self.cache_path, verbose=False)
+        else:
+            caching = object()
+            caching.cache = lambda x: x
+        self.caching = caching
 
         self.default_parameters = {}
         for key, params in base_config['default_parameters'].items():
