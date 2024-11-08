@@ -34,27 +34,6 @@ def test_utils_run(rng):
     A, t = adaptive_latents.utils.clip(A, t)
 
 
-def test_cache_works(rng, tmp_path):
-    should_fail = False
-    def f(n):
-        assert not should_fail
-        if n < 1:
-            return 0
-        elif n == 1:
-            return 1
-
-        return np.array(f(n-1) + f(n-2))
-
-    cached_f = adaptive_latents.utils.save_to_cache("fibonacci_test", tmp_path, override_config_and_cache=True)(f)
-
-    assert cached_f(6) == 8
-
-    should_fail = True
-    with pytest.raises(AssertionError):
-        f(6)
-
-    assert cached_f(6) == 8
-
 
 # TODO:
 #  array shapes are correct for 1d output

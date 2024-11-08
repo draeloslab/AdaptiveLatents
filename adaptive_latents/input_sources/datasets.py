@@ -5,7 +5,7 @@ from scipy.io import loadmat
 from tqdm import tqdm
 
 import adaptive_latents.transformer
-from adaptive_latents.utils import save_to_cache, clip
+from adaptive_latents.utils import clip
 from adaptive_latents.timed_data_source import ArrayWithTime
 from adaptive_latents import NumpyTimedDataSource, proSVD, CONFIG
 from skimage.transform import resize
@@ -462,7 +462,7 @@ Please download {sub_dataset_identifier} from {self.doi} and put it in {self.dat
     def construct(self, sub_dataset_identifier):
         self.acquire(sub_dataset_identifier)
 
-        @save_to_cache("peyrache15_data")
+        @CONFIG.caching.cache
         def static_construct(sub_dataset_identifier, bin_width):
             def read_int_file(fname):
                 with open(fname) as fhan:
@@ -626,7 +626,7 @@ class Musall19Dataset(Dataset):
     def construct(self):
         self.acquire()
 
-        @save_to_cache("musall19_data")
+        @CONFIG.caching.cache
         def static_construct(cam, video_target_dim, resize_factor):
             ca_sampling_rate = 31
             video_sampling_rate = 30

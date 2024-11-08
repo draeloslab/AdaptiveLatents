@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg
 from .transformer import TypicalTransformer
-from .utils import save_to_cache, principle_angles
+from .utils import principle_angles
 
 
 class BaseProSVD:
@@ -182,11 +182,6 @@ class proSVD(TypicalTransformer, BaseProSVD):
         ax.set_ylabel(r'$\Vert dQ_i\Vert$')
         ax.set_title(f'Change in the columns of proSVD Q over time ({self.Q.shape[0]} -> {self.Q.shape[1]})')
 
-    @save_to_cache("prosvd_data")
-    @classmethod
-    def offline_run_on_and_cache(cls, input_arr, **kwargs):
-        pro = cls(**kwargs)
-        return pro.offline_run_on(input_arr, convinient_return=True)
 
 
 class RandomProjection(TypicalTransformer):

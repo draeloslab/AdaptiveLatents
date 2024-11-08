@@ -60,7 +60,7 @@ class TestDatasets:
 
     @staticmethod
     def check_runs_in_pipeline(d):
-        print(f"{type(d).__name__} length (in s): {d.neural_data.t[-1] - d.neural_data.t[0]:.2f}")
+        # print(f"{type(d).__name__} length (in s): {d.neural_data.t[-1] - d.neural_data.t[0]:.2f}")
         iterator = CenteringTransformer().streaming_run_on(d.neural_data)
         for _ in range(10):
             next(iterator)
