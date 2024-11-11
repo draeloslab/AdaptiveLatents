@@ -112,7 +112,7 @@ class proSVD(TypicalTransformer, BaseProSVD):
         self.on_nan_width = self.k
         self.init_samples = []
         self.is_partially_initialized = False
-        self.log = {'Q': [], 't': []}
+        self.log |= {'Q': [], 't': []}
 
 
     def instance_get_params(self, deep=True):

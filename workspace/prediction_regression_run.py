@@ -33,9 +33,9 @@ class PredictionEvaluation:
 
         self.outputs = {}
         for k, v in outputs.items():
-            if k in self.stream_names:
-                k = self.stream_names[k]
             self.outputs[k] = ArrayWithTime.from_list(v, drop_early_nans=True, squeeze_type='to_2d')
+            if k in self.stream_names:
+                self.outputs[self.stream_names[k]] = self.outputs[k]
 
         self.evaluations = {}
         for name, (estimate_stream, target_stream) in self.target_pairs.items():
@@ -57,6 +57,7 @@ def pred_reg_run(
         neural_lag=0,
         exit_time=None,
         dim_red_method='pro',
+        log_level=1,
         **kwargs,
 ):
 
@@ -82,26 +83,26 @@ def pred_reg_run(
         step=bw_step,
         num_grad_q=1,
         sigma_orig_adjustment=100,
-        log_level=1,
+        log_level=log_level,
         check_consistent_dt=False,
     )
 
     dim_red = {
         'pro': Pipeline(),
-        'sjpca': sjPCA(),
-        'mmica': mmICA(),
+        'sjpca': sjPCA(log_level=log_level),
+        'mmica': mmICA(log_level=log_level),
     }.get(dim_red_method)
 
     pipeline = Pipeline([
-        CenteringTransformer(init_size=100),
-        KernelSmoother(tau=neural_smoothing_tau / neural_data.dt),
-        Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 0, 1: 0, 'skip': -1}, stream_scaling_factors=stream_scaling_factors),
-        proSVD(k=6),
+        CenteringTransformer(init_size=100, log_level=log_level),
+        KernelSmoother(tau=neural_smoothing_tau / neural_data.dt, log_level=log_level),
+        Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 0, 1: 0, 'skip': -1}, stream_scaling_factors=stream_scaling_factors, log_level=log_level),
+        proSVD(k=6, log_level=log_level),
         dim_red,
         tee:=Tee(input_streams={0:0}),
-        bw(input_streams={0: 'X', 3: 'dt'}),
-        VanillaOnlineRegressor(input_streams={0: 'X', 2: 'Y', 3: 'qX'})
-    ])
+        bw(input_streams={0: 'X', 3: 'dt'}, log_level=log_level),
+        VanillaOnlineRegressor(input_streams={0: 'X', 2: 'Y', 3: 'qX'}, log_level=log_level)
+    ], log_level=log_level)
 
     e = PredictionEvaluation(sources, pipeline, target_pairs={'joint to beh': (3,2)}, stream_names={3:'pred', 2:'target'}, exit_time=exit_time)
     tee.convert_to_array()
@@ -159,7 +160,9 @@ def pred_reg_run_with_defaults(ds_name, **kwargs):
     else:
         raise ValueError()
 
-    return pred_reg_run(neural_data=neural_data, behavioral_data=behavioral_data, target_data=behavioral_data, **args)
+    result = pred_reg_run(neural_data=neural_data, behavioral_data=behavioral_data, target_data=behavioral_data, **args)
+    result.dataset = ds_name
+    return result
 
 
 
@@ -215,3 +218,7 @@ def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, 
 
         ax.axis('equal')
         ax.axis('off')
+
+
+if __name__ == '__main__':
+    odoherty_run = pred_reg_run_with_defaults(ds_name='odoherty21', exit_time=60)

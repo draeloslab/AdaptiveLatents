@@ -184,7 +184,7 @@ class VanillaOnlineRegressor(DecoupledTransformer, BaseVanillaOnlineRegressor):
     def __init__(self, input_streams=None, **kwargs):
         input_streams = input_streams or {0: 'X', 1: 'Y'}
         super().__init__(input_streams=input_streams,**kwargs)
-        self.log = {'preq_error':[], 't': []}
+        self.log |= {'preq_error':[], 't': []}
         self.last_seen = {}
 
     def partial_fit(self, data, stream=0):

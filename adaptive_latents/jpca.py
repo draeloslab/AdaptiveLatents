@@ -104,7 +104,7 @@ class sjPCA(TypicalTransformer, BaseSJPCA):
     base_algorithm = BaseSJPCA
     def __init__(self, init_size=10, **kwargs):
         super().__init__(**kwargs)
-        self.log = {'U': [], 't':[]}
+        self.log |= {'U': [], 't':[]}
         self.init_size = init_size
         self.init_samples = []
 

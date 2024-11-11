@@ -99,7 +99,7 @@ class proPLS(DecoupledTransformer, BaseProPLS):
     def __init__(self, input_streams=None, **kwargs):
         input_streams = input_streams or {0: 'X', 1: 'Y'}
         super().__init__(input_streams=input_streams,**kwargs)
-        self.log = {'u': [], 'vh': [], 't': []}
+        self.log |= {'u': [], 'vh': [], 't': []}
         self.last_seen = {}
         self.is_initialized = False
 

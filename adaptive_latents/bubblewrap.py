@@ -12,6 +12,7 @@ from .config import use_config_defaults
 from .transformer import StreamingTransformer
 from .timed_data_source import ArrayWithTime
 import copy
+import timeit
 
 # TODO: save frozen vs estimator frozen
 # TODO: make this a parameter?
@@ -546,7 +547,19 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         original_data = None
         if self.log_level > 0:
             original_data = copy.deepcopy(data)
+
+        if self.log_level > 0:
+            self.log['stream'].append(stream)
+
+        start = timeit.default_timer()
         ret = self._partial_fit_transform(data, stream, return_output_stream)
+        time_elapsed = timeit.default_timer() - start
+
+        if self.log_level > 0:
+            if hasattr(data, 't'):
+                time_elapsed = ArrayWithTime(time_elapsed, data.t)
+            self.log['step_time'].append(time_elapsed)
+
         self.log_for_partial_fit(original_data if original_data is not None else data, stream)
         return ret
 

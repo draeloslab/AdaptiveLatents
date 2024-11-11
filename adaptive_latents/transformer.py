@@ -4,6 +4,7 @@ from .timed_data_source import GeneratorDataSource, NumpyTimedDataSource, ArrayW
 from frozendict import frozendict
 import numpy as np
 from collections import deque
+import timeit
 
 
 class PassThroughDict(frozendict):
@@ -44,7 +45,7 @@ class StreamingTransformer(ABC):
         self.output_streams = PassThroughDict(output_streams or {})
         self.log_level = log_level
         self.mid_run_sources = None
-        self.log = dict()
+        self.log = dict(step_time=[], stream=[])
 
     def partial_fit_transform(self, data, stream=0, return_output_stream=False):
         """
@@ -67,8 +68,17 @@ class StreamingTransformer(ABC):
         stream: int, optional
             the stream the outputted data should be routed to
         """
-
+        start = timeit.default_timer()
+        if self.log_level > 0:
+            self.log['stream'].append(stream)
         ret = self._partial_fit_transform(data, stream, return_output_stream)
+        time_elapsed = timeit.default_timer() - start
+
+        if self.log_level > 0:
+            if hasattr(data, 't'):
+                time_elapsed = ArrayWithTime(time_elapsed, data.t)
+            self.log['step_time'].append(time_elapsed)
+
         self.log_for_partial_fit(data, stream)
         return ret
 
@@ -181,7 +191,7 @@ class DecoupledTransformer(StreamingTransformer):
         super().__init__(*args, **kwargs)
         self.frozen = False
 
-    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
+    def _partial_fit_transform(self, data, stream=0, return_output_stream=False):
         self.partial_fit(data, stream)
         return self.transform(data, stream, return_output_stream)
 
@@ -190,9 +200,6 @@ class DecoupledTransformer(StreamingTransformer):
             return
         self._partial_fit(data, stream)
         self.log_for_partial_fit(data, stream)
-
-    def _partial_fit_transform(self, data, stream, return_output_stream):
-        raise NotImplementedError()
 
     @abstractmethod
     def _partial_fit(self, data, stream):
@@ -237,7 +244,7 @@ class Pipeline(DecoupledTransformer):
     def _partial_fit(self, data, stream=0):
         self.partial_fit_transform(data, stream)
 
-    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
+    def _partial_fit_transform(self, data, stream=0, return_output_stream=False):
         stream = self.input_streams[stream]
         for step in self.steps:
             data, stream = step.partial_fit_transform(data, stream=stream, return_output_stream=True)
