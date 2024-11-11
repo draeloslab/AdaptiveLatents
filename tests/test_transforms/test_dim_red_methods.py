@@ -47,7 +47,7 @@ class TestJPCA:
         fig, ax = plt.subplots()
 
         X, _, true_variables = generate_circle_embedded_in_high_d(rng, m=100, stddev=.01)
-        jp = sjPCA(log_level=1)
+        jp = sjPCA(log_level=2)
         jp.offline_run_on(X)
 
         jp.plot_U_stability(ax)
@@ -111,7 +111,7 @@ class TestProSVD:
         fig, ax = plt.subplots()
 
         X, _, true_variables = generate_circle_embedded_in_high_d(rng, m=100, stddev=.01)
-        pro = proSVD(k=2, log_level=1)
+        pro = proSVD(k=2, log_level=2)
         pro.offline_run_on(X)
 
         pro.plot_Q_stability(ax)
@@ -156,7 +156,7 @@ class TestProPLS:
 
         x_common_basis = np.eye(high_d[0])[:, :common_d]
 
-        pls = proPLS(k=3, log_level=1)
+        pls = proPLS(k=3, log_level=2)
 
         pls.offline_run_on([X, Y])
 

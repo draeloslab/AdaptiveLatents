@@ -131,12 +131,12 @@ class sjPCA(TypicalTransformer, BaseSJPCA):
         return self.project(X, project_up=True)
 
     def log_for_partial_fit(self, data, stream=0):
-        if self.is_initialized and self.input_streams[stream] == 'X' and self.log_level >= 1:
+        if self.is_initialized and self.input_streams[stream] == 'X' and self.log_level >= 2:
             self.log['U'].append(self.get_U())
             self.log['t'].append(data.t)
 
     def get_distance_from_subspace_over_time(self, subspace):
-        assert self.log_level >= 1
+        assert self.log_level >= 2
         n = self.log['U'][0].shape[0]
         m = len(self.log['U'])
         distances = np.empty((m, n//2))
@@ -151,7 +151,7 @@ class sjPCA(TypicalTransformer, BaseSJPCA):
         return distances, np.array(self.log['t'])
 
     def get_U_stability(self):
-        assert self.log_level > 0
+        assert self.log_level >= 2
         Us = np.array(self.log['U'])
         t = np.array(self.log['t'])
 

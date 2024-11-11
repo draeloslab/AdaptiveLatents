@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 class TestBubblewrap:
     def test_plots(self, rng):
-        bw = Bubblewrap(num=10, M=10, log_level=1)
+        bw = Bubblewrap(num=10, M=10, log_level=2)
 
         hmm = adaptive_latents.input_sources.hmm_simulation.HMM.gaussian_clock_hmm()
         states, observations = hmm.simulate_with_states(n_steps=50, rng=rng)

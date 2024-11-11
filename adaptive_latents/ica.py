@@ -107,7 +107,7 @@ class mmICA(TypicalTransformer, BaseMMICA):
             self.processing_queue = []
 
     def log_for_partial_fit(self, data, stream=0, pre_initialization=False):
-        if not pre_initialization and self.input_streams[stream] == 'X' and self.log_level >= 1:
+        if not pre_initialization and self.input_streams[stream] == 'X' and self.log_level >= 2:
             self.log['W'].append(self.W.copy())
             self.log['t'].append(data.t)
 

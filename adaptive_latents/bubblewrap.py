@@ -545,17 +545,17 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
 
     def partial_fit_transform(self, data, stream=0, return_output_stream=False):
         original_data = None
-        if self.log_level > 0:
+        if self.log_level >= 2:
             original_data = copy.deepcopy(data)
 
-        if self.log_level > 0:
+        if self.log_level >= 1:
             self.log['stream'].append(stream)
 
         start = timeit.default_timer()
         ret = self._partial_fit_transform(data, stream, return_output_stream)
         time_elapsed = timeit.default_timer() - start
 
-        if self.log_level > 0:
+        if self.log_level >= 1:
             if hasattr(data, 't'):
                 time_elapsed = ArrayWithTime(time_elapsed, data.t)
             self.log['step_time'].append(time_elapsed)
@@ -643,7 +643,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         return bw
 
     def log_for_partial_fit(self, data, stream):
-        if self.log_level > 0 and self.is_initialized and self.input_streams[stream] == 'X' and not numpy.isnan(data).any():
+        if self.log_level >= 2 and self.is_initialized and self.input_streams[stream] == 'X' and not numpy.isnan(data).any():
             if 'alpha' not in self.log:
                 for key in ['alpha', 'entropy', 't', 'log_pred_p', 'log_pred_p_origin_t']:
                     self.log[key] = []
@@ -873,7 +873,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
 
         bws: [Bubblewrap]
         for bw in bws:
-            assert bw.log_level > 0
+            assert bw.log_level >= 2
 
         has_behavior = behavior_dict is not None
 

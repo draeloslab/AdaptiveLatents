@@ -163,14 +163,14 @@ class proPLS(DecoupledTransformer, BaseProPLS):
 
     def log_for_partial_fit(self, data, stream=0, pre_initialization=False):
         if not pre_initialization:
-            if self.log_level > 0:
+            if self.log_level > 2:
                 # stream doesn't matter because they update at the same time
                 self.log['u'].append(self.u)
                 self.log['vh'].append(self.vh)
                 self.log['t'].append(data.t)
 
     def get_distance_from_subspace_over_time(self, subspace, variable='X'):
-        assert self.log_level >= 1
+        assert self.log_level >= 2
         evolving_subspace = {
             'X': self.log['u'],
             'Y': map(np.transpose, self.log['vh']),

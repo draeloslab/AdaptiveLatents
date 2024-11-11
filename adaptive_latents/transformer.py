@@ -37,6 +37,11 @@ class StreamingTransformer(ABC):
             Data not in an input_stream will usually be passed through.
         output_streams: dict[int, int]
             Keys are input streams, values are output streams; this is stream remapping applied after the transformer.
+        log_level: int
+            0: no logging
+            1: profiling
+            2: basic logging
+            3: complete logging
         """
 
         super().__init__(**kwargs)
@@ -69,12 +74,12 @@ class StreamingTransformer(ABC):
             the stream the outputted data should be routed to
         """
         start = timeit.default_timer()
-        if self.log_level > 0:
+        if self.log_level >= 1:
             self.log['stream'].append(stream)
         ret = self._partial_fit_transform(data, stream, return_output_stream)
         time_elapsed = timeit.default_timer() - start
 
-        if self.log_level > 0:
+        if self.log_level >= 1:
             if hasattr(data, 't'):
                 time_elapsed = ArrayWithTime(time_elapsed, data.t)
             self.log['step_time'].append(time_elapsed)
@@ -571,10 +576,10 @@ class SwitchingParallelTransformer(DecoupledTransformer):
 
 
 class Tee(DecoupledTransformer):
-    def __init__(self, input_streams=None):
+    def __init__(self, input_streams=None, log_level=0):
         input_streams = input_streams or PassThroughDict()
         self.observed = {}
-        super().__init__(input_streams=input_streams)
+        super().__init__(input_streams=input_streams, log_level=log_level)
 
     def _partial_fit(self, data, stream):
         if stream in self.input_streams:

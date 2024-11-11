@@ -195,7 +195,7 @@ class VanillaOnlineRegressor(DecoupledTransformer, BaseVanillaOnlineRegressor):
         self.log_for_partial_fit(data, stream)
 
     def pre_log_for_partial_fit(self, data, stream):
-        if self.log_level > 0:
+        if self.log_level > 2:
             stream_label = self.input_streams[stream]
             if stream_label in ('X', 'Y'):
                 if np.isnan(data).any():

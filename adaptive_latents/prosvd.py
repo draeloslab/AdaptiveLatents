@@ -142,12 +142,12 @@ class proSVD(TypicalTransformer, BaseProSVD):
 
     def log_for_partial_fit(self, data, stream=0):
         if self.is_initialized:
-            if self.log_level > 0:
+            if self.log_level >= 2:
                 self.log['Q'].append(self.Q)
                 self.log['t'].append(data.t)
 
     def get_distance_from_subspace_over_time(self, subspace):
-        assert self.log_level >= 1
+        assert self.log_level >= 2
         m = len(self.log['Q'])
         distances = np.empty(m)
         for j, Q in enumerate(self.log['Q']):
@@ -158,7 +158,7 @@ class proSVD(TypicalTransformer, BaseProSVD):
         return distances, np.array(self.log['t'])
 
     def get_Q_stability(self):
-        assert self.log_level > 0
+        assert self.log_level >= 2
         Qs = np.array(self.log['Q'])
 
         t = np.arange(Qs.shape[0])
