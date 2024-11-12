@@ -195,7 +195,7 @@ class VanillaOnlineRegressor(DecoupledTransformer, BaseVanillaOnlineRegressor):
         self.log_for_partial_fit(data, stream)
 
     def pre_log_for_partial_fit(self, data, stream):
-        if self.log_level > 2:
+        if self.log_level >= 2:
             stream_label = self.input_streams[stream]
             if stream_label in ('X', 'Y'):
                 if np.isnan(data).any():
@@ -236,11 +236,11 @@ class VanillaOnlineRegressor(DecoupledTransformer, BaseVanillaOnlineRegressor):
                 if isinstance(data, ArrayWithTime):
                     data = ArrayWithTime(prediction, data.t)
                 else:
-                    data = np.array(data)
+                    data = np.array(prediction)
 
         stream = self.output_streams[stream]
 
-        return data, stream if return_output_stream else data
+        return (data, stream) if return_output_stream else data
 
     def plot_preq_error(self, ax):
         t = np.array(self.log['t'])

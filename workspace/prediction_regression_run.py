@@ -14,8 +14,6 @@ from adaptive_latents.timed_data_source import ArrayWithTime, NumpyTimedDataSour
 from adaptive_latents.utils import evaluate_regression
 from adaptive_latents.transformer import Tee
 import numpy as np
-import timeit
-from tqdm.auto import tqdm
 import functools
 import copy
 import matplotlib.pyplot as plt
@@ -88,7 +86,7 @@ def pred_reg_run(
     )
 
     dim_red = {
-        'pro': Pipeline(),
+        'pro': Pipeline(log_level=log_level),
         'sjpca': sjPCA(log_level=log_level),
         'mmica': mmICA(log_level=log_level),
     }.get(dim_red_method)
@@ -99,7 +97,7 @@ def pred_reg_run(
         Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 0, 1: 0, 'skip': -1}, stream_scaling_factors=stream_scaling_factors, log_level=log_level),
         proSVD(k=6, log_level=log_level),
         dim_red,
-        tee:=Tee(input_streams={0:0}),
+        tee:=Tee(input_streams={0:0}, log_level=log_level),
         bw(input_streams={0: 'X', 3: 'dt'}, log_level=log_level),
         VanillaOnlineRegressor(input_streams={0: 'X', 2: 'Y', 3: 'qX'}, log_level=log_level)
     ], log_level=log_level)
