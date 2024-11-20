@@ -2,14 +2,12 @@ import numpy as np
 import os
 import pickle
 import json
-from tqdm import tqdm
 import hashlib
 from adaptive_latents.config import CONFIG
 import inspect
 import warnings
 import functools
 from collections import namedtuple
-# TODO: depreciate this file
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -31,7 +29,9 @@ def make_hashable_and_hash(x):
     return int(hashlib.sha1(make_hashable(x)).hexdigest(), 16)
 
 
-def save_to_cache(file, location=CONFIG.cache_path, override_config_and_cache=False):
+def save_to_cache(file, location=None, override_config_and_cache=False):
+    location = location or CONFIG.cache_path
+
     if not CONFIG.attempt_to_cache and not override_config_and_cache:
 
         def decorator(original_function):
@@ -47,9 +47,7 @@ def save_to_cache(file, location=CONFIG.cache_path, override_config_and_cache=Fa
 
         return decorator
 
-    if not os.path.exists(location):
-        os.makedirs(location)
-    cache_index_file = os.path.join(location, f"{file}_index.pickle")
+    cache_index_file = location / f"{file}_index.pickle"
     try:
         with open(cache_index_file, 'rb') as fhan:
             cache_index = pickle.load(fhan)
@@ -72,14 +70,14 @@ def save_to_cache(file, location=CONFIG.cache_path, override_config_and_cache=Fa
                 cache_file = os.path.join(location, f"{file}_{hstring}.pickle")
                 if CONFIG.verbose:
                     print(f"caching value in: {cache_file}")
-                with open(cache_file, "wb") as fhan:
+                with CONFIG.open_with_parents(cache_file, "wb") as fhan:
                     pickle.dump(result, fhan)
 
                 cache_index[all_args_as_key] = cache_file
-                with open(cache_index_file, 'bw') as fhan:
+                with CONFIG.open_with_parents(cache_index_file, 'bw') as fhan:
                     pickle.dump(cache_index, fhan)
 
-            with open(os.path.join(location, cache_index[all_args_as_key]), 'rb') as fhan:
+            with open(location/ cache_index[all_args_as_key], 'rb') as fhan:
                 if CONFIG.verbose:
                     # TODO: also log here
                     # TODO: have tests globally disable caching; you can recalculate, but that doesn't get inner caching

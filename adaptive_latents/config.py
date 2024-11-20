@@ -2,7 +2,6 @@ import yaml
 import pathlib
 import functools
 import inspect
-from frozendict import frozendict
 import copy
 import importlib_resources as impresources
 
@@ -17,8 +16,6 @@ class ConfigObject:
 
         if base_config is None:
             base_config, local_config = self.default_search()
-
-        local_config = local_config or {}
 
         simple_combination = base_config | local_config
 
@@ -42,13 +39,11 @@ class ConfigObject:
     @staticmethod
     def resolve_path(base_config, local_config, key):
         if key in local_config:
-            path  =pathlib.Path(local_config['config_file_directory'] / local_config[key])
+            path =pathlib.Path(local_config['config_file_directory'] / local_config[key])
         else:
             path = pathlib.Path(base_config[key])
 
-        path.mkdir(exist_ok=True, parents=True)
         return path
-
 
     def default_search(self):
         with open(pathlib.Path(impresources.files('adaptive_latents')) / self.CONFIG_FILE_NAME, 'r') as fhan:
@@ -65,6 +60,13 @@ class ConfigObject:
                 break
 
         return base_config, local_config
+
+    @staticmethod
+    def open_with_parents(file, mode, open_kwargs=None):
+        # TODO: it's inelegant to have to remember to use this; replace somehow?
+        open_kwargs = open_kwargs or {}
+        pathlib.Path(file).parent.mkdir(exist_ok=True, parents=True)
+        return open(file, mode, **open_kwargs)
 
 
 CONFIG = ConfigObject()

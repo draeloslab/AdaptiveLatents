@@ -1,24 +1,20 @@
 import datetime
-import pathlib
 from matplotlib import pyplot as plt
 from matplotlib.animation import FFMpegWriter, PillowWriter
 import matplotlib.gridspec as gridspec
 import functools
-import itertools
-import adaptive_latents
 import numpy as np
-from typing import TYPE_CHECKING
+import pathlib
 import warnings
 from adaptive_latents import CONFIG
 from IPython import display
 
-if TYPE_CHECKING:
-    from adaptive_latents import CONFIG
-
 
 class AnimationManager:
     def __init__(self, filename=None, outdir=None, n_rows=1, n_cols=1, fps=20, dpi=100, filetype="webm", figsize=(10, 10), projection='rectilinear', make_axs=True, fig=None):
-        outdir = outdir or CONFIG['plot_save_path']
+        outdir = pathlib.Path(outdir) or CONFIG.plot_save_path
+        outdir.parent.mkdir(exist_ok=True, parents=True)
+
         if filename is None:
             time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
             filename = f"movie_{time_string}-{str(hash(id(self)))[-3:]}"
