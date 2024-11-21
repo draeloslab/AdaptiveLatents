@@ -1,9 +1,11 @@
-import timeit
+import time
 import numpy as np
+import adaptive_latents as al
 from adaptive_latents.bubblewrap import BaseBubblewrap
 from adaptive_latents.prosvd import BaseProSVD
-from .jpca import BaseSJPCA
-from adaptive_latents.regressions import VanillaOnlineRegressor
+from adaptive_latents.jpca import BaseSJPCA
+from adaptive_latents.regressions import BaseVanillaOnlineRegressor
+import pickle
 
 
 def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None, max_steps=10_000):
@@ -15,7 +17,7 @@ def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None
     bw_params['go_fast'] = True
     bw = BaseBubblewrap(**bw_params)
 
-    reg = VanillaOnlineRegressor()
+    reg = BaseVanillaOnlineRegressor()
 
     prosvd_init = 20
     psvd.initialize(psvd_input[:prosvd_init].T)
@@ -55,36 +57,36 @@ def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None
         if np.any(np.isnan(o)):
             continue
 
-        start_time = timeit.default_timer()
+        start_time = time.time()
         # prosvd update
         psvd.updateSVD(o[:, None])
         o = psvd.project_down(o[:, None]).T
-        end_time = timeit.default_timer()
+        end_time = time.time()
         times["prosvd"].append(end_time - start_time)
 
-        start_time = timeit.default_timer()
+        start_time = time.time()
         jpca.observe(o)
         o = jpca.project(o)
-        end_time = timeit.default_timer()
+        end_time = time.time()
         times["jpca"].append(end_time - start_time)
 
         # bubblewrap update
-        start_time = timeit.default_timer()
+        start_time = time.time()
         bw.observe(o)
         bw.e_step()
         bw.grad_Q()
-        end_time = timeit.default_timer()
+        end_time = time.time()
         times["bubblewrap"].append(end_time - start_time)
 
         # regression update
-        start_time = timeit.default_timer()
+        start_time = time.time()
         reg.observe(np.array(bw.alpha), regression_output[i])
-        end_time = timeit.default_timer()
+        end_time = time.time()
         times["regression"].append(end_time - start_time)
 
-        start_time = timeit.default_timer()
+        start_time = time.time()
         reg.predict(np.array(bw.alpha @ bw.A))
-        end_time = timeit.default_timer()
+        end_time = time.time()
         times["regression prediction"].append(end_time - start_time)
 
     times = {k: np.array(ts) for k, ts in times.items()}
@@ -100,7 +102,7 @@ def get_speed_by_time(psvd_input, regression_output, prosvd_k=6, bw_params=None,
     bw_params['go_fast'] = True
     bw = BaseBubblewrap(**bw_params)
 
-    reg = VanillaOnlineRegressor()
+    reg = BaseVanillaOnlineRegressor()
 
     prosvd_init = 20
     psvd.initialize(psvd_input[:prosvd_init].T)
@@ -139,7 +141,7 @@ def get_speed_by_time(psvd_input, regression_output, prosvd_k=6, bw_params=None,
 
     times = []
     for i in np.arange(start_index, end_index):
-        times.append(timeit.default_timer())
+        times.append(time.time())
         o = psvd_input[i]
         if np.any(np.isnan(o)):
             continue
@@ -164,9 +166,21 @@ def get_speed_by_time(psvd_input, regression_output, prosvd_k=6, bw_params=None,
             reg.observe(np.array(bw.alpha), regression_output[i])
 
         reg.predict(np.array(bw.alpha @ bw.A))
-    times.append(timeit.default_timer())
+    times.append(time.time())
 
 
     times = np.array(times)
 
     return times
+
+if __name__ == '__main__':
+    d = al.datasets.Odoherty21Dataset()
+    neural_data = d.neural_data.a.squeeze()
+    behavior = d.behavioral_data.a.squeeze()
+    behavior = al.utils.resample_matched_timeseries(behavior, d.behavioral_data.t, d.neural_data.t)
+
+    input_data = np.hstack([neural_data, behavior])
+
+    with al.CONFIG.open_with_parents(al.CONFIG.bwrun_save_path / 'profile.pkl', 'wb') as fhan:
+        profile = get_speed_per_step(input_data, behavior, bw_params={'step': 10 ** -1.5, 'num': 1100}, max_steps=1_000_000_000)
+        pickle.dump(profile, fhan)

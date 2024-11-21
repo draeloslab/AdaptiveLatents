@@ -4,7 +4,7 @@ from .timed_data_source import GeneratorDataSource, NumpyTimedDataSource, ArrayW
 from frozendict import frozendict
 import numpy as np
 from collections import deque
-import timeit
+import time
 
 
 class PassThroughDict(frozendict):
@@ -73,11 +73,11 @@ class StreamingTransformer(ABC):
         stream: int, optional
             the stream the outputted data should be routed to
         """
-        start = timeit.default_timer()
+        start = time.time()
         if self.log_level >= 1:
             self.log['stream'].append(stream)
         ret = self._partial_fit_transform(data, stream, return_output_stream)
-        time_elapsed = timeit.default_timer() - start
+        time_elapsed = time.time() - start
 
         if self.log_level >= 1:
             if hasattr(data, 't'):
@@ -437,8 +437,9 @@ class ZScoringTransformer(TypicalTransformer):
 
 
 class KernelSmoother(StreamingTransformer):
-    def __init__(self, tau=1, kernel_length=None, custom_kernel=None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, tau=1, kernel_length=None, custom_kernel=None, input_streams=None, **kwargs):
+        input_streams = input_streams or {0:'X'}
+        super().__init__(input_streams=input_streams, **kwargs)
         self.tau = tau
         self.kernel_length = kernel_length
         self.custom_kernel = custom_kernel
