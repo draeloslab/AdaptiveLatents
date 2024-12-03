@@ -1,7 +1,6 @@
 import pytest
 from workspace.main import main
 from adaptive_latents import datasets, CenteringTransformer
-import workspace.leventhal_script as leventhal_script
 import matplotlib.pyplot as plt
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
@@ -10,13 +9,6 @@ longrun = pytest.mark.skipif("not config.getoption('longrun')")
 class TestScripts:
     def test_run_main(self, outdir):
         main(output_directory=outdir, steps_to_run=35)
-
-    @longrun
-    def test_leventhal_script(self, outdir):
-        leventhal_script.make_video(outdir=outdir)
-        leventhal_script.show_events_timestamps_and_average_trace(show=False)
-        leventhal_script.show_response_arcs(show=False)
-
 
 
 @longrun
