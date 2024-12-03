@@ -78,7 +78,7 @@ class mmICA(TypicalTransformer, BaseMMICA):
         super().__init__(**kwargs)
         self.processing_queue = []
         self.init_size = init_size
-        self.log = {'W': [], 't': []}
+        self.log |= {'W': [], 't': []}
 
     def instance_get_params(self, deep=True):
         return dict(

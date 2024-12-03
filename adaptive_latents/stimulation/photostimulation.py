@@ -1,10 +1,7 @@
 import numpy as np
 import matplotlib.pylab as plt
 import pandas as pd
-from adjustText import adjust_text
-from adaptive_latents.transforms.utils import prosvd_data, clip
-from adaptive_latents.transforms.proSVD import proSVD
-import adaptive_latents.plotting_functions as pf
+from adaptive_latents.prosvd import proSVD
 from sklearn.decomposition import PCA
 from matplotlib.animation import FuncAnimation
 from matplotlib.patches import Ellipse
@@ -34,9 +31,9 @@ def plot_photostim(neuron_ID, method, spike_train_matrix, photostim_matrix, df):
 
     elif method.lower() == 'prosvd':
         # Use proSVD on the photostim data
-        pro = proSVD(3) # like the PCA() step
-        pro.streaming_run_on(C_stims) # like the fit_transform step
-        threeDim_C=pro.project(C_photostims).T # like the transform step
+        pro = proSVD(k=3) # like the PCA() step
+        pro.partial_fit(C_stims.T) # like the fit_transform step
+        threeDim_C = pro.transform(C_photostims.T) # like the transform step
 
     else:
         raise ValueError("Method must be either 'PCA' or 'proSVD'")

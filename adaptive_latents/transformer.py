@@ -204,7 +204,6 @@ class DecoupledTransformer(StreamingTransformer):
         if self.frozen:
             return
         self._partial_fit(data, stream)
-        self.log_for_partial_fit(data, stream)
 
     @abstractmethod
     def _partial_fit(self, data, stream):

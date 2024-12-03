@@ -980,3 +980,4 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         to_write = "\n".join(f"{k}: {v}" for k, v in super_param_dict.items())
         axbig.text(0, 1, to_write, transform=axbig.transAxes, verticalalignment="top")
 
+        return fig, axs

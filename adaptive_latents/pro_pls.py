@@ -96,6 +96,7 @@ class BaseProPLS:
 
 class proPLS(DecoupledTransformer, BaseProPLS):
     base_algorithm = BaseProPLS
+
     def __init__(self, input_streams=None, **kwargs):
         input_streams = input_streams or {0: 'X', 1: 'Y'}
         super().__init__(input_streams=input_streams,**kwargs)
@@ -119,12 +120,10 @@ class proPLS(DecoupledTransformer, BaseProPLS):
                     self.initialize(self.last_seen['X'], self.last_seen['Y'])
                     self.last_seen = {}
                     self.is_initialized = True
-                self.log_for_partial_fit(data, pre_initialization=True)
             else:
                 self.last_seen[stream_label] = data
                 if len(self.last_seen) == 2:
                     self.update(self.last_seen['X'], self.last_seen['Y'])
-                    self.log_for_partial_fit(data, stream)
                     self.last_seen = {}
 
     def transform(self, data, stream=0, return_output_stream=False):
@@ -161,13 +160,12 @@ class proPLS(DecoupledTransformer, BaseProPLS):
             return data, stream
         return data
 
-    def log_for_partial_fit(self, data, stream=0, pre_initialization=False):
-        if not pre_initialization:
-            if self.log_level > 2:
-                # stream doesn't matter because they update at the same time
-                self.log['u'].append(self.u)
-                self.log['vh'].append(self.vh)
-                self.log['t'].append(data.t)
+    def log_for_partial_fit(self, data, stream=0):
+        if self.is_initialized and self.log_level >= 2:
+            # stream doesn't matter because they update at the same time
+            self.log['u'].append(self.u)
+            self.log['vh'].append(self.vh)
+            self.log['t'].append(data.t)
 
     def get_distance_from_subspace_over_time(self, subspace, variable='X'):
         assert self.log_level >= 2

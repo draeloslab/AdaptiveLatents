@@ -12,7 +12,10 @@ from IPython import display
 
 class AnimationManager:
     def __init__(self, filename=None, outdir=None, n_rows=1, n_cols=1, fps=20, dpi=100, filetype="webm", figsize=(10, 10), projection='rectilinear', make_axs=True, fig=None):
-        outdir = pathlib.Path(outdir) or CONFIG.plot_save_path
+        if outdir is not None:
+            outdir = pathlib.Path(outdir)
+        else:
+            outdir = CONFIG.plot_save_path
         outdir.parent.mkdir(exist_ok=True, parents=True)
 
         if filename is None:
