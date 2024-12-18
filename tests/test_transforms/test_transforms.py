@@ -1,6 +1,5 @@
 import numpy as np
 from adaptive_latents import (
-    NumpyTimedDataSource,
     CenteringTransformer,
     sjPCA,
     proSVD,
@@ -13,6 +12,7 @@ from adaptive_latents import (
     VanillaOnlineRegressor,
     ZScoringTransformer,
     Concatenator,
+    ArrayWithTime
 )
 from adaptive_latents.transformer import DecoupledTransformer, StreamingTransformer
 import pytest
@@ -73,8 +73,8 @@ class TestStreamingTransformer:
             [((np.zeros((2, DIM)) for _ in range(5)), 0), ((np.zeros((2, DIM)) for _ in range(5)), 1)],
             [np.zeros((10, DIM))],
             [(np.zeros((10, DIM)), 1)],
-            [(NumpyTimedDataSource(np.zeros((10, DIM))), 0), (NumpyTimedDataSource(np.zeros((10, DIM))), 0),
-             (NumpyTimedDataSource(np.zeros((9, DIM))), 1)],
+            [(ArrayWithTime.from_notime(np.zeros((10, DIM))), 0), (ArrayWithTime.from_notime(np.zeros((10, DIM))), 0),
+             (ArrayWithTime.from_notime(np.zeros((9, DIM))), 1)],
         ]
 
 

@@ -6,11 +6,9 @@ from tqdm import tqdm
 
 import adaptive_latents.transformer
 from adaptive_latents.utils import save_to_cache, clip
-from adaptive_latents.timed_data_source import ArrayWithTime
-from adaptive_latents import NumpyTimedDataSource, proSVD, CONFIG
+from adaptive_latents import ArrayWithTime, proSVD, CONFIG
 from skimage.transform import resize
 from pynwb import NWBHDF5IO
-import pathlib
 import pandas as pd
 from abc import ABC, abstractmethod
 import sys
@@ -47,9 +45,8 @@ class ModelOrganism(enum.Enum):
 
 
 class Dataset(ABC):
-    neural_data: NumpyTimedDataSource
-    behavioral_data: NumpyTimedDataSource
-    opto_stimulations = None
+    neural_data: ArrayWithTime
+    behavioral_data: ArrayWithTime
 
     @property
     @abstractmethod
@@ -123,12 +120,12 @@ class Odoherty21Dataset(DandiDataset):
         assert self.neural_lag >= 0
 
         self.units, self.finger_pos, self.finger_vel, self.finger_t, A, bin_ends = self.construct()
-        self.neural_data = NumpyTimedDataSource(A, bin_ends)
-        self.behavioral_data = NumpyTimedDataSource(self.finger_pos, self.finger_t)
+        self.neural_data = ArrayWithTime(A, bin_ends)
+        self.behavioral_data = ArrayWithTime(self.finger_pos, self.finger_t)
 
-        self.beh_pos = NumpyTimedDataSource(self.finger_pos, self.finger_t)
-        self.beh_vel = NumpyTimedDataSource(self.finger_vel, self.finger_t)
-        self.beh_pos_vel = NumpyTimedDataSource(np.hstack([self.finger_pos, self.finger_vel]), self.finger_t)
+        self.beh_pos = ArrayWithTime(self.finger_pos, self.finger_t)
+        self.beh_vel = ArrayWithTime(self.finger_vel, self.finger_t)
+        self.beh_pos_vel = ArrayWithTime(np.hstack([self.finger_pos, self.finger_vel]), self.finger_t)
 
     def construct(self):
         with self.acquire("sub-Indy/sub-Indy_desc-train_behavior+ecephys.nwb") as fhan:
@@ -198,10 +195,13 @@ class Schaffer23Datset(Dataset):
     )
 
     def __init__(self, sub_dataset_identifier=sub_datasets[0]):
+        if isinstance(sub_dataset_identifier, int):
+            sub_dataset_identifier = self.sub_datasets[sub_dataset_identifier]
+
         self.sub_dataset = sub_dataset_identifier
         A, beh, t, t = self.construct(sub_dataset_identifier)
-        self.neural_data = NumpyTimedDataSource(A,t)
-        self.behavioral_data = NumpyTimedDataSource(beh,t)
+        self.neural_data = ArrayWithTime(A,t)
+        self.behavioral_data = ArrayWithTime(beh,t)
 
     def construct(self, sub_dataset_identifier):
         with self.acquire(sub_dataset_identifier) as fhan:
@@ -230,8 +230,8 @@ class Churchland10Dataset(DandiDataset):
     def __init__(self, bin_width=0.03):
         self.bin_width = bin_width
         neural_data, hand_position, nerual_t, hand_t = self.construct()
-        self.neural_data = NumpyTimedDataSource(neural_data, nerual_t)
-        self.behavioral_data = NumpyTimedDataSource(hand_position, hand_t)
+        self.neural_data = ArrayWithTime(neural_data, nerual_t)
+        self.behavioral_data = ArrayWithTime(hand_position, hand_t)
 
     def construct(self,):
         with self.acquire('sub-Jenkins/sub-Jenkins_ses-full_desc-train_behavior+ecephys.nwb') as fhan:
@@ -284,6 +284,8 @@ class TostadoMarcos24Dataset(DandiDataset):
     sub_datasets = ['27', '26', '28']
 
     def __init__(self, sub_dataset_identifier=sub_datasets[0], bin_size=0.03):
+        if isinstance(sub_dataset_identifier, int):
+            sub_dataset_identifier = self.sub_datasets[sub_dataset_identifier]
         self.sub_dataset = sub_dataset_identifier
         self.bin_size = bin_size
         self.tx, self.vocalizations, self.neural_data, self.behavioral_data = self.construct(self.sub_dataset)
@@ -294,7 +296,7 @@ class TostadoMarcos24Dataset(DandiDataset):
             # TODO: make it possible to pass around TimeSeries with the HDF5 dereferenced
             tx = nwb.acquisition['tx'].data[:]
             tx_t = nwb.acquisition['tx'].timestamps[:]
-            vocalizations = NumpyTimedDataSource.from_nwb_timeseries(nwb.acquisition['vocalizations'])
+            vocalizations = ArrayWithTime.from_nwb_timeseries(nwb.acquisition['vocalizations'])
             trials = nwb.intervals['trials'].to_dataframe()
 
 
@@ -309,7 +311,7 @@ class TostadoMarcos24Dataset(DandiDataset):
             counts, _ = np.histogram(tx_t[tx[:, i].nonzero()[0]], bins=bins)
             A[:, i] = counts
         t = np.convolve([.5, .5], bins, 'valid')
-        neural_data = NumpyTimedDataSource(A, t)
+        neural_data = ArrayWithTime(A, t)
 
         # make spectrogram matrix
         times = []
@@ -320,20 +322,20 @@ class TostadoMarcos24Dataset(DandiDataset):
 
         spectral_data = np.array(spectral_data)
         times = np.array(times)
-        behavioral_data = NumpyTimedDataSource(spectral_data, times)
+        behavioral_data = ArrayWithTime(spectral_data, times)
 
         return tx, vocalizations, neural_data, behavioral_data
 
     def play_audio(self):
         import IPython.display as ipd
-        x = self.vocalizations.a.flatten()
+        x = self.vocalizations.flatten()
         t = self.vocalizations.t.flatten()
         return ipd.Audio(x, rate=round(1 / np.median(np.diff(t))))
 
     def plot_recalculated_spectrogram(self, ax):
         import scipy.signal as ss
 
-        x = self.vocalizations.a.flatten()
+        x = self.vocalizations.flatten()
         t = self.vocalizations.t.flatten()
 
         dt = np.median(np.diff(t))
@@ -382,8 +384,8 @@ class Nason20Dataset(Dataset):
     def __init__(self, bin_width=0.15):
         self.bin_width = bin_width
         a, beh, t, t = self.construct()
-        self.neural_data = NumpyTimedDataSource(a, t)
-        self.behavioral_data = NumpyTimedDataSource(beh, t)
+        self.neural_data = ArrayWithTime(a, t)
+        self.behavioral_data = ArrayWithTime(beh, t)
 
     def acquire(self):
         file = self.dataset_base_path / 'OnlineTrainingData.mat'
@@ -446,11 +448,13 @@ class Peyrache15Dataset(Dataset):
     sub_datasets = ("Mouse12-120806", "Mouse12-120807", "Mouse24-131216")
 
     def __init__(self, sub_dataset_identifier=sub_datasets[0], bin_width=0.03):
+        if isinstance(sub_dataset_identifier, int):
+            sub_dataset_identifier = self.sub_datasets[sub_dataset_identifier]
         self.sub_dataset = sub_dataset_identifier
         self.bin_width = bin_width
         A, raw_behavior, a_t, beh_t = self.construct(sub_dataset_identifier)
-        self.neural_data = NumpyTimedDataSource(A, a_t)
-        self.behavioral_data = NumpyTimedDataSource(raw_behavior, beh_t)
+        self.neural_data = ArrayWithTime(A, a_t)
+        self.behavioral_data = ArrayWithTime(raw_behavior, beh_t)
 
     def acquire(self, sub_dataset_identifier):
         if not (self.dataset_base_path / sub_dataset_identifier).is_dir():
@@ -562,8 +566,8 @@ class Temmar24uDataset(Dataset):
         self.bin_width = .05  # in seconds, this is in jgould_first_extraction.mat
 
         neural_data, behavioral_data, neural_t, behavioral_t = self.construct()
-        self.neural_data = NumpyTimedDataSource(neural_data, neural_t)
-        self.behavioral_data = NumpyTimedDataSource(behavioral_data, behavioral_t)
+        self.neural_data = ArrayWithTime(neural_data, neural_t)
+        self.behavioral_data = ArrayWithTime(behavioral_data, behavioral_t)
 
     def acquire(self):
         file = self.dataset_base_path / 'jgould_first_extraction.mat'
@@ -620,8 +624,8 @@ class Musall19Dataset(Dataset):
         self.resize_factor = resize_factor
 
         A, d, ca_times, t = self.construct()
-        self.neural_data = NumpyTimedDataSource(A, ca_times)
-        self.behavioral_data = NumpyTimedDataSource(d, t)
+        self.neural_data = ArrayWithTime(A, ca_times)
+        self.behavioral_data = ArrayWithTime(d, t)
 
     def construct(self):
         self.acquire()
@@ -721,9 +725,9 @@ class Naumann24uDataset(Dataset):
         def _partial_fit_transform(self, data, stream, return_output_stream):
             if self.input_streams[stream] == 'X':
 
+                output = []
                 for angle in data:
                     self.history.append(angle)
-                    output = []
                     h = np.squeeze(self.history)
                     if np.isnan(h).any():
                         data = ArrayWithTime(np.nan, data.t)
@@ -741,9 +745,10 @@ class Naumann24uDataset(Dataset):
             stream = self.output_streams[stream]
             return data, stream if return_output_stream else data
 
-    def __init__(self, sub_dataset_identifier=sub_datasets[0], neural_lag=0, beh_type='angle'):
+    def __init__(self, sub_dataset_identifier=sub_datasets[0], beh_type='angle'):
+        if isinstance(sub_dataset_identifier, int):
+            sub_dataset_identifier = self.sub_datasets[sub_dataset_identifier]
         self.sub_dataset = sub_dataset_identifier
-        self.neural_lag = neural_lag
         (
             self.C,
             self.opto_stimulations,
@@ -756,20 +761,23 @@ class Naumann24uDataset(Dataset):
             self.pose_class,
             self.background_image,
             self.neuron_locations  # TODO: join this with neuron_df
-        ) = self.construct(sub_dataset_identifier)
+        ) = self.construct(self.sub_dataset)
 
+        self.neural_data = ArrayWithTime(self.C.T, self.frame_times)
 
-        self.neural_data = NumpyTimedDataSource(self.C.T, self.frame_times + self.neural_lag)
+        self.last_visual_sample = self.visual_stimuli['sample'].max()
+        self.n_neurons_in_optical = np.isfinite(self.neural_data[self.last_visual_sample, :]).sum()
+
         self.bin_width = np.median(np.diff(self.frame_times))
         warnings.warn("bin width is actually improper here")
         if beh_type == 'bout':
-            self.behavioral_data = NumpyTimedDataSource(self.pose_class, self.tail_times)
+            self.behavioral_data = ArrayWithTime(self.pose_class, self.tail_times)
         elif beh_type == 'angle':
-            self.behavioral_data = NumpyTimedDataSource(self.tail_angle, self.tail_times)
+            self.behavioral_data = ArrayWithTime(self.tail_angle, self.tail_times)
         elif beh_type == 'whole tail':
-            self.behavioral_data = NumpyTimedDataSource(self.tail_position, self.tail_times)
+            self.behavioral_data = ArrayWithTime(self.tail_position, self.tail_times)
         elif beh_type == 'offset':
-            self.behavioral_data = NumpyTimedDataSource(self.tail_position[:, -1, :] - self.tail_position[:, 0, :], self.tail_times)
+            self.behavioral_data = ArrayWithTime(self.tail_position[:, -1, :] - self.tail_position[:, 0, :], self.tail_times)
 
     def construct(self, sub_dataset_identifier):
         visual_stimuli, optical_stimulations, C, string_tail_position, frame_times, tail_times, background_image, neuron_locations = self.acquire(sub_dataset_identifier)
@@ -811,7 +819,7 @@ class Naumann24uDataset(Dataset):
         displacement = tail_position[:, -1, :] - tail_position[:, 0, :]
         tail_angle = np.atan2(*(-displacement[:, ::-1]).T)
 
-        pose_class = self.BehaviorClassifier().offline_run_on(NumpyTimedDataSource(tail_angle, tail_times))
+        pose_class = self.BehaviorClassifier().offline_run_on(ArrayWithTime(tail_angle[:,None,None], tail_times))
 
         return C, optical_stimulation_df, neuron_df, visual_stimuli_df, tail_position, frame_times, tail_times, tail_angle, pose_class, background_image, neuron_locations
 
@@ -873,15 +881,17 @@ class Leventhal24uDataset(Dataset):
     )
 #
     def __init__(self, sub_dataset_identifier=sub_datasets[0], bin_size=0.03):
+        if isinstance(sub_dataset_identifier, int):
+            sub_dataset_identifier = self.sub_datasets[sub_dataset_identifier]
         self.sub_dataset = sub_dataset_identifier
         self.bin_size = bin_size
         A, t, spike_times, clusters, trial_data, unflattened_trial_data = self.construct(sub_dataset_identifier)
-        self.neural_data = NumpyTimedDataSource(A, t)
+        self.neural_data = ArrayWithTime(A, t)
         self.spike_times = spike_times
         self.spike_clusters = clusters
         self.trial_data = trial_data
         self.unflattened_trial_data = unflattened_trial_data
-        # self.behavioral_data = NumpyTimedDataSource(beh,t)
+        # self.behavioral_data = ArrayWithTime(beh,t)
 #
     def construct(self, sub_dataset_identifier):
         spike_times, clusters, trials = self.acquire(sub_dataset_identifier)
@@ -996,17 +1006,14 @@ class Zong22Dataset(Dataset):
         make_object_entry('MEC', '94557', '20201008', 1, 3, None, True),
         make_object_entry('MEC', '94557', '20201008', 2, 3, 1, True),
         make_object_entry('MEC', '94557', '20201008', 3, 3, 2, True),
-
-        {
-            'basepath': 'CA1_recordings/97288/20210315/',
-            'raw_frames': '97288_20210315_00002.tif',
-            'part_of_F': (1,1)
-        },
     ])
 
     sub_datasets = list(sub_datset_info.index)
 
     def __init__(self, sub_dataset_identifier=sub_datasets[0], neural_lag=0, neural_scale=1, pos_scale=1, hd_scale=1, h2b_scale=1):
+        if isinstance(sub_dataset_identifier, int):
+            sub_dataset_identifier = self.sub_datasets[sub_dataset_identifier]
+
         self.sub_dataset = sub_dataset_identifier
         self.neural_Fs = 15
         self.neural_lag = neural_lag
@@ -1015,8 +1022,8 @@ class Zong22Dataset(Dataset):
         self.F, self.raw_images, self.behavior_video, self.behavior_df, self.n_cells, self.stat, self.ops = self.acquire()
 
 
-        self.neural_data = NumpyTimedDataSource(self.F.T * self.neural_scale, (np.arange(self.F.shape[1]) * 1 / self.neural_Fs) + self.neural_lag)
-        self.behavioral_data = NumpyTimedDataSource(timepoints=self.behavior_df.loc[:, 't'], source=self.behavior_df.loc[:, ['x', 'y', 'hd', 'h2b']] * np.array([pos_scale, pos_scale, hd_scale, h2b_scale]))
+        self.neural_data = ArrayWithTime(self.F.T * self.neural_scale, (np.arange(self.F.shape[1]) * 1 / self.neural_Fs) + self.neural_lag)
+        self.behavioral_data = ArrayWithTime(self.behavior_df.loc[:, 't'], self.behavior_df.loc[:, ['x', 'y', 'hd', 'h2b']] * np.array([pos_scale, pos_scale, hd_scale, h2b_scale]))
 
         self.video_t = np.squeeze(self.behavioral_data.t)
 
@@ -1045,7 +1052,9 @@ class Zong22Dataset(Dataset):
         block_length = F_all.shape[1] // total
         F = F_all[:, (part - 1) * block_length: part * block_length]
         img = Image.open(sub_dataset_base_path / self.sub_datset_info.raw_frames[self.sub_dataset])
-        video = pims.Video(sub_dataset_base_path / self.sub_datset_info.behavior_video[self.sub_dataset])
+        video = None
+        if isinstance(video_filename:=self.sub_datset_info.behavior_video[self.sub_dataset], str):
+            video = pims.Video(sub_dataset_base_path / video_filename)
         beh = make_beh(sub_dataset_base_path / self.sub_datset_info.behavior_csv[self.sub_dataset])
 
         nose = self.get_behavior_trace(beh, 'nose')
@@ -1097,8 +1106,8 @@ class DummyCircleDataset(Dataset):
 
         neural_data, behavioral_data = self.construct()
 
-        self.neural_data = NumpyTimedDataSource(neural_data, self.t)
-        self.behavioral_data = NumpyTimedDataSource(behavioral_data, self.t)
+        self.neural_data = ArrayWithTime(neural_data, self.t)
+        self.behavioral_data = ArrayWithTime(behavioral_data, self.t)
 
     def acquire(self):
         pass

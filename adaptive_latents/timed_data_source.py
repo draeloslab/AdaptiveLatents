@@ -5,24 +5,12 @@ import warnings
 
 
 class DataSource(ABC):
-    def __new__(cls, source=None, *args, **kwargs):
-        # todo: is source=none a bad idea? it's to get deepcopy working
-        if isinstance(source, GeneratorDataSource) or hasattr(source, 'next_sample_time'):
-            # TODO: choose duck typing or inheritance checking here
-            return source
-        return super().__new__(cls)
-
     @abstractmethod
     def next_sample_time(self) -> float:
         pass
 
     @abstractmethod
     def current_sample_time(self) -> float:
-        pass
-
-    @property
-    @abstractmethod
-    def dt(self) -> float:
         pass
 
 
@@ -66,24 +54,11 @@ class GeneratorDataSource(DataSource):
 
 class NumpyTimedDataSource(DataSource):
     def __init__(self, source, timepoints=None):
-        a = np.array(source)
-        if len(a.shape) == 1:
-            a = a[:, None]
-        if len(a.shape) == 2:
-            a = a[:, None, :]
-
-        # assert a.shape[0] * a.shape[1] > a.shape[2]
-
-        self.a = a
-        self.t = timepoints if timepoints is not None else np.arange(a.shape[0])
+        self.a = source
+        self.t = timepoints if timepoints is not None else np.arange(self.a.shape[0])
         assert len(self.t) == len(self.a)
 
         self.index = 0
-
-    def __iter__(self):
-        # TODO: maybe this class shouldn't be both an iterable and its own iterator
-        self.index = 0
-        return self
 
     def __next__(self):
         try:
@@ -105,17 +80,6 @@ class NumpyTimedDataSource(DataSource):
             return None
         return self.t[self.index-1]
 
-    @property
-    def dt(self):
-        dts = np.diff(self.t)
-        dt = np.median(dts)
-        assert np.ptp(dts)/dt < 0.05
-        return dt
-
-    @staticmethod
-    def from_nwb_timeseries(timeseries):
-        return NumpyTimedDataSource(timeseries.data[:], timeseries.timestamps[:])
-
 
 class ArrayWithTime(np.ndarray):
     "The idea is to subclass here, but it seems pretty involved."
@@ -128,7 +92,6 @@ class ArrayWithTime(np.ndarray):
 
     def __array_finalize__(self, obj):
         if obj is None: return
-        # assert len(self.shape) == 3
 
         if hasattr(obj, 't'):
             self.t = obj.t
@@ -144,6 +107,19 @@ class ArrayWithTime(np.ndarray):
     #         self._new_t_index = item[0]
     #
     #     return super().__getitem__(item)
+
+    def __iter__(self):
+        if hasattr(self.t, "__len__") and len(self.t) > 1:
+            return NumpyTimedDataSource(self, self.t)
+        else:
+            return super().__iter__()
+
+    @property
+    def dt(self):
+        dts = np.diff(self.t)
+        dt = np.median(dts)
+        assert np.ptp(dts)/dt < 0.05
+        return dt
 
     @classmethod
     def from_list(cls, input_list, squeeze_type='none', drop_early_nans=False):
@@ -183,3 +159,13 @@ class ArrayWithTime(np.ndarray):
             return cls(new_data, old_data.t)
         else:
             return new_data
+
+    @classmethod
+    def from_nwb_timeseries(cls, timeseries):
+        return cls(timeseries.data[:], timeseries.timestamps[:])
+
+
+    @classmethod
+    def from_notime(cls, a):
+        return cls(a, np.arange(a.shape[0]))
+

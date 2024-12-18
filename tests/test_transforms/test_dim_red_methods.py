@@ -1,7 +1,7 @@
 import numpy as np
 import adaptive_latents as al
 from adaptive_latents import (
-    NumpyTimedDataSource,
+    ArrayWithTime,
     sjPCA,
     proSVD,
     mmICA,
@@ -133,8 +133,8 @@ class TestProPLS:
         X_original = np.hstack([X, np.zeros((n_points, high_d[0] - base_d))])
         Y_original = np.hstack([Y, np.zeros((n_points, high_d[1] - base_d))])
 
-        X = NumpyTimedDataSource(X_original.reshape(30, 5, -1))
-        Y = NumpyTimedDataSource(Y_original.reshape(30, 5, -1))
+        X = ArrayWithTime.from_notime(X_original.reshape(30, 5, -1))
+        Y = ArrayWithTime.from_notime(Y_original.reshape(30, 5, -1))
 
         pls = proPLS(k=5)
         pls.offline_run_on([X, Y])

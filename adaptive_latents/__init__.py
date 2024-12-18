@@ -7,7 +7,7 @@ jax.config.update('jax_platform_name', CONFIG.jax_platform_name)
 from .bubblewrap import Bubblewrap
 from .plotting_functions import AnimationManager
 from .regressions import VanillaOnlineRegressor
-from .timed_data_source import NumpyTimedDataSource
+from .timed_data_source import ArrayWithTime
 from .prosvd import proSVD, RandomProjection
 from .ica import mmICA
 from .jpca import sjPCA

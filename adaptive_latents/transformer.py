@@ -146,8 +146,22 @@ class StreamingTransformer(ABC):
 
         sources, streams = zip(*sources)
 
-        sources = [NumpyTimedDataSource(source) if isinstance(source, np.ndarray) else GeneratorDataSource(source) for source in sources]
-        sources = [copy.deepcopy(source) if isinstance(source, NumpyTimedDataSource) else source for source in sources]
+
+        new_sources = []
+        for source in sources:
+            if isinstance(source, np.ndarray) and not isinstance(source, ArrayWithTime):
+                source = ArrayWithTime.from_notime(source)
+            elif not isinstance(source, np.ndarray):
+                source = GeneratorDataSource(source)
+
+            if isinstance(source, ArrayWithTime):
+                source = copy.deepcopy(source)
+                if len(source.shape) == 2:
+                    source = source[:,None,:]
+                    assert source.shape[0] == len(source.t)
+
+            new_sources.append(source)
+        sources = new_sources
 
         sources = list(zip(map(iter, sources), streams))
 
