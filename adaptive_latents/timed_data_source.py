@@ -172,8 +172,8 @@ class ArrayWithTime(np.ndarray):
         return cls(input_array=input_array, t=t)
 
     @classmethod
-    def from_NTDS(cls, ds):
-        return cls(np.squeeze(ds.a, axis=2), ds)
+    def from_NTDS(cls, ds: NumpyTimedDataSource):
+        return cls(np.squeeze(ds.a, axis=1), ds.t)
 
     @classmethod
     def from_transformed_data(cls, new_data, old_data):

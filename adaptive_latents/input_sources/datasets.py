@@ -774,6 +774,8 @@ class Naumann24uDataset(Dataset):
     def construct(self, sub_dataset_identifier):
         visual_stimuli, optical_stimulations, C, string_tail_position, frame_times, tail_times, background_image, neuron_locations = self.acquire(sub_dataset_identifier)
 
+        C[np.cumsum(C, axis=1) == 0] = np.nan
+
         # convert the dates from strings to offsets in seconds
         assert abs(tail_times[0] - frame_times[0]) < datetime.timedelta(minutes=3), 'Check start times/timezones match'
         experiment_start = min(tail_times[0], frame_times[0])
@@ -797,7 +799,7 @@ class Naumann24uDataset(Dataset):
         # make DF's
         visual_stimuli_df = pd.DataFrame({'sample': visual_stimuli[:,0].astype(int), 'time': frame_times[visual_stimuli[:,0].astype(int)], 'l_angle': visual_stimuli[:,2], 'r_angle': visual_stimuli[:,3]})
 
-        optical_stimulation_df = pd.DataFrame({'sample': optical_stimulations[:, 0].astype(int), 'time': frame_times[optical_stimulations[:,0].astype(int)], 'target_neuron': optical_stimulations[:,2]})
+        optical_stimulation_df = pd.DataFrame({'sample': optical_stimulations[:, 0].astype(int), 'time': frame_times[optical_stimulations[:,0].astype(int)], 'target_neuron': optical_stimulations[:,2].astype(int)})
 
         neurons = {}
         for neuron_id in optical_stimulation_df['target_neuron']:
