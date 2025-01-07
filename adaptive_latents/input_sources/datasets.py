@@ -809,6 +809,23 @@ class Naumann24uDataset(Dataset):
 
         optical_stimulation_df = pd.DataFrame({'sample': optical_stimulations[:, 0].astype(int), 'time': frame_times[optical_stimulations[:,0].astype(int)], 'target_neuron': optical_stimulations[:,2].astype(int)})
 
+        target_neuron = optical_stimulation_df.target_neuron
+        stim_groups = [0]
+        group_sub_stim = [0]
+        stim_name = ['A0']
+        for i in range(1, len(target_neuron)):
+            if target_neuron[i-1] != target_neuron[i]:
+                stim_groups.append(stim_groups[-1]+1)
+                group_sub_stim.append(0)
+            else:
+                stim_groups.append(stim_groups[-1])
+                group_sub_stim.append(group_sub_stim[-1] + 1)
+            stim_name.append(chr(stim_groups[-1] + 65) + str(group_sub_stim[-1]))
+
+        optical_stimulation_df['stim_group'] = stim_groups
+        optical_stimulation_df['group_sub_stim'] = group_sub_stim
+        optical_stimulation_df['stim_name'] = stim_name
+
         neurons = {}
         for neuron_id in optical_stimulation_df['target_neuron']:
             locations = optical_stimulations[optical_stimulations[:,2] == neuron_id, 3:]

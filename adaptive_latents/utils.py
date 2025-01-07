@@ -160,8 +160,8 @@ def principle_angles(Q1, Q2):
     return np.arccos(s)
 
 def column_space_distance(Q1, Q2, method='angles'):
-    # for Q in Q1, Q2:
-    #     assert np.allclose(Q.T @ Q, np.eye(Q.shape[1]))
+    for Q in Q1, Q2:
+        assert np.allclose(Q.T @ Q, np.eye(Q.shape[1]))
 
     if method == 'angles':
         return np.abs(principle_angles(Q1, Q2)).sum()

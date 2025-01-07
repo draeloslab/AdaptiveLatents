@@ -114,6 +114,12 @@ class ArrayWithTime(np.ndarray):
         else:
             return super().__iter__()
 
+    def slice(self, s):
+        return ArrayWithTime(self[s], self.t[s])
+
+    def as_array(self):
+        return np.array(self)
+
     @property
     def dt(self):
         dts = np.diff(self.t)
