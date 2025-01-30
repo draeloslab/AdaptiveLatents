@@ -1,7 +1,7 @@
 **/al_generated/*
 htmlcov/*
 workspace/datasets/*
-workspace/*.ipynb
+workspace/**/*.ipynb
 
 *.mp4
 *.db

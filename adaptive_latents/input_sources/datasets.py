@@ -765,8 +765,9 @@ class Naumann24uDataset(Dataset):
 
         self.neural_data = ArrayWithTime(self.C.T, self.frame_times)
 
-        self.last_visual_sample = self.visual_stimuli['sample'].max()
-        self.n_neurons_in_optical = np.isfinite(self.neural_data[self.last_visual_sample, :]).sum()
+        self.end_of_visual_period_sample = self.opto_stimulations['sample'].min() - 1
+        self.end_of_visual_period_time = self.frame_times[self.end_of_visual_period_sample]
+        self.n_neurons_in_opto = np.isfinite(self.neural_data[self.end_of_visual_period_sample, :]).sum()
 
         self.bin_width = np.median(np.diff(self.frame_times))
         warnings.warn("bin width is actually improper here")

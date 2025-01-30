@@ -104,6 +104,9 @@ class StreamingTransformer(ABC):
         # TODO: should this deep copy?
         return dict(input_streams=self.input_streams, output_streams=self.output_streams, log_level=self.log_level)
 
+    def blank_copy(self):
+        return type(self)(**self.get_params())
+
     def trace_route(self, stream):
         middle_str = str(self) if stream in self.input_streams else ""
         if stream == self.output_streams[stream]:
@@ -231,6 +234,11 @@ class DecoupledTransformer(StreamingTransformer):
 
     def freeze(self, b=True):
         self.frozen = b
+
+    def offline_fit_then_transform(self, sources, convinient_return=True, exit_time=None):
+        self.offline_run_on(sources, convinient_return, exit_time)
+        self.freeze()
+        return self.offline_run_on(sources, convinient_return, exit_time)
 
     def inverse_transform(self, data, stream=0, return_output_stream=False):
         raise NotImplementedError()

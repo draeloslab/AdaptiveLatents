@@ -114,8 +114,31 @@ class ArrayWithTime(np.ndarray):
         else:
             return super().__iter__()
 
-    def slice(self, s):
+    def slice(self, start, stop=None):
+        if isinstance(start, np.ndarray) or isinstance(start, slice):
+            s = start
+        else:
+            s = slice(start, stop)
         return ArrayWithTime(self[s], self.t[s])
+
+    def slice_by_time(self, s, *args):
+        if not isinstance(s, slice):
+            s = slice(s, *args)
+        s: slice
+        assert s.step in (1, None)
+
+        if s.start is None:
+            lower_constraint = True
+        else:
+            lower_constraint = (s.start <= self.t)
+
+        if s.stop is None:
+            upper_constraint = True
+        else:
+            upper_constraint = (self.t < s.stop)
+
+        s_in_samples = lower_constraint & upper_constraint
+        return ArrayWithTime(self[s_in_samples], self.t[s_in_samples])
 
     def as_array(self):
         return np.array(self)
