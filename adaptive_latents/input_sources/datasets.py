@@ -19,6 +19,7 @@ from PIL import Image
 import datetime
 import warnings
 from collections import deque
+import copy
 
 import enum
 
@@ -884,6 +885,19 @@ Please ask Anne Draelos how to acquire the Naumann lab dataset we use here. (hin
     def a2c(a):
         a = (a + 30) % 360
         return matplotlib.cm.ScalarMappable(matplotlib.colors.Normalize(vmin=0, vmax=360), cmap=matplotlib.cm.hsv).to_rgba(a)
+
+
+    def get_rectangular_block(self, n_neurons=150):
+        # type: (Naumann24uDataset, int) -> ArrayWithTime
+        cutoff1 = np.nonzero(np.nancumsum(self.neural_data[:,n_neurons]) > 0)[0][0]
+        cutoff2 = np.nonzero(np.nancumsum(self.neural_data[cutoff1,::-1]))[0][0]
+        neural_data = self.neural_data.slice(cutoff1, -1)[:,:-cutoff2]
+        additional_cutoff_info = np.where(np.isnan(neural_data).any(axis=1))[0]
+        if additional_cutoff_info.size > 0:
+            cutoff3 = additional_cutoff_info[-1] + 1
+            neural_data = neural_data.slice(cutoff3, -1)
+        assert not np.isnan(neural_data).any()
+        return copy.deepcopy(neural_data)
 
 
 class Leventhal24uDataset(Dataset):
