@@ -109,7 +109,7 @@ class ArrayWithTime(np.ndarray):
     #     return super().__getitem__(item)
 
     def __iter__(self):
-        if hasattr(self.t, "__len__") and len(self.t) > 1:
+        if hasattr(self.t, "__len__") and len(self.t) > 1 and len(self.t) == self.shape[0]:
             return NumpyTimedDataSource(self, self.t)
         else:
             return super().__iter__()
