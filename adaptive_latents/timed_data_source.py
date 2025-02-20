@@ -143,6 +143,10 @@ class ArrayWithTime(np.ndarray):
     def as_array(self):
         return np.array(self)
 
+    def time_to_sample(self, time=None):
+        return np.argmin(np.abs(self.t - time))
+
+
     @property
     def dt(self):
         dts = np.diff(self.t)

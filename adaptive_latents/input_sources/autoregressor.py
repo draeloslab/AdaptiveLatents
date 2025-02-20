@@ -169,4 +169,4 @@ class AR_K:
             new[i] = self.v
             new[i] = new[i] + ((new[i - self.k:i, None] - self.v) @ self.As).sum(axis=0)
             new[i] = new[i] + (stims[i - self.k:i, None] @ self.Bs).sum(axis=0)
-        return new
+        return new[-n_steps:]
