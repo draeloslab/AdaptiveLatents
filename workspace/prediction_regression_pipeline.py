@@ -63,6 +63,26 @@ class PipelineRun:
             drop_behavior = True,
             exit_time=-1,
             dataset='zong22',
+        ),
+
+
+        'naumann24u': dict(
+            # validated
+            bw_step=10 ** 0.25,
+            neural_smoothing_tau=.688,
+            n_bubbles=875,
+            # neural_scale=1 / 1000 * 10 ** -1,  # -2.96 for beh (-3.1 without h2b?), 0.312 for neural
+            # -0.15625 seemed to have a good mix?
+            neural_lag=0,
+
+            # not validated
+            concat_zero_streams=(1,),
+            latents_for_bw='jpca',
+            pre_bw_latent_dims_to_drop=0,
+            alpha_pred_method='normal',
+            drop_behavior=True,
+            exit_time=-1,
+            dataset='naumann24u',
         )
     }
     def __init__(
@@ -102,6 +122,9 @@ class PipelineRun:
             d = datasets.Odoherty21Dataset(neural_lag=neural_lag, **dataset_args)
         elif dataset == 'zong22':
             d = datasets.Zong22Dataset(neural_lag=neural_lag, **dataset_args)
+        elif dataset == 'naumann24u':
+            d = datasets.Naumann24uDataset(sub_dataset_identifier=datasets.Naumann24uDataset.sub_datasets[dataset_args['sub_dataset_identifier']])
+            d.bin_width=np.median(np.diff(d.neural_data.t))
 
         if exit_time is None:
             if socket.gethostname() == 'tycho':
@@ -112,9 +135,9 @@ class PipelineRun:
 
         streams = []
         streams.append((d.neural_data, 0))
-        streams.append((d.behavioral_data, 1))
+        streams.append((NumpyTimedDataSource(d.neural_data.a[:,:1] * 0, d.neural_data.t), 1))
         # 2 is reserved for the post-concatination pipeline
-        streams.append((d.behavioral_data, 3))
+        streams.append((NumpyTimedDataSource(d.neural_data.a[:,:1]* 0, d.neural_data.t), 3))
         streams.append((d.neural_data, 4))
         # 5 for the alpha to joint
 

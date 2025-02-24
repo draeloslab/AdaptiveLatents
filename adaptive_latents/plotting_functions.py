@@ -70,16 +70,16 @@ def use_bigger_lims(ax, old_lims=None, y=True, x=True):
     ax.axis(future_lims)
 
 
-def plot_history_with_tail(ax, data, current_t, tail_length=1, scatter_all=True, dim_1=0, dim_2=1, hist_bins=None, invisible=False):
+def plot_history_with_tail(ax, data, current_t, tail_length=1, scatter_all=True, dim_1=0, dim_2=1, hist_bins=None, invisible=False, alpha=.1):
     ax.cla()
 
     s = np.ones_like(data.t).astype(bool)
     if scatter_all:
         s = data.t <= current_t
     if hist_bins is None:
-        ax.scatter(data[s,dim_1], data[s,dim_2], s=5, c='gray', edgecolors='none', alpha= 0 if invisible else .1)
+        ax.scatter(data[s,dim_1], data[s,dim_2], s=5, c='gray', edgecolors='none', alpha= 0 if invisible else alpha)
         back_color = 'white'
-        forward_color = 'C0'
+        forward_color = 'red'
     else:
         s = s & np.isfinite(data).all(axis=1)
         ax.hist2d(data[s,dim_1], data[s,dim_2], bins=hist_bins)
