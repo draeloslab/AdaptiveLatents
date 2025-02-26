@@ -535,7 +535,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
     base_algorithm = BaseBubblewrap
 
     def __init__(self, n_steps_to_predict=1, input_streams=None, check_consistent_dt=True, **kwargs):
-        input_streams = input_streams or {0 : 'X'}
+        input_streams = input_streams or {0: 'X', 'dt': 'dt'}
         super().__init__(input_streams=input_streams, **kwargs)
         self.unevaluated_predictions = {}
         self.dt = None

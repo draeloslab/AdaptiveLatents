@@ -146,6 +146,12 @@ class ArrayWithTime(np.ndarray):
     def time_to_sample(self, time=None):
         return np.argmin(np.abs(self.t - time))
 
+    @classmethod
+    def subtract_aligned_indices(cls, a, b):
+        a, b = (a, b) if a.t[0] < b.t[0] else (b, a)
+        sorter = np.argsort(a.t)
+        idx_a = sorter[np.searchsorted(a.t, b.t, sorter=sorter)]
+        return cls(b - a[idx_a], a.t[idx_a])
 
     @property
     def dt(self):

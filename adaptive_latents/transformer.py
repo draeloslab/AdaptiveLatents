@@ -5,6 +5,7 @@ from frozendict import frozendict
 import numpy as np
 from collections import deque
 import time
+from tqdm.auto import tqdm
 
 
 class PassThroughDict(frozendict):
@@ -183,9 +184,10 @@ class StreamingTransformer(ABC):
 
         self.mid_run_sources = None
 
-    def offline_run_on(self, sources, convinient_return=True, exit_time=None):
+    def offline_run_on(self, sources, convinient_return=True, exit_time=None, show_tqdm=False):
         outputs = {}
-        for data, stream in self.streaming_run_on(sources, return_output_stream=True):
+        wrapper = lambda x: x if not show_tqdm else tqdm
+        for data, stream in wrapper(self.streaming_run_on(sources, return_output_stream=True)):
             if stream not in outputs:
                 outputs[stream] = []
             outputs[stream].append(data)
