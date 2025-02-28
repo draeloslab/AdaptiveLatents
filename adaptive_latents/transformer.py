@@ -1,3 +1,4 @@
+import contextlib
 import copy
 from abc import ABC, abstractmethod
 from .timed_data_source import GeneratorDataSource, NumpyTimedDataSource, ArrayWithTime
@@ -186,13 +187,22 @@ class StreamingTransformer(ABC):
 
     def offline_run_on(self, sources, convinient_return=True, exit_time=None, show_tqdm=False):
         outputs = {}
-        wrapper = lambda x: x if not show_tqdm else tqdm
-        for data, stream in wrapper(self.streaming_run_on(sources, return_output_stream=True)):
-            if stream not in outputs:
-                outputs[stream] = []
-            outputs[stream].append(data)
-            if exit_time is not None and data.t >= exit_time and min([s[0].current_sample_time() for s in self.mid_run_sources]) >= exit_time:
-                break
+
+        exit_time_for_tqdm = float('inf') if exit_time is None else exit_time
+        for source in sources:
+            if hasattr(source, 't'):
+                exit_time_for_tqdm = min(exit_time_for_tqdm, source.t.max())
+
+        pre_pbar = tqdm(total=None if exit_time_for_tqdm == float('inf') else round(exit_time_for_tqdm,2)) if show_tqdm else contextlib.nullcontext()
+        with pre_pbar as pbar:
+            for data, stream in self.streaming_run_on(sources, return_output_stream=True):
+                if stream not in outputs:
+                    outputs[stream] = []
+                outputs[stream].append(data)
+                if exit_time is not None and data.t >= exit_time and min([s[0].current_sample_time() for s in self.mid_run_sources]) >= exit_time:
+                    break
+                if show_tqdm:
+                    pbar.update(round(data.t, 2) - pbar.n)
 
         if convinient_return:
             if 0 not in outputs:
