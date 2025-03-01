@@ -159,9 +159,17 @@ def principle_angles(Q1, Q2):
     _, s, _ = np.linalg.svd(Q1.T @ Q2)
     return np.arccos(s)
 
+
+def is_orthonormal(Q, rows_too=False):
+    o = np.allclose(Q.T @ Q, np.eye(Q.shape[1]))
+    if rows_too:
+        o = o and np.allclose(Q @ Q.t, np.eye(Q.shape[0]))
+    return o
+
+
 def column_space_distance(Q1, Q2, method='angles'):
     for Q in Q1, Q2:
-        assert np.allclose(Q.T @ Q, np.eye(Q.shape[1]))
+        assert is_orthonormal(Q)
 
     if method == 'angles':
         return np.abs(principle_angles(Q1, Q2)).sum()

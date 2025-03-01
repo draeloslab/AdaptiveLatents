@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg
 from adaptive_latents.transformer import DecoupledTransformer
-from adaptive_latents.utils import column_space_distance
+from adaptive_latents.utils import column_space_distance, is_orthonormal
 
 class BaseProPLS:
     def __init__(self, k=10, decay_alpha=1):
@@ -177,7 +177,7 @@ class proPLS(DecoupledTransformer, BaseProPLS):
         m = len(evolving_subspace)
         distances = np.empty(m)
         for j, Q in enumerate(evolving_subspace):
-            if Q is None or np.any(np.isnan(Q)):
+            if Q is None or np.any(np.isnan(Q)) or not is_orthonormal(Q):
                 distances[j] = np.nan
                 continue
             distances[j] = column_space_distance(Q, subspace)

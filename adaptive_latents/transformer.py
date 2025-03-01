@@ -1,7 +1,8 @@
 import contextlib
 import copy
 from abc import ABC, abstractmethod
-from .timed_data_source import GeneratorDataSource, NumpyTimedDataSource, ArrayWithTime
+from .timed_data_source import GeneratorDataSource, ArrayWithTime
+import types
 from frozendict import frozendict
 import numpy as np
 from collections import deque
@@ -115,7 +116,6 @@ class StreamingTransformer(ABC):
             return middle_str
         return [stream, middle_str, self.output_streams[stream]]
 
-
     def streaming_run_on(self, sources, return_output_stream=False):
         """
         Parameters
@@ -189,11 +189,14 @@ class StreamingTransformer(ABC):
         outputs = {}
 
         exit_time_for_tqdm = float('inf') if exit_time is None else exit_time
-        for source in sources:
-            if hasattr(source, 't'):
-                exit_time_for_tqdm = min(exit_time_for_tqdm, source.t.max())
 
-        pre_pbar = tqdm(total=None if exit_time_for_tqdm == float('inf') else round(exit_time_for_tqdm,2)) if show_tqdm else contextlib.nullcontext()
+        pre_pbar = contextlib.nullcontext()
+        if show_tqdm and not isinstance(sources, types.GeneratorType):
+            for source in sources:
+                if hasattr(source, 't'):
+                    exit_time_for_tqdm = min(exit_time_for_tqdm, source.t.max())
+            pre_pbar = tqdm(total=None if exit_time_for_tqdm == float('inf') else round(exit_time_for_tqdm,2))
+
         with pre_pbar as pbar:
             for data, stream in self.streaming_run_on(sources, return_output_stream=True):
                 if stream not in outputs:
@@ -214,6 +217,11 @@ class StreamingTransformer(ABC):
             outputs = ArrayWithTime.from_list(data, squeeze_type='to_2d')  # can be replaced with np.squeeze
 
         return outputs
+
+    # for testing
+    def expected_data_streams(self, rng, DIM):
+        for s in self.input_streams:
+            yield rng.normal(size=(10, DIM)), s
 
     def __str__(self):
         kwargs = ', '.join(f'{k}={v}' for k, v in self.get_params().items())

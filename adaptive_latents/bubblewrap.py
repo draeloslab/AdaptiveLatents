@@ -981,3 +981,10 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         axbig.text(0, 1, to_write, transform=axbig.transAxes, verticalalignment="top")
 
         return fig, axs
+
+    def expected_data_streams(self, rng, DIM):
+        for s in self.input_streams:
+            if s == 'dt':
+                yield ArrayWithTime([[1]], 1), s
+            else:
+                super().expected_data_streams(rng, DIM)

@@ -83,15 +83,15 @@ class TestPerStreamingTransformer:
     def test_can_fit_transform(self, transformer_maker, rng):
         transformer: StreamingTransformer = transformer_maker()
         for _ in range(5):
-            for s in transformer.input_streams:
-                transformer.partial_fit_transform(rng.normal(size=(10, DIM)), s)
+            for data, s in transformer.expected_data_streams(rng, DIM):
+                transformer.partial_fit_transform(data, s)
 
     def test_can_save_and_rerun(self, transformer_maker, rng, tmp_path):
         transformer: StreamingTransformer = transformer_maker()
 
         for _ in range(5):
-            for s in transformer.input_streams:
-                transformer.partial_fit_transform(rng.normal(size=(10, DIM)), s)
+            for data, s in transformer.expected_data_streams(rng, DIM):
+                transformer.partial_fit_transform(data, s)
         t2 = copy.deepcopy(transformer)
 
         temp_file = tmp_path / 'streaming_transformer.pickle'
@@ -103,9 +103,8 @@ class TestPerStreamingTransformer:
         with open(temp_file, 'br') as f:
             transformer = pickle.load(f)
 
-        for s in transformer.input_streams:
-            x = rng.normal(size=(10, DIM))
-            assert np.array_equal(transformer.partial_fit_transform(x, s), t2.partial_fit_transform(x, s),
+        for data, s in transformer.expected_data_streams(rng, DIM):
+            assert np.array_equal(transformer.partial_fit_transform(data, s), t2.partial_fit_transform(data, s),
                                   equal_nan=True)
 
     def test_get_params_works(self, transformer_maker):
