@@ -74,8 +74,12 @@ class BaseMMICA:
 class mmICA(TypicalTransformer, BaseMMICA):
     base_algorithm = BaseMMICA
 
-    def __init__(self, init_size=0, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *, init_size=0,
+                 input_streams=None, output_streams=None, on_nan_width=None, log_level=None,
+                 density_name='huber', maxiter_cg=10, greedy=0, alpha=.7, track_extra_info=False, tol=1e-10
+                 ):
+        TypicalTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)
+        BaseMMICA.__init__(self, density_name=density_name, maxiter_cg=maxiter_cg, greedy=greedy, alpha=alpha, track_extra_info=track_extra_info, tol=tol)
         self.processing_queue = []
         self.init_size = init_size
         self.log |= {'W': [], 't': []}

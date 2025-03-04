@@ -97,9 +97,10 @@ class BaseProPLS:
 class proPLS(DecoupledTransformer, BaseProPLS):
     base_algorithm = BaseProPLS
 
-    def __init__(self, input_streams=None, **kwargs):
+    def __init__(self, *, input_streams=None, output_streams=None, log_level=None, k=10, decay_alpha=1):
         input_streams = input_streams or {0: 'X', 1: 'Y'}
-        super().__init__(input_streams=input_streams,**kwargs)
+        DecoupledTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level)
+        BaseProPLS.__init__(self, k=k, decay_alpha=decay_alpha)
         self.log |= {'u': [], 'vh': [], 't': []}
         self.last_seen = {}
         self.is_initialized = False

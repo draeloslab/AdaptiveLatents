@@ -534,9 +534,13 @@ def update_cov(cov, last, curr, mean, n):
 class Bubblewrap(StreamingTransformer, BaseBubblewrap):
     base_algorithm = BaseBubblewrap
 
-    def __init__(self, n_steps_to_predict=1, input_streams=None, check_consistent_dt=True, **kwargs):
+    def __init__(self, *, input_streams=None, output_streams=None, log_level=None,
+                 n_steps_to_predict=1, check_consistent_dt=True,
+                 **kwargs,  # see BaseBubblewrap parameters, there are too many
+             ):
         input_streams = input_streams or {0: 'X', 'dt': 'dt'}
-        super().__init__(input_streams=input_streams, **kwargs)
+        StreamingTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level)
+        BaseBubblewrap.__init__(self, **kwargs)
         self.unevaluated_predictions = {}
         self.dt = None
         self.last_timepoint = None

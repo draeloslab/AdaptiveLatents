@@ -181,9 +181,10 @@ def auto_regression_decorator(regressor_class: OnlineRegressor, n_steps=1, autor
 class VanillaOnlineRegressor(DecoupledTransformer, BaseVanillaOnlineRegressor):
     base_algorithm = BaseVanillaOnlineRegressor
 
-    def __init__(self, input_streams=None, **kwargs):
+    def __init__(self, *, input_streams=None, output_streams=None, log_level=None, init_min_ratio=1.1, add_intercept=True, regularization_factor=0.01):
         input_streams = input_streams or {0: 'X', 1: 'Y'}
-        super().__init__(input_streams=input_streams,**kwargs)
+        DecoupledTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level)
+        BaseVanillaOnlineRegressor.__init__(self, init_min_ratio=init_min_ratio, regularization_factor=regularization_factor, add_intercept=add_intercept)
         self.log |= {'preq_error':[], 't': []}
         self.last_seen = {}
 

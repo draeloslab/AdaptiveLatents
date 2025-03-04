@@ -5,11 +5,10 @@ from .utils import save_to_cache, principle_angles
 
 
 class BaseProSVD:
-    # todo: make this row-major
-    def __init__(self, k=1, decay_alpha=1, whiten=False):
-        self.k = k
-        self.decay_alpha = decay_alpha
-        self.whiten = whiten
+    def __init__(self, k=None, decay_alpha=None, whiten=None):
+        self.k = k or 1
+        self.decay_alpha = decay_alpha or 1
+        self.whiten = whiten or False
 
         self.Q = None
         self.R = None
@@ -106,8 +105,9 @@ class BaseProSVD:
 class proSVD(TypicalTransformer, BaseProSVD):
     base_algorithm = BaseProSVD
 
-    def __init__(self, init_size=None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *, init_size=None, k=None, decay_alpha=None, whiten=None, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
+        TypicalTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)
+        BaseProSVD.__init__(self, k=k, decay_alpha=decay_alpha, whiten=whiten)
         self.init_size = init_size or self.k
         self.on_nan_width = self.k
         self.init_samples = []
@@ -191,8 +191,8 @@ class proSVD(TypicalTransformer, BaseProSVD):
 
 class RandomProjection(TypicalTransformer):
 
-    def __init__(self, rng_seed=0, k=100, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *, rng_seed=0, k=100, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
+        super().__init__(input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)
         self.k = k
         self.input_d = None
         self.rng_seed = rng_seed

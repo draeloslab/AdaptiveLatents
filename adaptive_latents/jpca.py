@@ -102,8 +102,9 @@ class BaseSJPCA:
 
 class sjPCA(TypicalTransformer, BaseSJPCA):
     base_algorithm = BaseSJPCA
-    def __init__(self, init_size=10, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *, init_size=10, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
+        TypicalTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)
+        BaseSJPCA.__init__(self)
         self.log |= {'U': [], 't':[]}
         self.init_size = init_size
         self.init_samples = []

@@ -30,7 +30,7 @@ class PassThroughDict(frozendict):
 
 
 class StreamingTransformer(ABC):
-    def __init__(self, input_streams=None, output_streams=None, log_level=0, **kwargs):
+    def __init__(self, input_streams=None, output_streams=None, log_level=None):
         """
         Parameters
         ----------
@@ -47,11 +47,9 @@ class StreamingTransformer(ABC):
             3: complete logging
         """
 
-        super().__init__(**kwargs)
-
         self.input_streams = PassThroughDict(input_streams or {})
         self.output_streams = PassThroughDict(output_streams or {})
-        self.log_level = log_level
+        self.log_level = log_level or 0
         self.mid_run_sources = None
         self.log = dict(step_time=[], stream=[])
 
@@ -229,8 +227,8 @@ class StreamingTransformer(ABC):
 
 
 class DecoupledTransformer(StreamingTransformer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *, input_streams=None, output_streams=None, log_level=None):
+        super().__init__(input_streams, output_streams, log_level)
         self.frozen = False
 
     def _partial_fit_transform(self, data, stream=0, return_output_stream=False):
@@ -265,7 +263,7 @@ class DecoupledTransformer(StreamingTransformer):
 
 
 class Pipeline(DecoupledTransformer):
-    def __init__(self, steps=(), input_streams=None, reroute_inputs=True, **kwargs):
+    def __init__(self, steps=(), *, input_streams=None, reroute_inputs=True, output_streams=None, log_level=None):
         self.steps: list[DecoupledTransformer] = steps
         self.reroute_inputs = reroute_inputs
 
@@ -276,7 +274,7 @@ class Pipeline(DecoupledTransformer):
             else:
                 input_streams = PassThroughDict({})
 
-        super().__init__(input_streams, **kwargs)
+        super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
 
     def get_params(self, deep=True):
         # TODO: make this actually SKLearn compatible
@@ -348,15 +346,15 @@ class Pipeline(DecoupledTransformer):
 
 
 class TypicalTransformer(DecoupledTransformer):
-    def __init__(self, input_streams=None, output_streams=None, on_nan_width=None, **kwargs):
+    def __init__(self, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
         input_streams = input_streams or {0: 'X'}
-        super().__init__(input_streams=input_streams, output_streams=output_streams, **kwargs)
+        super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
         self.is_initialized = False
         self.on_nan_width = on_nan_width
 
     def get_params(self, deep=True):
         p = super().get_params(deep)
-        p = self.instance_get_params() | p
+        p = self.instance_get_params() | {'on_nan_width': self.on_nan_width} | p
         return p
 
     def _partial_fit(self, data, stream=0):
@@ -419,7 +417,7 @@ class TypicalTransformer(DecoupledTransformer):
 
 
 class CenteringTransformer(TypicalTransformer):
-    def __init__(self, init_size=0, **kwargs):
+    def __init__(self, *, init_size=0, **kwargs):
         super().__init__(**kwargs)
         self.init_size = init_size
         self.samples_seen = 0
@@ -445,8 +443,8 @@ class CenteringTransformer(TypicalTransformer):
 
 class ZScoringTransformer(TypicalTransformer):
     # see https://math.stackexchange.com/a/1769248/701602
-    def __init__(self, init_size=100, freeze_after_init=False, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *, init_size=100, freeze_after_init=False, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
+        super().__init__(input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)
         self.init_size = init_size
         self.freeze_after_init = freeze_after_init
         self.mean = 0
@@ -478,9 +476,9 @@ class ZScoringTransformer(TypicalTransformer):
 
 
 class KernelSmoother(StreamingTransformer):
-    def __init__(self, tau=1, kernel_length=None, custom_kernel=None, input_streams=None, **kwargs):
+    def __init__(self, *, tau=1, kernel_length=None, custom_kernel=None, input_streams=None, output_streams=None, log_level=None):
         input_streams = input_streams or {0:'X'}
-        super().__init__(input_streams=input_streams, **kwargs)
+        super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
         self.tau = tau
         self.kernel_length = kernel_length
         self.custom_kernel = custom_kernel
@@ -536,12 +534,13 @@ class KernelSmoother(StreamingTransformer):
 
 
 class Concatenator(StreamingTransformer):
-    def __init__(self, input_streams=None, output_streams=None, stream_scaling_factors=None, **kwargs):
+
+    def __init__(self, *, input_streams=None, output_streams=None, log_level=None, stream_scaling_factors=None):
         input_streams = input_streams or PassThroughDict({0:0, 1:1})
 
         output_stream = max(input_streams.keys()) + 1
         output_streams = output_streams or PassThroughDict({k: output_stream for k in input_streams.keys()} | {'skip': -1})
-        super().__init__(input_streams=input_streams, output_streams=output_streams, **kwargs)
+        super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
         self.last_seen = {}
 
         if stream_scaling_factors is None:
@@ -618,7 +617,7 @@ class SwitchingParallelTransformer(DecoupledTransformer):
 
 
 class Tee(DecoupledTransformer):
-    def __init__(self, input_streams=None, log_level=0):
+    def __init__(self, input_streams=None, log_level=None):
         input_streams = input_streams or PassThroughDict()
         self.observed = {}
         super().__init__(input_streams=input_streams, log_level=log_level)
