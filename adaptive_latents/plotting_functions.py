@@ -294,7 +294,7 @@ class PredictionVideo:
     @classmethod
     def example_usage(cls, d=None):
         # todo: delete this? move it to tests?
-        from adaptive_latents import datasets, Pipeline, KernelSmoother, Concatenator, proSVD, Bubblewrap, VanillaOnlineRegressor, NumpyTimedDataSource
+        from adaptive_latents import datasets, Pipeline, KernelSmoother, Concatenator, proSVD, Bubblewrap, VanillaOnlineRegressor, ArrayWithTime
         from tqdm.notebook import tqdm
 
         if d is None:
@@ -329,7 +329,7 @@ class PredictionVideo:
 
         video_dt = 0.1
         video_ts = np.arange(100)*video_dt + 50
-        streams.append( (NumpyTimedDataSource(np.nan * video_ts, video_ts), 'video') )
+        streams.append((ArrayWithTime(np.nan * video_ts, video_ts), 'video'))
 
 
         vid = cls(d, video_dt)

@@ -2,6 +2,7 @@ import numpy as np
 import jax
 from jax import numpy as jnp
 from typing import Literal, Any
+import warnings
 
 
 class AdamOptimizer:
@@ -31,7 +32,8 @@ class AdamOptimizer:
 
 
 class AR_K:
-    def __init__(self, *, k=1, rank_limit=None, rng=None, init_method='full_rank', iter_limit=200):
+    # inspired by https://doi.org/10.48550/arXiv.2412.02529
+    def __init__(self, *, k=1, rank_limit=None, rng=None, init_method='full_rank', iter_limit=500):
         # type: (AR_K, int, int | None, Any, Literal['full_rank', 'random'], int) -> None
         self.k = k
         self.rank_limit = rank_limit
@@ -118,6 +120,7 @@ class AR_K:
             }
 
         elif self.init_method == 'random':
+            warnings.warn('this has been very unreliable in the past, check for stability')
             params = {
                 'A_Ds': self.rng.normal(size=(self.k, self.neuron_d)),
                 'A_Us': self.rng.normal(size=(self.k, self.neuron_d, self.rank_limit)),
@@ -161,12 +164,17 @@ class AR_K:
         v = params['v']
         return np.array(As), np.array(Bs), np.array(v)
 
-    def predict(self, initial_observations, stims, n_steps=100):
+    def predict(self, initial_observations, stims=None, n_steps=100):
+        if stims is None:
+            stims = np.zeros((n_steps + self.k, self.Bs.shape[1]))
+        assert initial_observations.shape[0] >= self.k
+        assert stims.shape[0] == n_steps + self.k
+
         new = np.zeros(shape=(n_steps + self.k, self.neuron_d)) * np.nan
         new[:self.k] = initial_observations[-self.k:]
 
         for i in np.arange(n_steps) + self.k:
             new[i] = self.v
-            new[i] = new[i] + ((new[i - self.k:i, None] - self.v) @ self.As).sum(axis=0)
+            new[i] = new[i] + ((new[i - self.k:i, None]) @ self.As).sum(axis=0)
             new[i] = new[i] + (stims[i - self.k:i, None] @ self.Bs).sum(axis=0)
         return new[-n_steps:]
