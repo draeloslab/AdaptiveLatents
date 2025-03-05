@@ -152,6 +152,13 @@ defaults_per_dataset = {
 
 }
 def pred_reg_run_with_defaults(ds_name, **kwargs):
+    """
+    Examples
+    -------
+    >>> pred_reg_run_with_defaults('odoherty21', exit_time=60)
+    <...PredictionEvaluation...>
+    """
+
     if ds_name == 'odoherty21':
         args = dict(defaults_per_dataset[ds_name])
         args |= kwargs

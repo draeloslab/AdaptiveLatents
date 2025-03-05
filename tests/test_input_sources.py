@@ -20,7 +20,7 @@ def test_hmm_runs(rng):
         hmm.advance_one_step(rng, states[-1])
 
 
-class TestAutoRegressor:
+class TestAR_K:
     @pytest.mark.parametrize('rank_limit', [2, None])
     def test_can_regress(self, rng, rank_limit):
         plot = False

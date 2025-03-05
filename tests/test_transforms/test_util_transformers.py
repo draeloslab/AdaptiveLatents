@@ -9,17 +9,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 
-class TestZScoringTransformer:
-    def test_consistent(self, rng):
-        X = rng.normal(size=(1000, 5)) * np.arange(5)
-        z = ZScoringTransformer(freeze_after_init=False)
-        z.offline_run_on(X)
-        assert np.allclose(z.get_std(), np.std(X, axis=0), atol=0.01)
-
-    # def test_unbiased(self, rng):
-    #     pass
-
-
 class TestConcatenator:
     def test_concatenates(self):
         c = Concatenator(input_streams={1: 1, 2: 2}, output_streams={1: 0, 2: 0})

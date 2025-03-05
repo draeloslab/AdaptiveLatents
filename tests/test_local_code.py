@@ -57,16 +57,6 @@ class TestDatasets:
         for _ in range(10):
             next(iterator)
 
-@longrun
-def test_dataset_plots():
-    d = datasets.TostadoMarcos24Dataset()
-    fig, ax = plt.subplots()
-    d.play_audio()
-    d.plot_recalculated_spectrogram(ax)
-
-
-def test_one_prr():
-    prr.pred_reg_run_with_defaults('odoherty21', exit_time=60)
 
 @longrun
 def test_all_prr_defaults():

@@ -443,6 +443,14 @@ class CenteringTransformer(TypicalTransformer):
 
 class ZScoringTransformer(TypicalTransformer):
     # see https://math.stackexchange.com/a/1769248/701602
+    """
+    Examples
+    --------
+    >>> X = np.random.normal(size=(1000, 5)) * np.arange(5)
+    >>> z = ZScoringTransformer(freeze_after_init=False)
+    >>> _ = z.offline_run_on(X)
+    >>> assert np.allclose(z.get_std(), np.std(X, axis=0), atol=0.01)
+    """
     def __init__(self, *, init_size=100, freeze_after_init=False, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
         super().__init__(input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)
         self.init_size = init_size
@@ -517,6 +525,12 @@ class KernelSmoother(StreamingTransformer):
         ----------
         ax: matplotlib.pyplot.Axes
             The axis to plot on.
+
+        Examples
+        --------
+        >>> import matplotlib.pyplot as plt
+        >>> fig, ax = plt.subplots()
+        >>> KernelSmoother().plot_impulse_response(ax)
         """
 
         impulse_point = len(self.kernel) + 3

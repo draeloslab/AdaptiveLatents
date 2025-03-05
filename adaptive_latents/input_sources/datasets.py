@@ -328,12 +328,27 @@ class TostadoMarcos24Dataset(DandiDataset):
         return tx, vocalizations, neural_data, behavioral_data
 
     def play_audio(self):
+        """
+        Examples
+        -------
+        >>> d = TostadoMarcos24Dataset()
+        >>> d.play_audio()
+        """
+
         import IPython.display as ipd
         x = self.vocalizations.flatten()
         t = self.vocalizations.t.flatten()
         return ipd.Audio(x, rate=round(1 / np.median(np.diff(t))))
 
     def plot_recalculated_spectrogram(self, ax):
+        """
+        Examples
+        --------
+        >>> import matplotlib.pyplot as plt
+        >>> d = TostadoMarcos24Dataset()
+        >>> fig, ax = plt.subplots()
+        >>> d.plot_recalculated_spectrogram(ax)
+        """
         import scipy.signal as ss
 
         x = self.vocalizations.flatten()
