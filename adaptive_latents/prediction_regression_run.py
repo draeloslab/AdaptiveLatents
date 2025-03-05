@@ -40,7 +40,7 @@ class PredictionEvaluation:
             outputs = self.pipeline.offline_run_on(self.sources, convinient_return=False, exit_time=self.exit_time)
         self.outputs = outputs
 
-        for k, v in self.outputs.items():
+        for k, v in dict(self.outputs).items():
             self.outputs[k] = ArrayWithTime.from_list(v, drop_early_nans=True, squeeze_type='to_2d')
             if k in self.stream_names:
                 self.outputs[self.stream_names[k]] = self.outputs[k]
@@ -51,8 +51,6 @@ class PredictionEvaluation:
             self.evaluations[name] = evaluate_regression(estimate, estimate.t, target, target.t)
 
 
-def setup_pred_reg_run():
-    pass
 def pred_reg_run(
         neural_data,
         behavioral_data,
@@ -184,56 +182,3 @@ def pred_reg_run_with_defaults(ds_name, **kwargs):
     return result
 
 
-def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, scatter_alpha=0, normalize_method=None):
-    assert normalize_method in {None, 'none', 'diffs', 'hcubes', 'squares'}
-    fig, axs = plt.subplots(nrows=1, ncols=len(dim_reduced_data), squeeze=False, layout='tight', figsize=(12,4))
-
-    for idx, (name, latents) in enumerate(dim_reduced_data.items()):
-        e1, e2 = np.zeros(latents.shape[1]), np.zeros(latents.shape[1])
-        e1[x_direction] = 1
-        e2[y_direction] = 1
-
-        ax: plt.Axes = axs[0, idx]
-        ax.scatter(latents @ e1, latents @ e2, s=5, alpha=scatter_alpha)
-        x1, x2, y1, y2 = ax.axis()
-        x_points = np.linspace(x1, x2, grid_n)
-        y_points = np.linspace(y1, y2, grid_n)
-
-        d_latents = np.diff(latents, axis=0)
-        if normalize_method == 'diffs':
-            d_latents = d_latents / np.linalg.norm(d_latents, axis=1)[:, np.newaxis]
-
-
-        origins = []
-        arrows = []
-        n_points = []
-        for i in range(len(x_points) - 1):
-            for j in range(len(y_points) - 1):
-                proj_1 = (latents[:-1] @ e1)
-                proj_2 = (latents[:-1] @ e2)
-                # s stands for slice
-                s = (
-                        (x_points[i] <= proj_1) & (proj_1 < x_points[i + 1])
-                        &
-                        (y_points[j] <= proj_2) & (proj_2 < y_points[j + 1])
-                )
-                if s.sum():
-                    arrow = np.nanmean(d_latents[s],axis=0)
-                    if normalize_method == 'hcubes':
-                        arrow = arrow / np.linalg.norm(arrow)
-                    arrows.append(arrow)
-                    origins.append([np.nanmean(x_points[i:i + 2]), np.nanmean(y_points[j:j + 2])])
-                    n_points.append(s.sum())
-        origins, arrows, n_points = np.array(origins), np.array(arrows), np.array(n_points)
-        arrows = np.array([arrows @ e1, arrows @ e2]).T
-        if normalize_method == 'squares':
-            arrows = arrows / np.linalg.norm(arrows, axis=1)[:, np.newaxis]
-
-        ax.quiver(origins[:, 0], origins[:, 1], arrows[:,0], arrows[:,1], scale=1 / 20, units='dots', color='red')
-
-        ax.axis('equal')
-        ax.axis('off')
-
-
-if __name__ == '__main__':
-    odoherty_run = pred_reg_run_with_defaults(ds_name='odoherty21', exit_time=60)

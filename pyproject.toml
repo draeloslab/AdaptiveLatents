@@ -19,6 +19,8 @@ pythonpath = [
   "." # so we can import from the scripts in the tests; you should still install adaptive_latents as a package
 ]
 norecursedirs = ['datasets']
+addopts = '--doctest-modules --doctest-continue-on-failure'
+doctest_optionflags = "ELLIPSIS NORMALIZE_WHITESPACE"
 
 [tool.setuptools]
 packages = ["adaptive_latents"]

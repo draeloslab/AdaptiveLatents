@@ -1,6 +1,7 @@
 import pytest
 from workspace.main import main
 from adaptive_latents import datasets, CenteringTransformer
+from adaptive_latents import prediction_regression_run as prr
 import matplotlib.pyplot as plt
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
@@ -62,3 +63,12 @@ def test_dataset_plots():
     fig, ax = plt.subplots()
     d.play_audio()
     d.plot_recalculated_spectrogram(ax)
+
+
+def test_one_prr():
+    prr.pred_reg_run_with_defaults('odoherty21', exit_time=60)
+
+@longrun
+def test_all_prr_defaults():
+    prr.pred_reg_run_with_defaults('naumann24u', exit_time=60)
+    prr.pred_reg_run_with_defaults('zong22', exit_time=60)

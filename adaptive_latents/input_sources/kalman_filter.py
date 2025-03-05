@@ -1,3 +1,6 @@
+import numpy as np
+
+
 class StreamingKalmanFilter():
     def __init__(self):
         self.A = None
@@ -44,7 +47,7 @@ class StreamingKalmanFilter():
         return X_corr
 
     
-class StreamingSteadyStateKalmanFilter(Model):
+class StreamingSteadyStateKalmanFilter:
     def __init__(self):
         self.K = None
         self.theta1 = None

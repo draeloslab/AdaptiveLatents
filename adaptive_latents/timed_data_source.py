@@ -206,5 +206,5 @@ class ArrayWithTime(np.ndarray):
 
     @classmethod
     def from_notime(cls, a):
-        return cls(a, np.arange(a.shape[0]))
+        return cls(a, np.arange(len(a)))
 

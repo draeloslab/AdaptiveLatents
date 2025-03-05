@@ -49,7 +49,7 @@ def test_cache_works(rng, tmp_path):
 
     assert cached_f(6) == 8
 
-    should_fail = True
+    should_fail = True  # changes the value above
     with pytest.raises(AssertionError):
         f(6)
 

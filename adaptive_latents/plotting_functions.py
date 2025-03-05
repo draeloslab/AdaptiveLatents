@@ -115,9 +115,13 @@ class UpdatingOptimizationGraph:
         ----------
         >>> import time
         >>> o = UpdatingOptimizationGraph()
+        >>> count = 0
         >>> for v in o.suggest_values(0,6.28):
-        >>>     time.sleep(1)
-        >>>     o.register_result(v, {'beh':{'corr': [np.sin(v), np.cos(v)], 'nrmse': -np.sin(v)}, 'joint':{'corr': [np.cos(v), np.cos(v*2)], 'nrmse': np.cos(v)}})
+        ...     time.sleep(.01)
+        ...     o.register_result(v, {'beh':{'corr': [np.sin(v), np.cos(v)], 'nrmse': -np.sin(v)}, 'joint':{'corr': [np.cos(v), np.cos(v*2)], 'nrmse': np.cos(v)}})
+        ...     break  # ususally this would keep going in a notebook until a keyboard interrupt
+        <BLANKLINE>
+        ... Figure(640x480)
         """
         self.fig, self.axs = None, None
         self.low_is_good_metrics = low_is_good_metrics
@@ -367,3 +371,57 @@ class PredictionVideo:
                         break
 
                 pbar.update(output.t - pbar.n)
+
+
+def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, scatter_alpha=0, normalize_method=None, fig=None):
+    assert normalize_method in {None, 'none', 'diffs', 'hcubes', 'squares'}
+    if fig is None:
+        fig, axs = plt.subplots(nrows=1, ncols=len(dim_reduced_data), squeeze=False, layout='tight', figsize=(12,4))
+    else:
+        axs = fig.axes
+
+    for idx, (name, latents) in enumerate(dim_reduced_data.items()):
+        e1, e2 = np.zeros(latents.shape[1]), np.zeros(latents.shape[1])
+        e1[x_direction] = 1
+        e2[y_direction] = 1
+
+        ax: plt.Axes = axs[0, idx]
+        ax.scatter(latents @ e1, latents @ e2, s=5, alpha=scatter_alpha)
+        x1, x2, y1, y2 = ax.axis()
+        x_points = np.linspace(x1, x2, grid_n)
+        y_points = np.linspace(y1, y2, grid_n)
+
+        d_latents = np.diff(latents, axis=0)
+        if normalize_method == 'diffs':
+            d_latents = d_latents / np.linalg.norm(d_latents, axis=1)[:, np.newaxis]
+
+
+        origins = []
+        arrows = []
+        n_points = []
+        for i in range(len(x_points) - 1):
+            for j in range(len(y_points) - 1):
+                proj_1 = (latents[:-1] @ e1)
+                proj_2 = (latents[:-1] @ e2)
+                # s stands for slice
+                s = (
+                        (x_points[i] <= proj_1) & (proj_1 < x_points[i + 1])
+                        &
+                        (y_points[j] <= proj_2) & (proj_2 < y_points[j + 1])
+                )
+                if s.sum():
+                    arrow = np.nanmean(d_latents[s],axis=0)
+                    if normalize_method == 'hcubes':
+                        arrow = arrow / np.linalg.norm(arrow)
+                    arrows.append(arrow)
+                    origins.append([np.nanmean(x_points[i:i + 2]), np.nanmean(y_points[j:j + 2])])
+                    n_points.append(s.sum())
+        origins, arrows, n_points = np.array(origins), np.array(arrows), np.array(n_points)
+        arrows = np.array([arrows @ e1, arrows @ e2]).T
+        if normalize_method == 'squares':
+            arrows = arrows / np.linalg.norm(arrows, axis=1)[:, np.newaxis]
+
+        ax.quiver(origins[:, 0], origins[:, 1], arrows[:,0], arrows[:,1], scale=1 / 20, units='dots', color='red')
+
+        ax.axis('equal')
+        ax.axis('off')
