@@ -64,10 +64,10 @@ class StreamingSteadyStateKalmanFilter:
         XT = np.transpose(X)
         
         ## Calculate A
-        A = (X[:, 1:] @ XT[:-1, :]) @ utils.inverse_singular(X[:, 0:-1] @ XT[0:-1, :])
+        A = (X[:, 1:] @ XT[:-1, :]) @ np.linalg.pinv(X[:, 0:-1] @ XT[0:-1, :])
 
         ## Calculate C 
-        C = Y @ XT @ utils.inverse_singular(X @ XT)
+        C = Y @ XT @ np.linalg.pinv(X @ XT)
         
         # Find W 
         w = X[:, 1:] - A @ X[:, :-1]
@@ -84,7 +84,7 @@ class StreamingSteadyStateKalmanFilter:
         
         matrix = C @ W @ CT + Q
         
-        KOld = P @ CT @ utils.inverse_singular(matrix)
+        KOld = P @ CT @ np.linalg.pinv(matrix)
         P = (np.identity(m) - KOld @ C) @ P
         dif = KOld
         nRec = 0
@@ -92,7 +92,7 @@ class StreamingSteadyStateKalmanFilter:
             nRec +=1
             P = A @ P @ np.transpose(A) + W
             matrix = C @ P @ CT + Q
-            K = P @ CT @ utils.inverse_singular(matrix) 
+            K = P @ CT @ np.linalg.pinv(matrix)
             dif = abs(K-KOld)
             KOld = K
             P = (np.identity(m) - K @ C) @ P
@@ -121,3 +121,8 @@ class StreamingSteadyStateKalmanFilter:
         self.xlast = np.reshape(a, (m))
         
         return self.xlast.T
+
+
+if __name__ == '__main__':
+    StreamingKalmanFilter()
+    StreamingSteadyStateKalmanFilter()

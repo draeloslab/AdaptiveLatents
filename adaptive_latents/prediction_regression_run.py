@@ -16,7 +16,6 @@ from adaptive_latents.transformer import Tee
 import numpy as np
 import functools
 import copy
-import matplotlib.pyplot as plt
 from adaptive_latents.transformer import PassThroughDict
 
 class PredictionEvaluation:
@@ -24,7 +23,6 @@ class PredictionEvaluation:
         self.target_pairs = target_pairs or {'default': (2, 1)}  # default assumes stream 0 is x's, stream 1 is y's, and stream 2 is query x's
         self.pipeline = pipeline or Pipeline()
         self.sources = sources
-        self.target_pairs = target_pairs
         self.stream_names = stream_names or PassThroughDict()
         self.exit_time = exit_time
 
@@ -55,7 +53,6 @@ def pred_reg_run(
         neural_data,
         behavioral_data,
         target_data,
-        predict=False,
         n_bubbles=875,
         bw_step=10 ** 0.25,
         neural_smoothing_tau=.688,
@@ -64,6 +61,7 @@ def pred_reg_run(
         exit_time=None,
         dim_red_method='pro',
         log_level=1,
+        predict=True,
         evaluate=True,
         **kwargs,
 ):
@@ -155,7 +153,7 @@ def pred_reg_run_with_defaults(ds_name, **kwargs):
     """
     Examples
     -------
-    >>> pred_reg_run_with_defaults('odoherty21', exit_time=60)
+    >>> pred_reg_run_with_defaults('odoherty21', exit_time=60, predict=False)  # predict=False for time reasons
     <...PredictionEvaluation...>
     """
 

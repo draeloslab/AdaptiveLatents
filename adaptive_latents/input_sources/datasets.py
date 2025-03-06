@@ -129,13 +129,20 @@ class Odoherty21Dataset(DandiDataset):
         self.beh_pos_vel = ArrayWithTime(np.hstack([self.finger_pos, self.finger_vel]), self.finger_t)
 
     def construct(self):
-        with self.acquire("sub-Indy/sub-Indy_desc-train_behavior+ecephys.nwb") as fhan:
-            ds = fhan.read()
-            units = ds.units.to_dataframe()
-            finger_pos = ds.processing['behavior'].data_interfaces['finger_pos'].data[:]
-            finger_pos_t = np.arange(finger_pos.shape[0]) * ds.processing['behavior'].data_interfaces['finger_pos'].conversion
-            finger_vel = ds.processing['behavior'].data_interfaces['finger_vel'].data[:]
-            finger_vel_t = np.arange(finger_vel.shape[0]) * ds.processing['behavior'].data_interfaces['finger_vel'].conversion
+        with warnings.catch_warnings(record=True) as w:
+            with self.acquire("sub-Indy/sub-Indy_desc-train_behavior+ecephys.nwb") as fhan:
+                ds = fhan.read()
+                units = ds.units.to_dataframe()
+                finger_pos = ds.processing['behavior'].data_interfaces['finger_pos'].data[:]
+                finger_pos_t = np.arange(finger_pos.shape[0]) * ds.processing['behavior'].data_interfaces['finger_pos'].conversion
+                finger_vel = ds.processing['behavior'].data_interfaces['finger_vel'].data[:]
+                finger_vel_t = np.arange(finger_vel.shape[0]) * ds.processing['behavior'].data_interfaces['finger_vel'].conversion
+
+            # TODO: filter these specific exceptions and raise others?
+            assert "Ignoring cached namespace 'hdmf-common' version 1.5.0 because version 1.8.0 is already loaded." in str(w[0].message)
+            assert "Ignoring cached namespace 'core' version 2.4.0 because version 2.7.0 is already loaded." in str(w[1].message)
+            assert "Ignoring cached namespace 'hdmf-experimental' version 0.1.0 because version 0.5.0 is already loaded." in str(w[2].message.args[0])
+            assert len(w) == 3
 
         start_time = units.iloc[0, 2].min()
         end_time = units.iloc[0, 2].max()
@@ -628,97 +635,97 @@ This data will eventually be published, after which there should be an easier wa
         return A, beh, t, pre_smooth_t
 
 
-class Musall19Dataset(Dataset):
-    doi = 'https://doi.org/10.1038/s41593-019-0502-4'
-    model_organism = ModelOrganism.MOUSE
-    dataset_base_path = DATA_BASE_PATH / 'musall19'
-    inner_data_path = dataset_base_path / "their_data/2pData/Animals/mSM49/SpatialDisc/30-Jul-2018"
-    automatically_downloadable = False
-
-    def __init__(self, cam=1, video_target_dim=100, resize_factor=1):
-        self.cam = cam  # either 1 or 2
-        self.video_target_dim = video_target_dim
-        self.resize_factor = resize_factor
-
-        A, d, ca_times, t = self.construct()
-        self.neural_data = ArrayWithTime(A, ca_times)
-        self.behavioral_data = ArrayWithTime(d, t)
-
-    def construct(self):
-        self.acquire()
-
-        @save_to_cache("musall19_data")
-        def static_construct(cam, video_target_dim, resize_factor):
-            ca_sampling_rate = 31
-            video_sampling_rate = 30
-
-            #### load A
-            variables = loadmat(self.inner_data_path / 'data.mat', squeeze_me=True, simplify_cells=True)
-            A = variables["data"]['dFOF']
-            _, n_samples_per_trial, _ = A.shape
-            A = np.vstack(A.T)
-
-            #### load trial start and end times, in video frames
-            def read_floats(file):
-                with open(file) as fhan:
-                    text = fhan.read()
-                    return [float(x) for x in text.split(",")]
-
-            on_times = read_floats(self.dataset_base_path / "trialOn.txt")
-            off_times = read_floats(self.dataset_base_path / "trialOff.txt")
-            trial_edges = np.array([on_times, off_times]).T
-            trial_edges = trial_edges[np.all(np.isfinite(trial_edges), axis=1)].astype(int)
-
-            #### load video
-            root_dir = self.inner_data_path / "BehaviorVideo"
-
-            start_V = 0  # 29801
-            end_V = trial_edges.max()  # 89928
-            used_V = end_V - start_V
-
-            Wid, Hei = 320, 240
-            Wid0, Hei0 = Wid // 4, Hei // 4
-
-            # resized by half
-            Data = np.zeros((used_V, Wid // resize_factor, Hei // resize_factor))
-
-            for k in tqdm(range(16)):
-                name = f'{root_dir}/SVD_Cam{cam}-Seg{k + 1}.mat'
-                # Load MATLAB .mat file
-                mat_contents = loadmat(name)
-                V = mat_contents['V']  # (89928, 500)
-                U = mat_contents['U']  # (500, 4800)
-
-                VU = V[start_V:end_V, :].dot(U)  # (T, 4800)
-                seg = VU.reshape((used_V, Wid0, Hei0))
-                Wid1, Hei1 = Wid0 // resize_factor, Hei0 // resize_factor
-                seg = resize(seg, (used_V, Wid1, Hei1), mode='constant')
-
-                i, j = k // 4, (k % 4)
-                Data[:, i * Wid1:(i+1) * Wid1, j * Hei1:(j+1) * Hei1] = seg
-
-            #### dimension reduce video
-            t = np.arange(Data.shape[0]) / video_sampling_rate
-            d = np.array(Data.reshape(Data.shape[0], -1))
-            del Data
-            d = proSVD.apply_and_cache(input_arr=d, output_d=video_target_dim, init_size=video_target_dim)
-            t, d = clip(t, d)
-
-            #### define times
-            ca_times = np.hstack([np.linspace(*trial_edges[i], n_samples_per_trial) for i in range(len(trial_edges))])
-            ca_times = ca_times / video_sampling_rate
-
-            return A, d, ca_times, t
-
-        return static_construct(self.cam, self.video_target_dim, self.resize_factor)
-
-    def acquire(self):
-        if not self.inner_data_path.is_dir():
-            # TODO: I think this is actually publicly downloadable
-            print(f"""\
-Please ask Anne Draelos where to download the Musal data.\
-""")
-            raise FileNotFoundError()
+# class Musall19Dataset(Dataset):
+#     doi = 'https://doi.org/10.1038/s41593-019-0502-4'
+#     model_organism = ModelOrganism.MOUSE
+#     dataset_base_path = DATA_BASE_PATH / 'musall19'
+#     inner_data_path = dataset_base_path / "their_data/2pData/Animals/mSM49/SpatialDisc/30-Jul-2018"
+#     automatically_downloadable = False
+#
+#     def __init__(self, cam=1, video_target_dim=100, resize_factor=1):
+#         self.cam = cam  # either 1 or 2
+#         self.video_target_dim = video_target_dim
+#         self.resize_factor = resize_factor
+#
+#         A, d, ca_times, t = self.construct()
+#         self.neural_data = ArrayWithTime(A, ca_times)
+#         self.behavioral_data = ArrayWithTime(d, t)
+#
+#     def construct(self):
+#         self.acquire()
+#
+#         @save_to_cache("musall19_data")
+#         def static_construct(cam, video_target_dim, resize_factor):
+#             ca_sampling_rate = 31
+#             video_sampling_rate = 30
+#
+#             #### load A
+#             variables = loadmat(self.inner_data_path / 'data.mat', squeeze_me=True, simplify_cells=True)
+#             A = variables["data"]['dFOF']
+#             _, n_samples_per_trial, _ = A.shape
+#             A = np.vstack(A.T)
+#
+#             #### load trial start and end times, in video frames
+#             def read_floats(file):
+#                 with open(file) as fhan:
+#                     text = fhan.read()
+#                     return [float(x) for x in text.split(",")]
+#
+#             on_times = read_floats(self.dataset_base_path / "trialOn.txt")
+#             off_times = read_floats(self.dataset_base_path / "trialOff.txt")
+#             trial_edges = np.array([on_times, off_times]).T
+#             trial_edges = trial_edges[np.all(np.isfinite(trial_edges), axis=1)].astype(int)
+#
+#             #### load video
+#             root_dir = self.inner_data_path / "BehaviorVideo"
+#
+#             start_V = 0  # 29801
+#             end_V = trial_edges.max()  # 89928
+#             used_V = end_V - start_V
+#
+#             Wid, Hei = 320, 240
+#             Wid0, Hei0 = Wid // 4, Hei // 4
+#
+#             # resized by half
+#             Data = np.zeros((used_V, Wid // resize_factor, Hei // resize_factor))
+#
+#             for k in tqdm(range(16)):
+#                 name = f'{root_dir}/SVD_Cam{cam}-Seg{k + 1}.mat'
+#                 # Load MATLAB .mat file
+#                 mat_contents = loadmat(name)
+#                 V = mat_contents['V']  # (89928, 500)
+#                 U = mat_contents['U']  # (500, 4800)
+#
+#                 VU = V[start_V:end_V, :].dot(U)  # (T, 4800)
+#                 seg = VU.reshape((used_V, Wid0, Hei0))
+#                 Wid1, Hei1 = Wid0 // resize_factor, Hei0 // resize_factor
+#                 seg = resize(seg, (used_V, Wid1, Hei1), mode='constant')
+#
+#                 i, j = k // 4, (k % 4)
+#                 Data[:, i * Wid1:(i+1) * Wid1, j * Hei1:(j+1) * Hei1] = seg
+#
+#             #### dimension reduce video
+#             t = np.arange(Data.shape[0]) / video_sampling_rate
+#             d = np.array(Data.reshape(Data.shape[0], -1))
+#             del Data
+#             d = proSVD.apply_and_cache(input_arr=d, output_d=video_target_dim, init_size=video_target_dim)
+#             t, d = clip(t, d)
+#
+#             #### define times
+#             ca_times = np.hstack([np.linspace(*trial_edges[i], n_samples_per_trial) for i in range(len(trial_edges))])
+#             ca_times = ca_times / video_sampling_rate
+#
+#             return A, d, ca_times, t
+#
+#         return static_construct(self.cam, self.video_target_dim, self.resize_factor)
+#
+#     def acquire(self):
+#         if not self.inner_data_path.is_dir():
+#             # TODO: I think this is actually publicly downloadable
+#             print(f"""\
+# Please ask Anne Draelos where to download the Musal data.\
+# """)
+#             raise FileNotFoundError()
 
 
 class Naumann24uDataset(Dataset):

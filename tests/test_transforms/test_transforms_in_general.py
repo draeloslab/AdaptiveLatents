@@ -1,5 +1,6 @@
 import numpy as np
 import inspect
+from conftest import get_all_subclasses
 from adaptive_latents.transformer import StreamingTransformer
 from adaptive_latents import (
     CenteringTransformer,
@@ -43,16 +44,7 @@ class TestStreamingTransformer:
              (ArrayWithTime.from_notime(np.zeros((9, DIM))), 1)],
         ]
 
-def get_all_subclasses(cls, concrete=True):
-    unchecked_subclasses = list(cls.__subclasses__())
-    subclasses = []
-    while unchecked_subclasses:
-        cls = unchecked_subclasses.pop()
-        unchecked_subclasses = unchecked_subclasses + list(set(cls.__subclasses__()) - set(subclasses))
-        subclasses.append(cls)
-    if concrete:
-        subclasses = [subclass for subclass in subclasses if not inspect.isabstract(subclass)]
-    return subclasses
+
 
 
 to_test = get_all_subclasses(StreamingTransformer)

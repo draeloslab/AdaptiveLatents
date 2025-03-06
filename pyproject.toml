@@ -59,7 +59,8 @@ source = [
     "workspace",
     ]
 omit = [
-    "workspace/datasets/*"
+    "workspace/datasets/*",
+    "*al_generated*"
 ]
 
 [tool.coverage.html]
