@@ -8,6 +8,7 @@ import numpy as np
 from collections import deque
 import time
 from tqdm.auto import tqdm
+import pickle
 
 
 class PassThroughDict(frozendict):
@@ -95,15 +96,7 @@ class StreamingTransformer(ABC):
     def _partial_fit_transform(self, data, stream, return_output_stream):
         # most implementations will need to handle initialization and nan values; possibly also logging?
         stream = self.output_streams[stream]
-        return data, stream if return_output_stream else data
-
-    @property
-    def base_algorithm(self):
-        return type(self)
-
-    def get_params(self, deep=True):
-        # TODO: should this deep copy?
-        return dict(input_streams=self.input_streams, output_streams=self.output_streams, log_level=self.log_level)
+        return (data, stream) if return_output_stream else data
 
     def blank_copy(self):
         return type(self)(**self.get_params())
@@ -216,14 +209,87 @@ class StreamingTransformer(ABC):
 
         return outputs
 
-    # for testing
-    def expected_data_streams(self, rng, DIM):
-        for s in self.input_streams:
-            yield rng.normal(size=(10, DIM)), s
 
     def __str__(self):
         kwargs = ', '.join(f'{k}={v}' for k, v in self.get_params().items())
         return f"{self.__class__.__name__}({kwargs})"
+
+    # for printing and testing
+    def get_params(self, deep=True):
+        # TODO: should this deep copy?
+        return dict(input_streams=self.input_streams, output_streams=self.output_streams, log_level=self.log_level)
+
+    # this is mostly for testing
+    def expected_data_streams(self, rng, DIM):
+        for s in self.input_streams:
+            yield rng.normal(size=(10, DIM)), s
+
+    @property
+    def base_algorithm(self):
+        """
+        This is mostly for testing; it's useful for checking that e.g. ProSVD (the transformer) has the same arguments
+        as BaseProSVD (which is not a transformer.)
+        """
+        return type(self)
+
+
+    @classmethod
+    def test_if_api_compatible(cls, constructor=None, rng=None, DIM=None):
+        constructor = constructor or cls
+        rng = rng or np.random.default_rng()
+        DIM = DIM or 6
+
+        cls._test_get_params_works(constructor)
+        cls._test_can_fit_transform(constructor, rng, DIM)
+
+        import tempfile
+        import pathlib
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            cls._test_can_save_and_rerun(constructor, rng, tmp_path=pathlib.Path(tmp_dir), DIM=DIM)
+
+        return constructor, rng, DIM
+
+    @staticmethod
+    def _test_can_fit_transform(constructor, rng, DIM=6):
+        transformer: StreamingTransformer = constructor()
+        for _ in range(5):
+            for data, s in transformer.expected_data_streams(rng, DIM):
+                transformer.partial_fit_transform(data, s)
+
+    @staticmethod
+    def _test_can_save_and_rerun(constructor, rng, tmp_path, DIM=6):
+        transformer: StreamingTransformer = constructor()
+
+        for _ in range(5):
+            for data, s in transformer.expected_data_streams(rng, DIM):
+                transformer.partial_fit_transform(data, s)
+        t2 = copy.deepcopy(transformer)
+
+        temp_file = tmp_path / 'streaming_transformer.pickle'
+        with open(temp_file, 'bw') as f:
+            pickle.dump(transformer, f)
+
+        del transformer
+
+        with open(temp_file, 'br') as f:
+            transformer = pickle.load(f)
+
+        for data, s in transformer.expected_data_streams(rng, DIM):
+            assert np.array_equal(transformer.partial_fit_transform(data, s), t2.partial_fit_transform(data, s),
+                                  equal_nan=True)
+
+    @staticmethod
+    def _test_get_params_works(constructor):
+        import inspect
+        transformer: StreamingTransformer = constructor()
+        p = {k: v for k, v in transformer.get_params().items() if len(k) and k[0] != "_"}
+        type(transformer)(**p)
+
+        base_algorithm = transformer.base_algorithm
+        base_args = set(inspect.signature(base_algorithm).parameters.keys()) - {'args', 'kwargs'}
+        found_args = set(p.keys()) - {'args', 'kwargs'}
+        assert base_args.issubset(found_args)
+
 
 
 class DecoupledTransformer(StreamingTransformer):
@@ -260,6 +326,110 @@ class DecoupledTransformer(StreamingTransformer):
 
     def inverse_transform(self, data, stream=0, return_output_stream=False):
         raise NotImplementedError()
+
+    @classmethod
+    def test_if_api_compatible(cls, constructor=None, rng=None, DIM=None):
+        constructor, rng, DIM = super().test_if_api_compatible(constructor=constructor, rng=rng, DIM=DIM)
+
+        cls._test_can_ignore_nans(constructor, rng)
+        cls._test_original_matrix_unchanged(constructor, rng)
+        cls._test_partial_fit_transform_decomposes_correctly(constructor, rng, DIM=DIM)
+        cls._test_freezing_works_correctly(constructor, rng)
+        cls._test_inverse_transform_works(constructor, rng, DIM=DIM)
+
+        return constructor, rng, DIM
+
+    @staticmethod
+    def _make_sources(transformer, rng, expression=None, first_n_nan=0, length=20, DIM=6):
+        import itertools
+        if expression is None:
+            expression = lambda: rng.normal(size=(3, DIM))
+
+        batches = [expression() * (np.nan if i < first_n_nan else 1) for i in range(length)]
+        return list(zip(itertools.repeat(batches), transformer.input_streams.keys()))
+
+    @classmethod
+    def _test_can_ignore_nans(cls, constructor, rng):
+        transformer = constructor()
+
+        sources = cls._make_sources(transformer, rng, first_n_nan=7)
+        transformer.offline_run_on(sources, convinient_return=False)
+
+        sources = cls._make_sources(transformer, rng)
+        output = transformer.offline_run_on(sources, convinient_return=False)
+
+        for stream in output:
+            assert (~np.isnan(output[stream][-1])).all()
+
+    @classmethod
+    def _test_original_matrix_unchanged(cls, constructor, rng):
+        transformer: DecoupledTransformer = constructor()
+
+        sources = cls._make_sources(transformer, rng)
+        transformer.offline_run_on(sources, convinient_return=False)
+
+        for f in (transformer.partial_fit, transformer.transform):
+            A = rng.normal(size=(1, 6))
+            A_original = A.copy()
+            f(A)
+            assert np.all(A == A_original)
+
+    @staticmethod
+    def _test_partial_fit_transform_decomposes_correctly(constructor, rng, DIM=6):
+        transformer: DecoupledTransformer = constructor()
+
+        for i in range(20):
+            for stream in transformer.input_streams.keys():
+                batch = rng.normal(size=(3, DIM))
+
+                t1 = transformer
+                t2 = copy.deepcopy(transformer)
+
+                o1 = t1.partial_fit_transform(batch, stream)
+
+                t2.partial_fit(batch, stream)
+                o2 = t2.transform(batch, stream)
+
+                assert np.array_equal(o1, o2, equal_nan=True)
+
+    @staticmethod
+    def _test_freezing_works_correctly(constructor, rng):
+        transformer: DecoupledTransformer = constructor()
+
+        transformer.freeze(False)
+        for i in range(10):
+            for stream in transformer.input_streams.keys():
+                batch = rng.normal(size=(2, 6))
+                transformer.partial_fit(batch, stream)
+        t2 = copy.deepcopy(transformer)
+
+        transformer.freeze(True)
+        for i in range(10):
+            for stream in transformer.input_streams.keys():
+                batch = rng.normal(size=(2, 6))
+                transformer.partial_fit(batch, stream)
+                assert np.array_equal(transformer.transform(batch), t2.transform(batch))
+
+        transformer.freeze(False)
+        for i in range(10):
+            for stream in transformer.input_streams.keys():
+                batch = rng.normal(size=(2, 6))
+                transformer.partial_fit(batch, stream)
+                t2.partial_fit(batch, stream)
+
+                assert np.array_equal(transformer.transform(batch), t2.transform(batch))
+
+    @classmethod
+    def _test_inverse_transform_works(cls, constructor, rng, DIM=6):
+        transformer: DecoupledTransformer = constructor()
+
+        sources = cls._make_sources(transformer, rng)
+        transformer.offline_run_on(sources, convinient_return=False)
+        try:
+            output = transformer.inverse_transform(transformer.transform(rng.normal(size=(3, DIM))))
+            assert output.shape == (3, DIM)
+        except NotImplementedError:
+            pass
 
 
 class Pipeline(DecoupledTransformer):
@@ -451,7 +621,7 @@ class ZScoringTransformer(TypicalTransformer):
     >>> _ = z.offline_run_on(X)
     >>> assert np.allclose(z.get_std(), np.std(X, axis=0), atol=0.01)
     """
-    def __init__(self, *, init_size=100, freeze_after_init=False, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
+    def __init__(self, *, init_size=10, freeze_after_init=False, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
         super().__init__(input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)
         self.init_size = init_size
         self.freeze_after_init = freeze_after_init
@@ -587,54 +757,11 @@ class Concatenator(StreamingTransformer):
         return p | super().get_params(deep)
 
 
-class SwitchingParallelTransformer(DecoupledTransformer):
-
-    def __init__(self, sub_transformers, **kwargs):
-        self.sub_transformers: list[DecoupledTransformer] = sub_transformers
-        assert "input_streams" not in kwargs
-        assert "output_streams" not in kwargs
-        super().__init__(**kwargs)
-
-    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
-        rets = []
-        for sub_t in self.sub_transformers:
-            ret = sub_t.partial_fit_transform(copy.deepcopy(data), stream, return_output_stream=return_output_stream)
-            rets.append(ret)
-
-        # TODO: determine best sub_transformer so we return that one
-        return rets[0]
-
-    def _partial_fit(self, data, stream):
-        for sub_t in self.sub_transformers:
-            sub_t.partial_fit(copy.deepcopy(data), stream)
-
-    def transform(self, data, stream=0, return_output_stream=False):
-        rets = []
-        for sub_t in self.sub_transformers:
-            ret = sub_t.transform(copy.deepcopy(data), stream, return_output_stream=return_output_stream)
-            rets.append(ret)
-
-        # TODO: determine best sub_transformer so we return that one
-        return rets[0]
-
-    def freeze(self, b=True):
-        for sub_t in self.sub_transformers:
-            sub_t.freeze(b)
-
-    def get_params(self, deep=True):
-        p = dict(steps=self.sub_transformers)
-        if deep:
-            for i, step in enumerate(self.sub_transformers):
-                for k, v in step.get_params(deep).items():
-                    p[f'__sub_transformers[{i}]__{k}'] = v
-        return p | super().get_params(deep)
-
-
 class Tee(DecoupledTransformer):
-    def __init__(self, input_streams=None, log_level=None):
+    def __init__(self, input_streams=None, log_level=None, output_streams=None):
         input_streams = input_streams or PassThroughDict()
         self.observed = {}
-        super().__init__(input_streams=input_streams, log_level=log_level)
+        super().__init__(input_streams=input_streams, log_level=log_level, output_streams=output_streams)
 
     def _partial_fit(self, data, stream):
         if stream in self.input_streams:

@@ -333,6 +333,7 @@ class TostadoMarcos24Dataset(DandiDataset):
         -------
         >>> d = TostadoMarcos24Dataset()
         >>> d.play_audio()
+        <IPython.lib.display.Audio object>
         """
 
         import IPython.display as ipd
@@ -732,9 +733,9 @@ class Naumann24uDataset(Dataset):
     )
 
     class BehaviorClassifier(adaptive_latents.transformer.StreamingTransformer):
-        def __init__(self, threshold=.3, input_streams=None, **kwargs):
+        def __init__(self, threshold=.3, input_streams=None, output_streams=None, log_level=None):
             input_streams = input_streams or {0:'X'}
-            super().__init__(input_streams=input_streams, **kwargs)
+            super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
             self.history = deque(maxlen=15)
             self.threshold = threshold
 
@@ -760,6 +761,13 @@ class Naumann24uDataset(Dataset):
 
             stream = self.output_streams[stream]
             return data, stream if return_output_stream else data
+
+        def get_params(self, deep=True):
+            return dict(threshold=self.threshold) | super().get_params(deep=deep)
+
+        def expected_data_streams(self, rng, DIM):
+            for s in self.input_streams:
+                yield ArrayWithTime.from_notime(rng.normal(size=(10, DIM))), s
 
     def __init__(self, sub_dataset_identifier=sub_datasets[0], beh_type='angle'):
         if isinstance(sub_dataset_identifier, int):

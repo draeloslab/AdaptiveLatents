@@ -4,9 +4,9 @@ from adaptive_latents.transformer import DecoupledTransformer
 from adaptive_latents.utils import column_space_distance, is_orthonormal
 
 class BaseProPLS:
-    def __init__(self, k=10, decay_alpha=1):
-        self.k = k
-        self.decay_alpha = decay_alpha
+    def __init__(self, k=None, decay_alpha=None):
+        self.k = k or 2
+        self.decay_alpha = decay_alpha or 1
 
         self.u = None
         self.s = None
@@ -97,7 +97,7 @@ class BaseProPLS:
 class proPLS(DecoupledTransformer, BaseProPLS):
     base_algorithm = BaseProPLS
 
-    def __init__(self, *, input_streams=None, output_streams=None, log_level=None, k=10, decay_alpha=1):
+    def __init__(self, *, input_streams=None, output_streams=None, log_level=None, k=None, decay_alpha=None):
         input_streams = input_streams or {0: 'X', 1: 'Y'}
         DecoupledTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level)
         BaseProPLS.__init__(self, k=k, decay_alpha=decay_alpha)
