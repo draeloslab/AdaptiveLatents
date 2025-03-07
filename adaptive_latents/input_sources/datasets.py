@@ -12,7 +12,6 @@ from pynwb import NWBHDF5IO
 import pandas as pd
 from abc import ABC, abstractmethod
 import sys
-import scipy.io
 import matplotlib
 import pims
 from PIL import Image
@@ -111,13 +110,14 @@ class Odoherty21Dataset(DandiDataset):
     dataset_base_path = DATA_BASE_PATH / "odoherty21"
     automatically_downloadable = True
 
-    def __init__(self, bin_width=0.03, downsample_behavior=True, neural_lag=0, drop_third_coord=True, pos_rescale_factor=1, vel_rescale_factor=1):
+    def __init__(self, bin_width=0.03, downsample_behavior=True, neural_lag=0, drop_third_coord=True, pos_rescale_factor=1, vel_rescale_factor=1, supress_warnings=CONFIG.supress_dandi_warnings):
         self.bin_width = bin_width
         self.downsample_behavior = downsample_behavior
         self.drop_third_coord = drop_third_coord
         self.neural_lag = neural_lag
         self.pos_rescale_factor = pos_rescale_factor
         self.vel_rescale_factor = vel_rescale_factor
+        self.supress_warnings = supress_warnings
         assert self.neural_lag >= 0
 
         self.units, self.finger_pos, self.finger_vel, self.finger_t, A, bin_ends = self.construct()
@@ -129,7 +129,7 @@ class Odoherty21Dataset(DandiDataset):
         self.beh_pos_vel = ArrayWithTime(np.hstack([self.finger_pos, self.finger_vel]), self.finger_t)
 
     def construct(self):
-        with warnings.catch_warnings(record=True) as w:
+        with warnings.catch_warnings(record=True) as warning_list:
             with self.acquire("sub-Indy/sub-Indy_desc-train_behavior+ecephys.nwb") as fhan:
                 ds = fhan.read()
                 units = ds.units.to_dataframe()
@@ -138,11 +138,10 @@ class Odoherty21Dataset(DandiDataset):
                 finger_vel = ds.processing['behavior'].data_interfaces['finger_vel'].data[:]
                 finger_vel_t = np.arange(finger_vel.shape[0]) * ds.processing['behavior'].data_interfaces['finger_vel'].conversion
 
-            # TODO: filter these specific exceptions and raise others?
-            assert "Ignoring cached namespace 'hdmf-common' version 1.5.0 because version 1.8.0 is already loaded." in str(w[0].message)
-            assert "Ignoring cached namespace 'core' version 2.4.0 because version 2.7.0 is already loaded." in str(w[1].message)
-            assert "Ignoring cached namespace 'hdmf-experimental' version 0.1.0 because version 0.5.0 is already loaded." in str(w[2].message.args[0])
-            assert len(w) == 3
+            for w in warning_list:
+                if self.supress_warnings and "Ignoring cached namespace" in str(w):
+                    continue
+                warnings.warn_explicit(message=w.message, category=w.category, filename=w.filename, lineno=w.lineno, source=w.source)
 
         start_time = units.iloc[0, 2].min()
         end_time = units.iloc[0, 2].max()
@@ -803,9 +802,9 @@ class Naumann24uDataset(Dataset):
         self.bin_width = np.median(np.diff(self.frame_times))
         warnings.warn("bin width is actually improper here")
         if beh_type == 'bout':
-            self.behavioral_data = ArrayWithTime(self.pose_class, self.tail_times)
+            self.behavioral_data = ArrayWithTime(self.pose_class, self.tail_times).reshape(-1,1)
         elif beh_type == 'angle':
-            self.behavioral_data = ArrayWithTime(self.tail_angle, self.tail_times)
+            self.behavioral_data = ArrayWithTime(self.tail_angle, self.tail_times).reshape(-1,1)
         elif beh_type == 'whole tail':
             self.behavioral_data = ArrayWithTime(self.tail_position, self.tail_times)
         elif beh_type == 'offset':
@@ -938,7 +937,7 @@ class Leventhal24uDataset(Dataset):
 #
     sub_datasets = (
         "R0493/R0493_20230720_ChAdvanced_230720_105441",
-        "R0466/R0466_20230403_ChoiceEasy_230403_095044",
+        # "R0466/R0466_20230403_ChoiceEasy_230403_095044",
         # "R0544_20240625_ChoiceEasy_240625_100738"
     )
 #
@@ -1021,7 +1020,7 @@ Please place a copy of '{sub_dataset_identifier}' into '{self.dataset_base_path}
         spike_times = np.load(subset_base_path / 'spike_times.npy').flatten() / sampling_frequency
         clusters = np.load(subset_base_path / 'spike_clusters.npy').flatten()
 
-        trials = scipy.io.loadmat(subset_base_path.parent / 'trials.mat', squeeze_me=True, simplify_cells=True)
+        trials = loadmat(subset_base_path.parent / 'trials.mat', squeeze_me=True, simplify_cells=True)
 
         return spike_times, clusters, trials
 
@@ -1085,7 +1084,7 @@ class Zong22Dataset(Dataset):
 
 
         self.neural_data = ArrayWithTime(self.F.T * self.neural_scale, (np.arange(self.F.shape[1]) * 1 / self.neural_Fs) + self.neural_lag)
-        self.behavioral_data = ArrayWithTime(self.behavior_df.loc[:, 't'], self.behavior_df.loc[:, ['x', 'y', 'hd', 'h2b']] * np.array([pos_scale, pos_scale, hd_scale, h2b_scale]))
+        self.behavioral_data = ArrayWithTime(self.behavior_df.loc[:, ['x', 'y', 'hd', 'h2b']] * np.array([pos_scale, pos_scale, hd_scale, h2b_scale]), self.behavior_df.loc[:, 't'])
 
         self.video_t = np.squeeze(self.behavioral_data.t)
 

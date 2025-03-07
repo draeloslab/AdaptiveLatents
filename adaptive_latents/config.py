@@ -22,6 +22,8 @@ class ConfigObject:
         self.jax_enable_x64 = simple_combination["jax_enable_x64"]
         self.jax_platform_name = simple_combination["jax_platform_name"]
 
+        self.supress_dandi_warnings = simple_combination["supress_dandi_warnings"]
+
         self.attempt_to_cache = simple_combination["attempt_to_cache"]
         self.verbose = simple_combination["verbose"]
 

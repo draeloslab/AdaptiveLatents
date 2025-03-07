@@ -4,7 +4,6 @@ from adaptive_latents import datasets, CenteringTransformer
 from adaptive_latents import prediction_regression_run as prr
 from conftest import get_all_subclasses
 import functools
-import matplotlib.pyplot as plt
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
 
@@ -36,5 +35,5 @@ def test_all_datasets(dataset):
 
 @longrun
 def test_all_prr_defaults():
-    prr.pred_reg_run_with_defaults('naumann24u', exit_time=60)
+    prr.pred_reg_run_with_defaults('naumann24u', exit_time=300)
     prr.pred_reg_run_with_defaults('zong22', exit_time=60)

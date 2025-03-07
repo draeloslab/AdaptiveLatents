@@ -17,24 +17,24 @@ import numpy as np
 import functools
 import copy
 from adaptive_latents.transformer import PassThroughDict
+import warnings
 
 class PredictionEvaluation:
     def __init__(self, sources, pipeline=None, target_pairs=None, exit_time=None, stream_names=None, evaluate=True):
-        self.target_pairs = target_pairs or {'default': (2, 1)}  # default assumes stream 0 is x's, stream 1 is y's, and stream 2 is query x's
+        self.target_pairs = target_pairs if target_pairs is not None else {'default': (2, 1)}  # default assumes stream 0 is x's, stream 1 is y's, and stream 2 is query x's
         self.pipeline = pipeline or Pipeline()
         self.sources = sources
         self.stream_names = stream_names or PassThroughDict()
         self.exit_time = exit_time
 
 
-        self.dim_reduced_data: ArrayWithTime | None = None  # to be set by another object
         self.outputs = {}
         self.evaluations = {}
         if evaluate:
             self.evaluate()
 
     def evaluate(self, outputs=None):
-        if outputs is None :
+        if outputs is None:
             outputs = self.pipeline.offline_run_on(self.sources, convinient_return=False, exit_time=self.exit_time)
         self.outputs = outputs
 
@@ -92,10 +92,10 @@ def pred_reg_run(
     )
 
     dim_red = {
-        'pro': Pipeline(log_level=log_level),
-        'sjpca': sjPCA(log_level=log_level),
-        'mmica': mmICA(log_level=log_level),
-    }.get(dim_red_method)
+        'pro': Pipeline,
+        'sjpca': sjPCA,
+        'mmica': mmICA,
+    }.get(dim_red_method)(log_level=log_level)
 
     last_steps = [bw(input_streams={0: 'X', 3: 'dt'}, log_level=log_level),
                   VanillaOnlineRegressor(input_streams={0: 'X', 2: 'Y', 3: 'qX'},
@@ -113,9 +113,6 @@ def pred_reg_run(
 
     e = PredictionEvaluation(sources, pipeline, target_pairs={'joint to beh': (3, 2)} if predict else {}, stream_names={3: 'pred', 2: 'target'}, exit_time=exit_time, evaluate=evaluate)
 
-    if evaluate:
-        tee.convert_to_array()
-        e.dim_reduced_data = tee.observed[0]
     return e
 
 defaults_per_dataset = {
@@ -178,6 +175,8 @@ def pred_reg_run_with_defaults(ds_name, **kwargs):
 
         d = datasets.Naumann24uDataset(sub_dataset_identifier=args['sub_dataset_identifier'], beh_type=args['beh_type'])
         neural_data = d.neural_data
+        warnings.warn("substituting 0 for NaN")
+        neural_data[np.isnan(neural_data)] = 0
         behavioral_data = d.behavioral_data
     else:
         raise ValueError()

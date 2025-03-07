@@ -5,6 +5,7 @@ jax_platform_name: 'cpu'
 
 attempt_to_cache: False
 verbose: True
+supress_dandi_warnings: True
 
 bwrun_save_path: ./al_generated/bw_runs
 plot_save_path: ./al_generated/plots
