@@ -150,7 +150,7 @@ def pred_reg_run_with_defaults(ds_name, **kwargs):
     """
     Examples
     -------
-    >>> pred_reg_run_with_defaults('odoherty21', exit_time=60, predict=False)  # predict=False for time reasons
+    >>> pred_reg_run_with_defaults('odoherty21', exit_time=60, predict=False)  # predict=False for test time reasons
     <...PredictionEvaluation...>
     """
 

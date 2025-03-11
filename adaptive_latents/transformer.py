@@ -2,7 +2,7 @@ import contextlib
 import copy
 from abc import ABC, abstractmethod
 from .timed_data_source import GeneratorDataSource, ArrayWithTime
-import types
+import warnings
 from frozendict import frozendict
 import numpy as np
 from collections import deque
@@ -107,34 +107,12 @@ class StreamingTransformer(ABC):
             return middle_str
         return [stream, middle_str, self.output_streams[stream]]
 
-    def streaming_run_on(self, sources, return_output_stream=False):
-        """
-        Parameters
-        ----------
-        sources: np.ndarray, types.GeneratorType, list[np.ndarray | types.GeneratorType], DataSource, list[DataSource], list[tuple[DataSource, int]], dict
-            This should be the set of data sources.
-            If a single DataSource, it will be promoted to [streams]
-            If a list of DataSources, each source will be mapped to the equal to its index in the list.
-            If a list of tuples, the first element of each tuple will be mapped to the stream number in the second element.
-        return_output_stream: bool
-            Whether to yield the output stream or not. This is false by default to not confuse first-time users.
-
-        Yields
-        -------
-        data: np.ndarray
-            The processed version of each element of the given iterator.
-        stream: int, optional
-            the stream that the outputted data belongs to
-        """
-        if isinstance(sources, dict):
-            s = []
-            for stream, source in sources.items():
-                s.append((source, stream))
-
+    def _parse_sources(self, sources):
         if not (isinstance(sources, tuple) or isinstance(sources, list)):  # passed a single source
             sources = [sources]
         elif not len(sources): # passed an empty list
-            return
+            warnings.warn('passed an empty sources list')
+            return [], []
 
         if not isinstance(sources[0], tuple):  # passed a list of sources without streams
             streams = range(len(sources))
@@ -159,8 +137,33 @@ class StreamingTransformer(ABC):
             new_sources.append(source)
         sources = new_sources
 
-        sources = list(zip(map(iter, sources), streams))
+        return sources, streams
 
+
+    def streaming_run_on(self, sources, return_output_stream=False):
+        """
+        Parameters
+        ----------
+        sources: np.ndarray, types.GeneratorType, list[np.ndarray | types.GeneratorType], DataSource, list[DataSource], list[tuple[DataSource, int]], dict
+            This should be the set of data sources.
+            Inputs are parsed like this:
+                a single array gets upgraded to a list: a -> [a]
+                a list gets zipped with `range()`:  [a] -> [(a,0)]
+                the elements returned from iter(a) will get fed into the 0 stream
+        return_output_stream: bool
+            Whether to yield the output stream or not. This is false by default to not confuse first-time users.
+
+        Yields
+        -------
+        data: np.ndarray
+            The processed version of each element of the given iterator.
+        stream: int, optional
+            the stream that the outputted data belongs to
+        """
+
+        sources, streams = self._parse_sources(sources)
+
+        sources = list(zip(map(iter, sources), streams))
         self.mid_run_sources = sources
         while True:  # while-true/break is a code smell, but I want a do-while
             next_time = float('inf')
@@ -182,21 +185,22 @@ class StreamingTransformer(ABC):
         exit_time_for_tqdm = float('inf') if exit_time is None else exit_time
 
         pre_pbar = contextlib.nullcontext()
-        if show_tqdm and not isinstance(sources, types.GeneratorType):
-            for source in sources:
+        if show_tqdm:
+            for source in self._parse_sources(copy.deepcopy(sources))[0]:
                 if hasattr(source, 't'):
                     exit_time_for_tqdm = min(exit_time_for_tqdm, source.t.max())
             pre_pbar = tqdm(total=None if exit_time_for_tqdm == float('inf') else round(exit_time_for_tqdm,2))
 
         with pre_pbar as pbar:
             for data, stream in self.streaming_run_on(sources, return_output_stream=True):
+                if exit_time is not None and data.t > exit_time:
+                    break
                 if stream not in outputs:
                     outputs[stream] = []
                 outputs[stream].append(data)
-                if exit_time is not None and data.t >= exit_time and min([s[0].current_sample_time() for s in self.mid_run_sources]) >= exit_time:
-                    break
                 if show_tqdm:
-                    pbar.update(round(data.t, 2) - pbar.n)
+                    assert not isinstance(data.t, np.ndarray) or data.t.size == 1
+                    pbar.update(round(float(data.t), 2) - pbar.n)
 
         if convinient_return:
             if 0 not in outputs:
@@ -301,7 +305,7 @@ class DecoupledTransformer(StreamingTransformer):
         self.partial_fit(data, stream)
         return self.transform(data, stream, return_output_stream)
 
-    def partial_fit(self, data, stream=0):
+    def partial_fit(self, data, stream=0) -> None:
         if self.frozen:
             return
         self._partial_fit(data, stream)
@@ -346,7 +350,7 @@ class DecoupledTransformer(StreamingTransformer):
             expression = lambda: rng.normal(size=(3, DIM))
 
         batches = [expression() * (np.nan if i < first_n_nan else 1) for i in range(length)]
-        return list(zip(itertools.repeat(batches), transformer.input_streams.keys()))
+        return [tuple(x) for x in zip(itertools.repeat(batches), transformer.input_streams.keys())]
 
     @classmethod
     def _test_can_ignore_nans(cls, constructor, rng):
@@ -447,7 +451,6 @@ class Pipeline(DecoupledTransformer):
         super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
 
     def get_params(self, deep=True):
-        # TODO: make this actually SKLearn compatible
         p = dict(steps=self.steps, reroute_inputs=self.reroute_inputs)
         if deep:
             for i, step in enumerate(self.steps):
@@ -516,7 +519,7 @@ class Pipeline(DecoupledTransformer):
 
 
 class TypicalTransformer(DecoupledTransformer):
-    def __init__(self, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
+    def __init__(self, *, input_streams=None, output_streams=None, log_level=None, on_nan_width=None):
         input_streams = input_streams or {0: 'X'}
         super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
         self.is_initialized = False
@@ -587,8 +590,8 @@ class TypicalTransformer(DecoupledTransformer):
 
 
 class CenteringTransformer(TypicalTransformer):
-    def __init__(self, *, init_size=0, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *, init_size=0, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
+        super().__init__(input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)
         self.init_size = init_size
         self.samples_seen = 0
         self.center = 0
@@ -770,7 +773,8 @@ class Tee(DecoupledTransformer):
             self.observed[stream].append(data)
 
     def transform(self, data, stream=0, return_output_stream=False):
-        return data, stream if return_output_stream else data
+        return (data, stream) if return_output_stream else data
 
     def convert_to_array(self):
         self.observed = {k: ArrayWithTime.from_list(v, squeeze_type='to_2d', drop_early_nans=True) for k, v in self.observed.items()}
+        return self.observed

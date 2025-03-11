@@ -864,7 +864,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         return a * b / numpy.sqrt((numpy.cos(theta) * b)**2 + (numpy.sin(theta) * a)**2)
 
     @staticmethod
-    def compare_runs(bws, behavior_dict=None, t_in_samples=False):
+    def compare_runs(bws, behavior_dicts=None, t_in_samples=False):
         import matplotlib.pyplot as plt
         def _one_sided_ewma(data, com=100):
             import pandas as pd
@@ -879,7 +879,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         for bw in bws:
             assert bw.log_level >= 2
 
-        has_behavior = behavior_dict is not None
+        has_behavior = behavior_dicts is not None
 
 
         fig, axs = plt.subplots(figsize=(14, 5), nrows=2 + has_behavior, ncols=2, sharex='col', layout='tight',
@@ -923,13 +923,13 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
             if has_behavior:
                 from adaptive_latents.utils import resample_matched_timeseries
 
-                t = behavior_dict[idx]['predicted_behavior_t']
+                t = behavior_dicts[idx]['predicted_behavior'].t
                 targets = resample_matched_timeseries(
-                    behavior_dict[idx]['true_behavior'],
-                    behavior_dict[idx]['true_behavior_t'],
+                    behavior_dicts[idx]['true_behavior'],
+                    behavior_dicts[idx]['true_behavior'].t,
                     t
                 )
-                estimates = behavior_dict[idx]['predicted_behavior']
+                estimates = behavior_dicts[idx]['predicted_behavior']
 
                 test_s = t > (t[0] + t[-1]) / 2
 
@@ -992,3 +992,8 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
                 yield ArrayWithTime([[1]], 1), s
             else:
                 super().expected_data_streams(rng, DIM)
+
+    @staticmethod
+    def make_prediction_times(source):
+        source: ArrayWithTime
+        return ArrayWithTime(numpy.ones_like(source.t).reshape(-1,1) * source.dt, source.t)
