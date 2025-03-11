@@ -1,15 +1,11 @@
+import matplotlib
 import numpy as np
+
 import adaptive_latents as al
-from adaptive_latents import (
-    ArrayWithTime,
-    sjPCA,
-    proSVD,
-    mmICA,
-    proPLS,
-)
+from adaptive_latents import ArrayWithTime, mmICA, proPLS, proSVD, sjPCA
 from adaptive_latents.jpca import generate_circle_embedded_in_high_d
 from adaptive_latents.utils import column_space_distance
-import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 

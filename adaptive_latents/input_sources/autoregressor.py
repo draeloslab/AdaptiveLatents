@@ -1,8 +1,6 @@
-import numpy as np
 import jax
+import numpy as np
 from jax import numpy as jnp
-from typing import Literal, Any
-import warnings
 
 
 class AdamOptimizer:

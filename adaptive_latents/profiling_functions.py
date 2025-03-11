@@ -1,11 +1,13 @@
+import pickle
 import time
+
 import numpy as np
+
 import adaptive_latents as al
 from adaptive_latents.bubblewrap import BaseBubblewrap
-from adaptive_latents.prosvd import BaseProSVD
 from adaptive_latents.jpca import BaseSJPCA
+from adaptive_latents.prosvd import BaseProSVD
 from adaptive_latents.regressions import BaseVanillaOnlineRegressor
-import pickle
 
 
 def get_speed_per_step(psvd_input, regression_output, prosvd_k=6, bw_params=None, max_steps=10_000):

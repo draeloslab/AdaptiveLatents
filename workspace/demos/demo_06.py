@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 import adaptive_latents as al
-from adaptive_latents import Pipeline, CenteringTransformer, KernelSmoother, Bubblewrap, ArrayWithTime, proSVD, sjPCA, Concatenator, VanillaOnlineRegressor
+from adaptive_latents import ArrayWithTime, Bubblewrap, CenteringTransformer, Concatenator, KernelSmoother, Pipeline, VanillaOnlineRegressor, proSVD, sjPCA
 
 """
 Demo: Joint latent prediction and regression

@@ -1,6 +1,7 @@
-from adaptive_latents import CONFIG, AnimationManager, Pipeline, CenteringTransformer, proSVD, sjPCA
-from adaptive_latents.jpca import generate_circle_embedded_in_high_d
 import numpy as np
+
+from adaptive_latents import CONFIG, AnimationManager, CenteringTransformer, Pipeline, proSVD, sjPCA
+from adaptive_latents.jpca import generate_circle_embedded_in_high_d
 
 
 def main(output_directory=CONFIG.plot_save_path, steps_to_run=None):

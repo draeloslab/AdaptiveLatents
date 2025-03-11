@@ -1,9 +1,11 @@
 import numpy as np
 from scipy.linalg import block_diag
-from .transformer import TypicalTransformer
-from adaptive_latents.regressions import BaseVanillaOnlineRegressor
-from .utils import principle_angles, align_column_spaces
 from scipy.stats import special_ortho_group
+
+from adaptive_latents.regressions import BaseVanillaOnlineRegressor
+
+from .transformer import TypicalTransformer
+from .utils import align_column_spaces, principle_angles
 
 
 class BaseSJPCA:

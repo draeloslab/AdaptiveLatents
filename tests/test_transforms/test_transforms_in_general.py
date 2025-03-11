@@ -1,15 +1,11 @@
-import numpy as np
-import inspect
-from conftest import get_all_subclasses
-from adaptive_latents.transformer import StreamingTransformer
-from adaptive_latents import (
-    CenteringTransformer,
-    proSVD,
-    Pipeline,
-    ArrayWithTime
-)
-import pytest
 import functools
+
+import numpy as np
+import pytest
+from conftest import get_all_subclasses
+
+from adaptive_latents import ArrayWithTime, CenteringTransformer, Pipeline, proSVD
+from adaptive_latents.transformer import StreamingTransformer
 
 DIM = 6
 

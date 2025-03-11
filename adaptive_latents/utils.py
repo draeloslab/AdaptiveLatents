@@ -1,13 +1,15 @@
-import numpy as np
+import functools
+import hashlib
+import inspect
+import json
 import os
 import pickle
-import json
-import hashlib
-from adaptive_latents.config import CONFIG
-import inspect
 import warnings
-import functools
 from collections import namedtuple
+
+import numpy as np
+
+from adaptive_latents.config import CONFIG
 
 
 class NumpyEncoder(json.JSONEncoder):

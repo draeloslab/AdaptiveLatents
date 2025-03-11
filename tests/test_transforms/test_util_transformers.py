@@ -1,10 +1,8 @@
-import numpy as np
-from adaptive_latents import (
-    KernelSmoother,
-    ZScoringTransformer,
-    Concatenator,
-)
 import matplotlib
+import numpy as np
+
+from adaptive_latents import Concatenator, KernelSmoother
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 

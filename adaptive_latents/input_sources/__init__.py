@@ -1,3 +1,1 @@
-from . import hmm_simulation
-from . import datasets
-from . import autoregressor
+from . import autoregressor, datasets, hmm_simulation

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from adaptive_latents import Pipeline, CenteringTransformer, KernelSmoother, proSVD, sjPCA, ArrayWithTime
+from adaptive_latents import ArrayWithTime, CenteringTransformer, KernelSmoother, Pipeline, proSVD, sjPCA
 
 rng = np.random.default_rng(0)
 

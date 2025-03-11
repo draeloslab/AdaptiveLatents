@@ -1,23 +1,14 @@
-from adaptive_latents import (
-    datasets,
-    Concatenator,
-    Pipeline,
-    CenteringTransformer,
-    KernelSmoother,
-    proSVD,
-    Bubblewrap,
-    VanillaOnlineRegressor,
-    sjPCA,
-    mmICA,
-)
-from adaptive_latents.timed_data_source import ArrayWithTime
-from adaptive_latents.utils import evaluate_regression
-from adaptive_latents.transformer import Tee
-import numpy as np
-import functools
 import copy
-from adaptive_latents.transformer import PassThroughDict
+import functools
 import warnings
+
+import numpy as np
+
+from adaptive_latents import Bubblewrap, CenteringTransformer, Concatenator, KernelSmoother, Pipeline, VanillaOnlineRegressor, datasets, mmICA, proSVD, sjPCA
+from adaptive_latents.timed_data_source import ArrayWithTime
+from adaptive_latents.transformer import PassThroughDict, Tee
+from adaptive_latents.utils import evaluate_regression
+
 
 class PredictionEvaluation:
     def __init__(self, sources, pipeline=None, target_pairs=None, exit_time=None, stream_names=None, evaluate=True):

@@ -1,7 +1,9 @@
 import numpy as np
 import scipy.linalg
+
 from adaptive_latents.transformer import DecoupledTransformer
 from adaptive_latents.utils import column_space_distance, is_orthonormal
+
 
 class BaseProPLS:
     def __init__(self, k=None, decay_alpha=None):

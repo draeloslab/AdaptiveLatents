@@ -1,14 +1,15 @@
 import datetime
-from matplotlib import pyplot as plt
-from matplotlib.animation import FFMpegWriter, PillowWriter
-import matplotlib.gridspec as gridspec
 import functools
-import numpy as np
 import pathlib
 import warnings
+
+import numpy as np
+from IPython import display
+from matplotlib import pyplot as plt
+from matplotlib.animation import FFMpegWriter, PillowWriter
+
 from adaptive_latents import CONFIG
 from adaptive_latents.timed_data_source import ArrayWithTime
-from IPython import display
 
 
 class AnimationManager:

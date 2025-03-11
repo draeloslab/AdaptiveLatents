@@ -1,9 +1,11 @@
-import numpy as np
 from abc import ABC, abstractmethod
 from collections import deque
-from .transformer import DecoupledTransformer
-from .timed_data_source import ArrayWithTime
+
 import jax
+import numpy as np
+
+from .timed_data_source import ArrayWithTime
+from .transformer import DecoupledTransformer
 
 
 @jax.jit

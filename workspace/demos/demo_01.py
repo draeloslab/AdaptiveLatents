@@ -1,9 +1,7 @@
-import sys
-
 import matplotlib.pyplot as plt
 
 import adaptive_latents as al
-from adaptive_latents import Pipeline, CenteringTransformer, KernelSmoother, proSVD, sjPCA
+from adaptive_latents import CenteringTransformer, KernelSmoother, Pipeline, proSVD, sjPCA
 
 """
 Demo: Constructing latent variables

@@ -1,14 +1,16 @@
 import contextlib
 import copy
-from abc import ABC, abstractmethod
-from .timed_data_source import GeneratorDataSource, ArrayWithTime
-import warnings
-from frozendict import frozendict
-import numpy as np
-from collections import deque
-import time
-from tqdm.auto import tqdm
 import pickle
+import time
+import warnings
+from abc import ABC, abstractmethod
+from collections import deque
+
+import numpy as np
+from frozendict import frozendict
+from tqdm.auto import tqdm
+
+from .timed_data_source import ArrayWithTime, GeneratorDataSource
 
 
 class PassThroughDict(frozendict):
@@ -246,8 +248,8 @@ class StreamingTransformer(ABC):
         cls._test_get_params_works(constructor)
         cls._test_can_fit_transform(constructor, rng, DIM)
 
-        import tempfile
         import pathlib
+        import tempfile
         with tempfile.TemporaryDirectory() as tmp_dir:
             cls._test_can_save_and_rerun(constructor, rng, tmp_path=pathlib.Path(tmp_dir), DIM=DIM)
 

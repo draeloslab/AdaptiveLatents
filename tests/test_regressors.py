@@ -1,6 +1,7 @@
-from adaptive_latents.regressions import BaseNearestNeighborRegressor, BaseVanillaOnlineRegressor, auto_regression_decorator, VanillaOnlineRegressor
-import pytest
 import numpy as np
+import pytest
+
+from adaptive_latents.regressions import BaseNearestNeighborRegressor, BaseVanillaOnlineRegressor, VanillaOnlineRegressor, auto_regression_decorator
 
 
 @pytest.fixture(params=["nearest_n", "vanilla", "vanilla_regularized"])

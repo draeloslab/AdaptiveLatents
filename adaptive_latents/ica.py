@@ -1,6 +1,7 @@
 import numpy as np
+from mmica.solvers import Huber, Sigmoid, compute_A, compute_A_idx, gen_idx, min_W
+
 from .transformer import TypicalTransformer
-from mmica.solvers import gen_idx, compute_A_idx, compute_A, Huber, Sigmoid, min_W
 
 
 class BaseMMICA:

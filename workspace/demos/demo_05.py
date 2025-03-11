@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 import adaptive_latents as al
-from adaptive_latents import Pipeline, CenteringTransformer, KernelSmoother, Bubblewrap, proSVD, sjPCA, Concatenator, Tee
+from adaptive_latents import Bubblewrap, CenteringTransformer, Concatenator, KernelSmoother, Pipeline, Tee, proSVD, sjPCA
 
 """
 Demo: Prediction

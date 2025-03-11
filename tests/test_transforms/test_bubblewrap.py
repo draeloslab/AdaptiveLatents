@@ -1,6 +1,8 @@
+import matplotlib
+
 import adaptive_latents
 from adaptive_latents import Bubblewrap
-import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 

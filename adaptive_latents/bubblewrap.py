@@ -1,18 +1,19 @@
-import numpy
-import jax.numpy as jnp
-from collections import deque
-from jax import jit, vmap
-from jax import nn, random
-import jax
-import warnings
-from matplotlib.patches import Ellipse
-from math import atan2
-from scipy.linalg import fractional_matrix_power
-from .config import use_config_defaults
-from .transformer import StreamingTransformer
-from .timed_data_source import ArrayWithTime
 import copy
 import timeit
+import warnings
+from collections import deque
+from math import atan2
+
+import jax
+import jax.numpy as jnp
+import numpy
+from jax import jit, nn, random, vmap
+from matplotlib.patches import Ellipse
+from scipy.linalg import fractional_matrix_power
+
+from .config import use_config_defaults
+from .timed_data_source import ArrayWithTime
+from .transformer import StreamingTransformer
 
 # TODO: save frozen vs estimator frozen
 # TODO: make this a parameter?

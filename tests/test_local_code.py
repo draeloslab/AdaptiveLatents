@@ -1,15 +1,16 @@
+import functools
+import inspect
+import pathlib
 import pickle
+import runpy
+import sys
 
 import pytest
-from workspace.main import main
-from adaptive_latents import datasets, CenteringTransformer
-from adaptive_latents import prediction_regression_run as prr
 from conftest import get_all_subclasses
-import functools
-import pathlib
-import runpy
-import inspect
-import sys
+
+from adaptive_latents import CenteringTransformer, datasets
+from adaptive_latents import prediction_regression_run as prr
+from workspace.main import main
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
 

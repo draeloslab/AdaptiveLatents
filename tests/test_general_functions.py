@@ -1,7 +1,8 @@
-import adaptive_latents
 import jax
 import numpy as np
 import pytest
+
+import adaptive_latents
 
 
 class TestJaxEnvironment:

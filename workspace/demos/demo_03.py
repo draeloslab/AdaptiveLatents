@@ -1,8 +1,7 @@
 import matplotlib.pyplot as plt
 
 import adaptive_latents as al
-from adaptive_latents import Pipeline, CenteringTransformer, KernelSmoother, Concatenator, proSVD, sjPCA, Tee
-
+from adaptive_latents import CenteringTransformer, Concatenator, KernelSmoother, Pipeline, Tee, proSVD, sjPCA
 
 """
 Demo: Joint latent spaces

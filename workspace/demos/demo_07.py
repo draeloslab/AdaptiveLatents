@@ -1,6 +1,6 @@
 import numpy as np
 
-from adaptive_latents.transformer import StreamingTransformer, DecoupledTransformer, TypicalTransformer
+from adaptive_latents.transformer import DecoupledTransformer, StreamingTransformer, TypicalTransformer
 
 """
 Demo: Writing a new transformer component

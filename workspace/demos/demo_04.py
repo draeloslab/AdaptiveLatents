@@ -1,4 +1,4 @@
-from adaptive_latents import Pipeline, ArrayWithTime, datasets, Concatenator, CenteringTransformer, KernelSmoother, proSVD, sjPCA
+from adaptive_latents import ArrayWithTime, CenteringTransformer, Concatenator, KernelSmoother, Pipeline, datasets, proSVD, sjPCA
 
 """
 Demo: Manually managing data flow

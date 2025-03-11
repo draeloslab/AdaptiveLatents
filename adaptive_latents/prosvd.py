@@ -1,7 +1,8 @@
 import numpy as np
 import scipy.linalg
+
 from .transformer import TypicalTransformer
-from .utils import save_to_cache, principle_angles
+from .utils import principle_angles, save_to_cache
 
 
 class BaseProSVD:

@@ -1,9 +1,10 @@
-import yaml
-import pathlib
+import copy
 import functools
 import inspect
-import copy
+import pathlib
+
 import importlib_resources as impresources
+import yaml
 
 
 class ConfigObject:

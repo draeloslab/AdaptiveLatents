@@ -1,6 +1,7 @@
-import adaptive_latents.input_sources as ins
 import numpy as np
 import pytest
+
+import adaptive_latents.input_sources as ins
 
 
 def test_hmm_runs(rng):

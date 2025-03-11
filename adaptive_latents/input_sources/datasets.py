@@ -1,36 +1,29 @@
-import numpy as np
-import h5py
-import os
-from scipy.io import loadmat
-from tqdm import tqdm
-
-import adaptive_latents.transformer
-from adaptive_latents.utils import save_to_cache, clip
-from adaptive_latents import ArrayWithTime, proSVD, CONFIG
-from skimage.transform import resize
-from pynwb import NWBHDF5IO
-import pandas as pd
-from abc import ABC, abstractmethod
-import sys
-import matplotlib
-import pims
-from PIL import Image
-import datetime
-import warnings
-from collections import deque
 import copy
-
+import datetime
 import enum
-
+import os
+import sys
+import warnings
+from abc import ABC, abstractmethod
+from collections import deque
 from contextlib import contextmanager
 
-import fsspec
-from fsspec.implementations.cached import CachingFileSystem
-from dandi.dandiapi import DandiAPIClient
-
 import datahugger
+import fsspec
+import h5py
+import matplotlib
+import numpy as np
+import pandas as pd
+import pims
+from dandi.dandiapi import DandiAPIClient
+from fsspec.implementations.cached import CachingFileSystem
+from PIL import Image
+from pynwb import NWBHDF5IO
+from scipy.io import loadmat
 
-import urllib.request
+import adaptive_latents.transformer
+from adaptive_latents import CONFIG, ArrayWithTime
+from adaptive_latents.utils import save_to_cache
 
 DATA_BASE_PATH = CONFIG.dataset_path
 

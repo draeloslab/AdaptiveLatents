@@ -1,6 +1,7 @@
-import pytest
-import numpy as np
 import inspect
+
+import numpy as np
+import pytest
 
 
 # https://stackoverflow.com/a/43938191
