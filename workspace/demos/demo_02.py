@@ -10,7 +10,7 @@ Demo: Using a new dataset
 """
 
 
-def main(show=True):
+def main(show_pots=True):
     # use your code to load data here
     new_neural_data = rng.random(size=(1000,10))
     sample_times = np.linspace(0,1, new_neural_data.shape[0])
@@ -31,7 +31,7 @@ def main(show=True):
 
     fig, ax = plt.subplots()
     pro.plot_Q_stability(ax)  # note that the time goes from 0 to 1
-    if show:
+    if show_pots:
         plt.show()
 
 

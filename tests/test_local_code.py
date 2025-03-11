@@ -22,7 +22,7 @@ def test_run_main(outdir):
 scripts = sorted(list(pathlib.Path(__file__, '..', '..', 'workspace', 'demos').resolve().glob('*.py')))
 @longrun
 @pytest.mark.parametrize('script', scripts)
-def test_script_execution(script):
+def test_script_execution(script, show_plots):
     # this just tests that the scripts run
     # runpy would be better, but it messes with JAX
     # I also considered subprocess, but then we don't get coverage
@@ -30,8 +30,8 @@ def test_script_execution(script):
 
     main = runpy.run_path(script)['main']
     kwargs = {}
-    if 'show' in inspect.signature(main).parameters:
-        kwargs['show'] = False
+    if 'show_plots' in inspect.signature(main).parameters:
+        kwargs['show_plots'] = show_plots
 
     try:
         main(**kwargs)

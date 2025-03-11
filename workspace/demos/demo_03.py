@@ -8,7 +8,7 @@ Demo: Joint latent spaces
 """
 
 
-def main(show=True):
+def main(show_plots=True):
     d = al.datasets.Odoherty21Dataset()
     neural_data = d.neural_data
     behavioral_data = d.behavioral_data
@@ -32,7 +32,7 @@ def main(show=True):
     fig, axs = plt.subplots(ncols=2)
     axs[0].scatter(latents_before_sjpca[:, 0], latents_before_sjpca[:, 1], s=1)
     axs[1].scatter(latents[:, 0], latents[:, 1], s=1)
-    if show:
+    if show_plots:
         plt.show()
 
 

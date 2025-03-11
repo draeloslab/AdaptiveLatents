@@ -7,7 +7,7 @@ from adaptive_latents import ArrayWithTime, Bubblewrap, CenteringTransformer, Co
 Demo: Joint latent prediction and regression
 """
 
-def main(show=True):
+def main(show_plots=True):
     d = al.datasets.Odoherty21Dataset()
     neural_data = d.neural_data
     behavioral_data = d.behavioral_data
@@ -33,7 +33,7 @@ def main(show=True):
     predictions = ArrayWithTime.from_list(result[0], drop_early_nans=True, squeeze_type='to_2d')
 
     Bubblewrap.compare_runs(bws=[bw], behavior_dicts=[{'predicted_behavior': predictions, 'true_behavior': behavioral_data}])
-    if show:
+    if show_plots:
         plt.show()
 
     # TODO: passing the regression results should be easier; maybe something like PredictionEvaluation?

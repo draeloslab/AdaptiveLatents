@@ -8,7 +8,7 @@ Demo: Prediction
 """
 
 
-def main(show=True):
+def main(show_plots=True):
     d = al.datasets.Odoherty21Dataset()
     neural_data = d.neural_data
     behavioral_data = d.behavioral_data
@@ -28,7 +28,7 @@ def main(show=True):
     p.offline_run_on([neural_data, behavioral_data, prediction_query_times], show_tqdm=True)
 
     Bubblewrap.compare_runs([bw])
-    if show:
+    if show_plots:
         plt.show()
 
 

@@ -23,9 +23,8 @@ def test_hmm_runs(rng):
 
 class TestAR_K:
     @pytest.mark.parametrize('rank_limit', [2, None])
-    def test_can_regress(self, rng, rank_limit):
-        plot = False
-        if plot:
+    def test_can_regress(self, rng, rank_limit, show_plots):
+        if show_plots:
             import matplotlib.pyplot as plt
 
         samples_per_second = 20
@@ -39,7 +38,7 @@ class TestAR_K:
         ar = ins.autoregressor.AR_K(k=1, rank_limit=rank_limit, init_method='full_rank', iter_limit=500, rng=rng)
         ar.fit(X, stim)
 
-        if plot:
+        if show_plots:
             plt.plot(X[:,0], X[:,1])
 
         initial_point = np.array([[10,12]])
@@ -49,7 +48,7 @@ class TestAR_K:
         def close(a, b, radius):
             return np.linalg.norm(a-b) < radius
 
-        if plot:
+        if show_plots:
             plt.plot([initial_point[0,0], X_hat[0,0]], [initial_point[0,1], X_hat[0,1]], '--.', color='C1')
             plt.plot(X_hat[:,0], X_hat[:,1], '.-')
 
@@ -58,10 +57,10 @@ class TestAR_K:
 
         initial_point = np.array([[10,10]])
         X_hat = ar.predict(initial_observations=initial_point, n_steps=samples_per_second*seconds_per_rotation)
-        if plot:
+        if show_plots:
             plt.plot([initial_point[0,0], X_hat[0,0]], [initial_point[0,1], X_hat[0,1]], '--.', color='C2')
             plt.plot(X_hat[:,0], X_hat[:,1], '.-')
         assert close(X_hat[-1], initial_point, .1*one_step_distance)
         assert close(X_hat[X_hat.shape[0]//2], initial_point, .3)
-        if plot:
+        if show_plots:
             plt.axis('equal')

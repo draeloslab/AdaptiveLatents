@@ -8,7 +8,7 @@ Demo: Constructing latent variables
 """
 
 
-def main(show=True):
+def main(show_plots=True):
     d = al.datasets.Odoherty21Dataset()
     neural_data = d.neural_data
 
@@ -23,7 +23,7 @@ def main(show=True):
 
     fig, ax = plt.subplots()
     ax.scatter(latents[:, 0], latents[:, 1], s=1)
-    if show:
+    if show_plots:
         plt.show()
 
 

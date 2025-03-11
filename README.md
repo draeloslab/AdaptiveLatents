@@ -45,6 +45,9 @@ open tests/reports/coverage-html/index.html 2>/dev/null
 
 # run the yapf formatter
 yapf --in-place --recursive .
+
+# generate a class diagram
+pyreverse adative_latents --output pdf --all-ancestors
 ```
 
 
