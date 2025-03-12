@@ -32,11 +32,10 @@ def main(show_plots=True):
         )
     predictions = ArrayWithTime.from_list(result[0], drop_early_nans=True, squeeze_type='to_2d')
 
+    # TODO: passing the regression results should be easier; maybe something like PredictionEvaluation?
     Bubblewrap.compare_runs(bws=[bw], behavior_dicts=[{'predicted_behavior': predictions, 'true_behavior': behavioral_data}])
     if show_plots:
         plt.show()
-
-    # TODO: passing the regression results should be easier; maybe something like PredictionEvaluation?
 
 
 if __name__ == '__main__':
