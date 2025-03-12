@@ -116,16 +116,17 @@ class BaseVanillaOnlineRegressor(OnlineRegressor):
     #     return (x.T @ u).flatten()
 
 
-class BaseNearestNeighborRegressor(OnlineRegressor):
-    def __init__(self, maxlen=1_000):
+class BaseKNearestNeighborRegressor(OnlineRegressor):
+    def __init__(self, k=1, maxlen=1_000):
         super().__init__()
+        self.k = k
         self.maxlen = maxlen
         self.output_d = None
         self.input_d = None
         self.history = None
 
         # index is the next row to write to, increases, and wraps
-        self.index = 0
+        self.n_observed = 0
 
     def observe(self, x, y):
         if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
@@ -138,19 +139,21 @@ class BaseNearestNeighborRegressor(OnlineRegressor):
         self._observe(x, y)
 
     def _observe(self, x, y):
-        self.history[self.index, :self.input_d] = x
-        self.history[self.index, self.input_d:] = y
-        self.index = (self.index + 1) % self.maxlen
+        index = self.n_observed % self.maxlen
+        self.history[index, :self.input_d] = x
+        self.history[index, self.input_d:] = y
+        self.n_observed += 1
 
     def predict(self, x):
         if self.history is None:
             return np.nan
-        distances = np.linalg.norm(self.history[:, :self.input_d] - np.squeeze(x), axis=1)
+        distances = np.linalg.norm(self.history[:self.n_observed, :self.input_d] - np.squeeze(x), axis=1)
         try:
-            idx = np.nanargmin(distances)
+            k = min(self.k, self.n_observed)
+            idx = np.argpartition(distances, k-1)[:k]
         except ValueError:
             return np.nan * np.empty(shape=(self.output_d,))
-        return self.history[idx, self.input_d:]
+        return self.history[idx, self.input_d:].mean(axis=0)
 
 
 def auto_regression_decorator(regressor_class: OnlineRegressor, n_steps=1, autoregress_only=False):

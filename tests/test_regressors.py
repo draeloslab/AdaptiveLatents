@@ -1,13 +1,13 @@
 import numpy as np
 import pytest
 
-from adaptive_latents.regressions import BaseNearestNeighborRegressor, BaseVanillaOnlineRegressor, VanillaOnlineRegressor, auto_regression_decorator
+from adaptive_latents.regressions import BaseKNearestNeighborRegressor, BaseVanillaOnlineRegressor, VanillaOnlineRegressor, auto_regression_decorator
 
 
 @pytest.fixture(params=["nearest_n", "vanilla", "vanilla_regularized"])
 def base_reg_maker(request):
     if request.param == "nearest_n":
-        return BaseNearestNeighborRegressor
+        return BaseKNearestNeighborRegressor
     elif request.param == "vanilla":
         class NoRegularizationTempVersion(BaseVanillaOnlineRegressor):
             def __init__(self, *args, regularization_factor=0, **kwargs):
