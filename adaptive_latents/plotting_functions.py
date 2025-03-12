@@ -16,7 +16,7 @@ class AnimationManager:
     """
     Examples
     --------
-    >>> tmp_path = getfixture('tmp_path')
+    >>> tmp_path = getfixture('tmp_path')  # this is mostly for the doctesting framework
     >>> with AnimationManager(outdir=tmp_path) as am:
     ...     for i in range(2):
     ...         for ax in am.axs.flatten():
@@ -26,19 +26,19 @@ class AnimationManager:
     ...     fpath = am.outfile
     >>> assert fpath.is_file()
     """
-    def __init__(self, filename=None, outdir=None, n_rows=1, n_cols=1, fps=20, dpi=100, filetype="webm", figsize=(10, 10), projection='rectilinear', make_axs=True, fig=None):
+    def __init__(self, filename_stem=None, outdir=None, n_rows=1, n_cols=1, fps=20, dpi=100, filetype="mp4", figsize=(10, 10), projection='rectilinear', make_axs=True, fig=None):
         if outdir is not None:
             outdir = pathlib.Path(outdir)
         else:
             outdir = CONFIG.plot_save_path
         outdir.parent.mkdir(exist_ok=True, parents=True)
 
-        if filename is None:
+        if filename_stem is None:
             time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-            filename = f"movie_{time_string}-{str(hash(id(self)))[-3:]}"
+            filename_stem = f"movie_{time_string}-{str(hash(id(self)))[-3:]}.gif"
 
         self.filetype = filetype
-        self.outfile = pathlib.Path(outdir).resolve() / f"{filename}.{filetype}"
+        self.outfile = pathlib.Path(outdir).resolve() / f"{filename_stem}.{filetype}"
         Writer = FFMpegWriter
         if filetype == 'gif':
             Writer = PillowWriter

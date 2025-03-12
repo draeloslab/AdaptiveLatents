@@ -36,10 +36,7 @@ class BaseProSVD:
         x_orth_q, x_orth_r = np.linalg.qr(x_orth, mode='reduced')
 
         q_new = np.hstack([self.Q, x_orth_q])
-        r_new = np.block([
-            [self.R,                                         x_along],
-            [np.zeros((x_orth_r.shape[0], self.R.shape[1])), x_orth_r]
-        ])
+        r_new = np.block([[self.R, x_along], [np.zeros((x_orth_r.shape[0], self.R.shape[1])), x_orth_r]])  # 2x2 block matrix
 
         try:
             u_high_d, diag_high_d, vh_high_d = np.linalg.svd(r_new, full_matrices=False)

@@ -8,6 +8,7 @@ scripts/*
 *.db
 *.json
 *.gif
+*.webm
 *.tsv
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -22,7 +22,8 @@ from pynwb import NWBHDF5IO
 from scipy.io import loadmat
 
 import adaptive_latents.transformer
-from adaptive_latents import CONFIG, ArrayWithTime
+from adaptive_latents import CONFIG
+from adaptive_latents.timed_data_source import ArrayWithTime
 from adaptive_latents.utils import save_to_cache
 
 DATA_BASE_PATH = CONFIG.dataset_path
