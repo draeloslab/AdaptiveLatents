@@ -2,8 +2,7 @@ import numpy as np
 import pytest
 
 import adaptive_latents
-from adaptive_latents.profiling_functions import (get_speed_by_time,
-                                                  get_speed_per_step)
+from adaptive_latents.profiling_functions import get_speed_by_time, get_speed_per_step
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
 

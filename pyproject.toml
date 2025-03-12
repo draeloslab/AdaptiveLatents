@@ -41,6 +41,10 @@ ignore_patterns=[
     "workspace/datasets/*"
 ]
 
+[tool.isort]
+line_length = 300
+skip_glob = ['workspace/datasets/*', '*/.*']
+
 [tool.coverage.report]
 exclude_also = [
     # Don't complain if non-runnable code isn't run:

@@ -1,12 +1,13 @@
-import numpy as np
-import matplotlib.pylab as plt
-import pandas as pd
-from adaptive_latents.prosvd import proSVD
-from sklearn.decomposition import PCA
-from matplotlib.animation import FuncAnimation
-from matplotlib.patches import Ellipse
 from math import atan2
 
+import matplotlib.pylab as plt
+import numpy as np
+import pandas as pd
+from matplotlib.animation import FuncAnimation
+from matplotlib.patches import Ellipse
+from sklearn.decomposition import PCA
+
+from adaptive_latents.prosvd import proSVD
 
 
 def plot_photostim(neuron_ID, method, spike_train_matrix, photostim_matrix, df):
