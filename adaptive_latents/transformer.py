@@ -291,11 +291,18 @@ class StreamingTransformer(ABC):
         p = {k: v for k, v in transformer.get_params().items() if len(k) and k[0] != "_"}
         type(transformer)(**p)
 
-        base_algorithm = transformer.base_algorithm
-        base_args = set(inspect.signature(base_algorithm).parameters.keys()) - {'args', 'kwargs'}
-        found_args = set(p.keys()) - {'args', 'kwargs'}
+        base_signature = inspect.signature(transformer.base_algorithm)
+        base_args = set(base_signature.parameters.keys())
+        found_args = set(p.keys())
         assert base_args.issubset(found_args)
 
+        found_signature = inspect.signature(type(transformer))
+        for arg in base_args:
+            if 'kwargs' in found_signature.parameters:
+                continue
+            base_default = base_signature.parameters[arg].default
+            found_default = found_signature.parameters[arg].default
+            assert base_default is None or base_default == found_default
 
 
 class DecoupledTransformer(StreamingTransformer):
