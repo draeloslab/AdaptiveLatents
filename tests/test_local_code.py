@@ -1,9 +1,8 @@
 import functools
 import inspect
 import pathlib
-import pickle
-import runpy
 import sys
+import typing
 
 import pytest
 from conftest import get_all_subclasses
@@ -19,28 +18,20 @@ def test_run_main(outdir):
     main(output_directory=outdir, steps_to_run=35)
 
 
-scripts = sorted(list(pathlib.Path(__file__, '..', '..', 'workspace', 'demos').resolve().glob('*.py')))
+scripts = sorted(list(pathlib.Path(__file__, '..', '..', 'workspace', 'demos').resolve().glob('demo*.py')))
 @longrun
 @pytest.mark.parametrize('script', scripts)
 def test_script_execution(script, show_plots):
-    # this just tests that the scripts run
-    # runpy would be better, but it messes with JAX
-    # I also considered subprocess, but then we don't get coverage
-    # https://stackoverflow.com/a/67692
+    # there has to be a better way, but lots of things either mess up pickling, coverage, or jax
+    sys.path.append(str(script.parent))
+    demo = __import__(script.stem)
+    main: typing.Callable = demo.main
 
-    main = runpy.run_path(script)['main']
     kwargs = {}
     if 'show_plots' in inspect.signature(main).parameters:
         kwargs['show_plots'] = show_plots
 
-    try:
-        main(**kwargs)
-    except pickle.PicklingError:
-        # Pickle needs to be able to re-find and import the classes in PATH to unpickle them
-        assert script.stem == "demo_07"
-        sys.path.append(str(script.parent))
-        import demo_07
-        demo_07.main(**kwargs)
+    main(**kwargs)
 
 
 
