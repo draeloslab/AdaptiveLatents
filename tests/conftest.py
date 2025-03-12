@@ -7,7 +7,7 @@ import pytest
 # https://stackoverflow.com/a/43938191
 def pytest_addoption(parser):
     parser.addoption('--longrun', action='store_true', dest="longrun", default=False, help="enable 'longrun' decorated tests")
-    parser.addoption('--showplots', action='store_true', dest="showplots", default=False, help="show plots from matplotlib tests")
+    parser.addoption('--show-plots', action='store_true', dest="showplots", default=False, help="show plots from matplotlib tests")
 
 
 @pytest.fixture

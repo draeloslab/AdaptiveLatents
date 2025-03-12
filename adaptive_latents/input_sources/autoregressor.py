@@ -1,6 +1,7 @@
 import jax
 import numpy as np
 from jax import numpy as jnp
+import warnings
 
 
 class AdamOptimizer:
@@ -131,9 +132,6 @@ class AR_K:
             params = {k: v * 0.001 for k, v in params.items()}
         else:
             raise ValueError()
-
-        # for param in params:
-        #     print(f'{param}: {params[param].shape}')
 
         return params
 

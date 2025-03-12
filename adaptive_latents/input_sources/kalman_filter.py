@@ -2,7 +2,7 @@ import numpy as np
 
 
 class KalmanFilter:
-    def __init__(self, use_steady_state_k=False, subtract_means=False):
+    def __init__(self, use_steady_state_k=False, subtract_means=True):
         self.use_steady_state_K = use_steady_state_k
         self.subtract_means = subtract_means
 
@@ -129,14 +129,14 @@ if __name__ == '__main__':
     plt.plot([initial_point[0, 0], X_hat[0, 0]], [initial_point[0, 1], X_hat[0, 1]], '--.', color='C1')
     plt.plot(X_hat[:, 0], X_hat[:, 1], '.-')
 
-    # assert close(X_hat[-1], initial_point, 2 * one_step_distance)
-    # assert not close(X_hat[X_hat.shape[0] // 2], initial_point, 2 * one_step_distance)
+    assert close(X_hat[-1], initial_point, 2 * one_step_distance)
+    assert not close(X_hat[X_hat.shape[0] // 2], initial_point, 2 * one_step_distance)
 
     initial_point = np.array([[10, 10]])
     X_hat = kf.predict(initial_state=initial_point, n_steps=samples_per_second * seconds_per_rotation)
     plt.plot([initial_point[0, 0], X_hat[0, 0]], [initial_point[0, 1], X_hat[0, 1]], '--.', color='C2')
     plt.plot(X_hat[:, 0], X_hat[:, 1], '.-')
-    # assert close(X_hat[-1], initial_point, .1 * one_step_distance)
-    # assert close(X_hat[X_hat.shape[0] // 2], initial_point, .3)
+    assert close(X_hat[-1], initial_point, .1 * one_step_distance)
+    assert close(X_hat[X_hat.shape[0] // 2], initial_point, .3)
     plt.axis('equal')
     plt.show()

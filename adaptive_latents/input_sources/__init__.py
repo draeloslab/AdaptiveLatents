@@ -1,1 +1,1 @@
-from . import autoregressor, datasets, hmm_simulation
+from . import autoregressor, datasets, hmm_simulation, kalman_filter
