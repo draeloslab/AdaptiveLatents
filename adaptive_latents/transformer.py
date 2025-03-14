@@ -302,7 +302,7 @@ class StreamingTransformer(ABC):
                 continue
             base_default = base_signature.parameters[arg].default
             found_default = found_signature.parameters[arg].default
-            assert base_default is None or base_default == found_default
+            assert (base_default is None) or (base_default is inspect.Parameter.empty) or base_default == found_default
 
 
 class DecoupledTransformer(StreamingTransformer):
