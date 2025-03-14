@@ -38,5 +38,6 @@ dependencies:
      - datahugger
      - python-picard
      - "git+https://github.com/Jonathan-Gould/mmica"
+     - "git+https://github.com/catniplab/vjf.git@0eec61e91c29cf9a44b48c2a6694234b4404a2b3"
 #     - matlabengine # todo: this might be removable
      # cd /usr/local/MATLAB/R*/extern/engines/python && pip install .
