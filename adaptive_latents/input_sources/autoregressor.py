@@ -160,14 +160,14 @@ class AR_K:
         v = params['v']
         return np.array(As), np.array(Bs), np.array(v)
 
-    def predict(self, initial_observations, stims=None, n_steps=100):
+    def predict(self, initial_state, stims=None, n_steps=100):
         if stims is None:
             stims = np.zeros((n_steps + self.k, self.Bs.shape[1]))
-        assert initial_observations.shape[0] >= self.k
+        assert initial_state.shape[0] >= self.k
         assert stims.shape[0] == n_steps + self.k
 
         new = np.zeros(shape=(n_steps + self.k, self.neuron_d)) * np.nan
-        new[:self.k] = initial_observations[-self.k:]
+        new[:self.k] = initial_state[-self.k:]
 
         for i in np.arange(n_steps) + self.k:
             new[i] = self.v

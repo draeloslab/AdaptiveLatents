@@ -8,8 +8,8 @@ class KalmanFilter:
 
         self.A = None  # state transitions
         self.C = None  # link between states and observations
-        self.Q = None  # state noise
-        self.W = None  # observation noise
+        self.W = None  # state noise
+        self.Q = None  # observation noise
 
         self.steady_state_K = None
 

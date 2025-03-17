@@ -6,6 +6,7 @@ from adaptive_latents.regressions import BaseVanillaOnlineRegressor
 
 from .transformer import TypicalTransformer
 from .utils import align_column_spaces, principle_angles
+from .input_sources.lds_simulation import LDS
 
 
 class BaseSJPCA:
@@ -176,28 +177,9 @@ class sjPCA(TypicalTransformer, BaseSJPCA):
         ax.set_title(f"Numerical change in the bases of the planes of sjPCA")
 
 
-
-def X_and_X_dot_from_data(X_all):
-    """note: this is technically off-by-one for the way I normally think about it, but it's causal"""
-    # todo: is this necessarily off-by-one?
+def generate_circle_embedded_in_high_d(rng, m=1000, n=4, stddev=1):
+    lds = LDS.circular_lds(transitions_per_rotation=10, obs_d=n, process_noise=0, obs_noise=stddev, rng=rng)
+    _, X_all, _ = lds.simulate(m, initial_state=np.array([10,0]), rng=rng)
     X_dot = np.diff(X_all, axis=0)
     X = X_all[1:]
-    return X, X_dot
-
-
-def generate_circle_embedded_in_high_d(rng, m=1000, n=4, stddev=1, shape=(10, 10)):
-    t = np.linspace(0, (m / 10) * np.pi * 2, m + 1)
-    circle = np.column_stack([np.cos(t), np.sin(t)]) @ np.diag(shape)
-    C = special_ortho_group(dim=n, seed=rng).rvs()[:, :2]
-    X_all = (circle @ C.T) + rng.normal(size=(m + 1, n)) * stddev
-    X, X_dot = X_and_X_dot_from_data(X_all)
-    return X, X_dot, dict(C=C)
-
-
-# def generate_by_circle(rng, m=1000, n=4):
-#     t = np.linspace(0, m/50*np.pi*2, m+1)
-#     circle = np.column_stack([np.cos(t),np.sin(t)]) @ np.diag([20,10])
-#     C = special_ortho_group(dim=n,seed=rng).rvs()[:,:2]
-#     X_all = (circle @ C.T) + rng.normal(size=(m+1,n))
-#     X, X_dot = from_data(X_all)
-#     return X, X_dot, dict(C=C)
+    return X, X_dot, dict(C=lds.C.T)
