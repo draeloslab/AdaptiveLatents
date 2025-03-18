@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
-from scipy.stats import special_ortho_group
 
 import adaptive_latents.input_sources as ins
+from adaptive_latents import VJF
 
 
 def test_hmm_runs(rng):
@@ -25,16 +25,6 @@ def test_hmm_runs(rng):
 def close(a, b, radius):
     return np.linalg.norm(a - b) < radius
 
-@pytest.mark.parametrize('rank_limit', [2, None])
-def test_ar_k(rng, rank_limit, show_plots):
-    trasitions_per_rotation = 60
-    lds = ins.LDS.circular_lds(transitions_per_rotation=trasitions_per_rotation, obs_center=10, obs_noise=0, obs_d=2)
-    _, X, stim = lds.simulate(5*60, initial_state=[0, 5],  rng=rng)
-
-    ar = ins.autoregressor.AR_K(k=1, rank_limit=rank_limit, init_method='full_rank', iter_limit=500, rng=rng)
-    ar.fit(X, stim)
-
-    check_lds_predicts_circle(ar, X, trasitions_per_rotation, show_plots)
 
 def check_lds_predicts_circle(predictor, X, trasitions_per_rotation, show_plots):
     if show_plots:
@@ -77,3 +67,26 @@ def test_kalman_filter(rng, show_plots, use_steady_state_k):
     kf.fit(X, Y)
 
     check_lds_predicts_circle(kf, X, trasitions_per_rotation, show_plots)
+
+
+@pytest.mark.parametrize('rank_limit', [2, None])
+def test_ar_k(rng, rank_limit, show_plots):
+    trasitions_per_rotation = 60
+    lds = ins.LDS.circular_lds(transitions_per_rotation=trasitions_per_rotation, obs_center=10, obs_noise=0, obs_d=2)
+    _, X, stim = lds.simulate(5*60, initial_state=[0, 5],  rng=rng)
+
+    ar = ins.autoregressor.AR_K(k=1, rank_limit=rank_limit, init_method='full_rank', iter_limit=500, rng=rng)
+    ar.fit(X, stim)
+
+    check_lds_predicts_circle(ar, X, trasitions_per_rotation, show_plots)
+
+
+def test_VJF(rng, rank_limit, show_plots):
+    trasitions_per_rotation = 30
+    lds = ins.LDS.circular_lds(transitions_per_rotation=trasitions_per_rotation, obs_center=10, obs_noise=0, obs_d=2)
+    X, Y, stim = lds.simulate(100*60, initial_state=[0, 5],  rng=rng)
+
+    vjf = VJF()
+    # vjf.fit(X, stim)
+
+    check_lds_predicts_circle(vjf, X, trasitions_per_rotation, show_plots)

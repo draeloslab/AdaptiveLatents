@@ -124,6 +124,6 @@ class LDS:
         states, observations, received_stim = lds.simulate(N, initial_state=[5, 0, 0], U=u_function, rng=rng)
 
         X = ArrayWithTime(observations, t)
-        stim = ArrayWithTime(stim, t - 1e-8)
+        stim = ArrayWithTime(stim[:,None], t - 1e-8)
 
         return X, stim
