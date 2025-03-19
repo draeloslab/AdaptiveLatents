@@ -2,6 +2,7 @@ import contextlib
 import copy
 import pickle
 import time
+import typing
 import warnings
 from abc import ABC, abstractmethod
 from collections import deque
@@ -56,6 +57,7 @@ class StreamingTransformer(ABC):
         self.mid_run_sources = None
         self.log = dict(step_time=[], stream=[])
 
+
     def partial_fit_transform(self, data, stream=0, return_output_stream=False):
         """
         Learns and applies a transformation to incoming data.
@@ -64,7 +66,7 @@ class StreamingTransformer(ABC):
         ----------
         data: any, np.ndarray
             data can be anything, but for most transformers it will be an array of shape (n_samples, sample_dimension)
-        stream: int
+        stream: int | typing.Hashable
             The stream the incoming data is coming from; 0 is the default.
             While this could technically be any hashable value, the convention is to use ints.
         return_output_stream: bool
@@ -261,6 +263,10 @@ class StreamingTransformer(ABC):
         for _ in range(5):
             for data, s in transformer.expected_data_streams(rng, DIM):
                 transformer.partial_fit_transform(data, s)
+
+        # tests that the transformer can ignore data not in its input_sources
+        # todo: make this Mock
+        transformer.partial_fit_transform(None, "test_that_this_doesn't go through")
 
     @staticmethod
     def _test_can_save_and_rerun(constructor, rng, tmp_path, DIM=6):

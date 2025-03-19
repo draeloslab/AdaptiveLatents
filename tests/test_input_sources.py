@@ -1,7 +1,10 @@
 import numpy as np
 import pytest
+import functools
 
 import adaptive_latents.input_sources as ins
+from adaptive_latents import ArrayWithTime
+import adaptive_latents.transformer
 from adaptive_latents import VJF
 
 
@@ -81,12 +84,40 @@ def test_ar_k(rng, rank_limit, show_plots):
     check_lds_predicts_circle(ar, X, trasitions_per_rotation, show_plots)
 
 
-def test_VJF(rng, rank_limit, show_plots):
-    trasitions_per_rotation = 30
-    lds = ins.LDS.circular_lds(transitions_per_rotation=trasitions_per_rotation, obs_center=10, obs_noise=0, obs_d=2)
-    X, Y, stim = lds.simulate(100*60, initial_state=[0, 5],  rng=rng)
+@pytest.mark.parametrize('predictor_maker', [
+    functools.partial(adaptive_latents.VJF, latent_d=2),
+    functools.partial(adaptive_latents.Bubblewrap)
+])
+def test_predictor(predictor_maker, rng, show_plots):
+    transitions_per_rotation = 30
+    radius = 5
+    lds = ins.LDS.circular_lds(transitions_per_rotation=transitions_per_rotation, obs_center=10, obs_noise=0, obs_d=2)
+    _, Y, stim = lds.simulate(1000*transitions_per_rotation, initial_state=[0, radius],  rng=rng)
+    Y, stim = ArrayWithTime.from_notime(Y), ArrayWithTime.from_notime(stim)
+    stim.t = stim.t - stim.dt/20
 
-    vjf = VJF()
-    # vjf.fit(X, stim)
+    one_step_distance = np.linalg.norm(Y[0] - Y[1])
 
-    check_lds_predicts_circle(vjf, X, trasitions_per_rotation, show_plots)
+    predictor: adaptive_latents.transformer.StreamingTransformer = predictor_maker()
+
+    predictor.offline_run_on([(Y, 'X')], convinient_return=False)
+
+    predictions = []
+    for i in range(transitions_per_rotation+1):
+        # TODO: change this string
+        prediction = predictor.partial_fit_transform(adaptive_latents.ArrayWithTime([[i*Y.dt]], Y.t[-1]), stream='pred_obs_space')
+        predictions.append(prediction)
+
+    trajectory = np.squeeze(predictions)
+
+    if show_plots:
+        import matplotlib.pyplot as plt
+        plt.plot(Y[:, 0], Y[:, 1])
+        # plt.plot([initial_point[0, 0], X_hat[0, 0]], [initial_point[0, 1], X_hat[0, 1]], '--.', color='C2')
+        plt.plot(trajectory[:, 0], trajectory[:, 1], '.-')
+        plt.axis('equal')
+        plt.show()
+
+    assert close(trajectory[-1], Y[-1], 1 * one_step_distance)
+    assert not close(trajectory[trajectory.shape[0] // 2], Y[-1], radius)
+

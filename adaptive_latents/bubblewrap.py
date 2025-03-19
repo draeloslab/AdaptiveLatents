@@ -539,7 +539,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
                  n_steps_to_predict=1, check_consistent_dt=True,
                  **kwargs,  # see BaseBubblewrap parameters, there are too many
              ):
-        input_streams = input_streams or {0: 'X', 'dt': 'dt'}
+        input_streams = input_streams or {0: 'X', 'dt': 'dt', 'pred_obs_space':'pred_obs_space'}
         StreamingTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level)
         BaseBubblewrap.__init__(self, **kwargs)
         self.unevaluated_predictions = {}
@@ -615,6 +615,13 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
                 data = alpha_pred.reshape([1,-1])
             else:
                 data = ArrayWithTime(numpy.nan * numpy.zeros([1, self.N]), data.t)
+        elif self.input_streams[stream] == 'pred_obs_space':
+            assert data.size == 1
+            if self.is_initialized:
+                location_pred = self.get_obs_space_pred_at_t(data[0,0], relative_t=True)
+                data = location_pred.reshape([1,-1])
+            else:
+                data = ArrayWithTime(numpy.nan * numpy.zeros([1, self.N]), data.t)
 
         stream = self.output_streams[stream]
         if return_output_stream:
@@ -671,12 +678,24 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
                     del self.unevaluated_predictions[t_to_eval]
 
     def get_alpha_at_t(self, t, alpha=None, relative_t=False):
+        # todo: get rid of alpha and relative_t
         alpha = alpha or self.alpha
         dt = t if relative_t else t - self.last_timepoint
         n_steps = dt/self.dt
         assert (not self.check_consistent_dt) or numpy.isclose(round(n_steps), n_steps)
         n_steps = int(n_steps)
         return ArrayWithTime(numpy.real(alpha @ jnp.linalg.matrix_power(self.A, n_steps)), dt + self.last_timepoint)
+
+    def get_obs_space_pred_at_t(self, t, relative_t=True, method='argmax'):
+        alpha = self.get_alpha_at_t(t, relative_t=relative_t)
+        match method:
+            case 'argmax':
+                location = self.mu[numpy.argmax(alpha)]
+            case 'mean':
+                location = (alpha @ self.mu).mean(axis=0)
+            case _:
+                raise ValueError(f'Unknown method {method}')
+        return numpy.array(location)
 
 
     def show_bubbles_2d(self, ax, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45, show_names=True, n_obs_thresh=.1):
