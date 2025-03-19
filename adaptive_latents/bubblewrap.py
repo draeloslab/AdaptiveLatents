@@ -41,9 +41,7 @@ class BaseBubblewrap:
 
         self.go_fast = go_fast
 
-        self.key = random.PRNGKey(self.seed)
-        numpy.random.seed(self.seed)
-        # TODO: change this to use the `rng` system
+        self.jax_random_key = random.PRNGKey(self.seed)
 
         # observations of the data; M is how many to keep in history
         self.obs = Observations(M=M, go_fast=go_fast)
@@ -58,7 +56,7 @@ class BaseBubblewrap:
         if not self.go_fast:
             from jax.lib import xla_bridge
             self.backend_note = xla_bridge.get_backend().platform
-
+            # doesn't have to be random, it's just getting the type
             x = jax.random.uniform(jax.random.key(0), (1,), dtype=jnp.float64)
             self.precision_note = x.dtype
             if self.precision_note != jnp.float64:
@@ -164,8 +162,10 @@ class BaseBubblewrap:
             lamr = 0.02  # this is $\lambda$ from the paper
             eta = jnp.sqrt(lamr * jnp.diag(self.obs.cov))  # this is $\nu$ from the paper
 
+            self.jax_random_key, key = random.split(self.jax_random_key)
+
             self.mu_orig = (1 - lamr) * self.mu_orig + lamr * self.obs.mean + \
-                            eta * numpy.random.normal(size=(self.N, self.d))
+                            eta * random.normal(key, shape=(self.N, self.d))
             self.sigma_orig = self.obs.cov * (self.nu + self.d + 1) / \
                             ((self.N + self.sigma_orig_adjust) ** (2 / self.d))
 

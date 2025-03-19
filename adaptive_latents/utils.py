@@ -122,6 +122,25 @@ def clip(*args, maxlen=float("inf")):
     return clipped_arrays
 
 
+def check_same(v: np.ndarray):
+    var = 'temp'
+    import torch
+    if isinstance(v, torch.Tensor):
+        v = v.detach().cpu().numpy()
+    s = f'/tmp/asdf_{var}'
+    try:
+        old_v = np.load(f"{s}.npy")
+    except FileNotFoundError:
+        old_v = None
+    np.save(s, v)
+
+    if old_v is not None:
+        same = np.shape(v) == np.shape(old_v) and np.nanmax((v - old_v) ** 2) == 0
+        print(f'{var}: {same}')
+    else:
+        print(f'{var}: NEW')
+
+
 def resample_matched_timeseries(old_timeseries, old_sample_times, new_sample_times,):
     good_samples = ~np.any(np.isnan(old_timeseries), axis=1)
     resampled_behavior = np.zeros((new_sample_times.shape[0], old_timeseries.shape[1]))

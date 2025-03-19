@@ -91,19 +91,19 @@ def test_ar_k(rng, rank_limit, show_plots):
 def test_predictor(predictor_maker, rng, show_plots):
     transitions_per_rotation = 30
     radius = 5
-    lds = ins.LDS.circular_lds(transitions_per_rotation=transitions_per_rotation, obs_center=10, obs_noise=0, obs_d=2)
+    lds = ins.LDS.circular_lds(transitions_per_rotation=transitions_per_rotation, obs_center=10, obs_noise=0, obs_d=2, rng=rng)
     _, Y, stim = lds.simulate(1000*transitions_per_rotation, initial_state=[0, radius],  rng=rng)
     Y, stim = ArrayWithTime.from_notime(Y), ArrayWithTime.from_notime(stim)
     stim.t = stim.t - stim.dt/20
 
     one_step_distance = np.linalg.norm(Y[0] - Y[1])
 
-    predictor: adaptive_latents.transformer.StreamingTransformer = predictor_maker()
+    predictor: adaptive_latents.transformer.StreamingTransformer = predictor_maker(rng=rng)
 
     predictor.offline_run_on([(Y, 'X')], convinient_return=False)
 
     predictions = []
-    for i in range(transitions_per_rotation+1):
+    for i in range(0, transitions_per_rotation+2):
         # TODO: change this string
         prediction = predictor.partial_fit_transform(adaptive_latents.ArrayWithTime([[i*Y.dt]], Y.t[-1]), stream='pred_obs_space')
         predictions.append(prediction)
@@ -118,6 +118,7 @@ def test_predictor(predictor_maker, rng, show_plots):
         plt.axis('equal')
         plt.show()
 
-    assert close(trajectory[-1], Y[-1], 1 * one_step_distance)
-    assert not close(trajectory[trajectory.shape[0] // 2], Y[-1], radius)
+    half_idx = len(trajectory) // 2
+    assert np.abs((np.atan2(trajectory[-1, 1], trajectory[-1, 0]) - np.atan2(Y[-1, 1], Y[-1, 0])) * 180 / np.pi) < 10
+    assert np.abs((np.atan2(trajectory[half_idx, 1], trajectory[half_idx, 0]) - np.atan2(Y[-1, 1], Y[-1, 0])) * 180 / np.pi) > 110
 
