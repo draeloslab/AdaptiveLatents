@@ -277,7 +277,7 @@ class StreamingTransformer(ABC):
                 transformer.partial_fit_transform(data, s)
         t2 = copy.deepcopy(transformer)
 
-        temp_file = tmp_path / 'streaming_transformer.pickle'
+        temp_file = tmp_path / 'streaming_transformer.pkl'
         with open(temp_file, 'bw') as f:
             pickle.dump(transformer, f)
 

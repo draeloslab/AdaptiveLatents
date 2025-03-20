@@ -54,8 +54,8 @@ class BaseBubblewrap:
         self.backend_note = None
         self.precision_note = None
         if not self.go_fast:
-            from jax.lib import xla_bridge
-            self.backend_note = xla_bridge.get_backend().platform
+            from jax.extend.backend import get_backend
+            self.backend_note = get_backend().platform
             # doesn't have to be random, it's just getting the type
             x = jax.random.uniform(jax.random.key(0), (1,), dtype=jnp.float64)
             self.precision_note = x.dtype
@@ -677,14 +677,24 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
                     self.log['log_pred_p_origin_t'].append(origin_t)
                     del self.unevaluated_predictions[t_to_eval]
 
-    def get_alpha_at_t(self, t, alpha=None, relative_t=False):
+    def get_alpha_at_t(self, t, alpha=None, relative_t=False, method='power'):
         # todo: get rid of alpha and relative_t
         alpha = alpha or self.alpha
         dt = t if relative_t else t - self.last_timepoint
         n_steps = dt/self.dt
         assert (not self.check_consistent_dt) or numpy.isclose(round(n_steps), n_steps)
         n_steps = int(n_steps)
-        return ArrayWithTime(numpy.real(alpha @ jnp.linalg.matrix_power(self.A, n_steps)), dt + self.last_timepoint)
+
+        if method == 'power':
+            alpha = numpy.real(alpha @ jnp.linalg.matrix_power(self.A, n_steps))
+        elif method == 'power-argmax':
+            for _ in range(n_steps):
+                alpha = numpy.array(alpha @ self.A)
+                alpha[numpy.argmax(alpha)] = 1  # maybe a softmax would be better?
+        else:
+            raise ValueError(f'Unknown method {method}')
+
+        return ArrayWithTime(alpha, dt + self.last_timepoint)
 
     def get_obs_space_pred_at_t(self, t, relative_t=True, method='argmax'):
         alpha = self.get_alpha_at_t(t, relative_t=relative_t)

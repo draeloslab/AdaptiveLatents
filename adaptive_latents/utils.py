@@ -139,6 +139,7 @@ def check_same(v: np.ndarray):
         print(f'{var}: {same}')
     else:
         print(f'{var}: NEW')
+    return same
 
 
 def resample_matched_timeseries(old_timeseries, old_sample_times, new_sample_times,):

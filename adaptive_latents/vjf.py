@@ -210,7 +210,6 @@ class BaseVJF:
 
 class VJF(DecoupledTransformer, BaseVJF):
     base_algorithm = BaseVJF
-
     def __init__(self, *, config=None, latent_d=6, rng=None, take_U=False, input_streams=None, output_streams=None, log_level=None):
         if input_streams is None:
             input_streams = {1: 'U'} if take_U else {}
@@ -219,9 +218,14 @@ class VJF(DecoupledTransformer, BaseVJF):
                                       log_level=log_level)
         BaseVJF.__init__(self, config=config, latent_d=latent_d, take_U=take_U, rng=rng)
         self.last_seen = {}
+        self.dt = None  #TODO: this is just to be consistent with Bubblewrap
 
     def _partial_fit(self, data, stream):
         if self.input_streams[stream] in ['X', 'U']:
+            if self.input_streams[stream] == 'X' and 'X' in self.last_seen and hasattr(self.last_seen['X'], 't'):
+                dt = data.t - self.last_seen['X'].t
+                assert self.dt is None or np.isclose(self.dt, dt)
+                self.dt = dt
             self.last_seen[self.input_streams[stream]] = data
 
             if len(self.last_seen) == (1 + self.take_U):
@@ -233,8 +237,10 @@ class VJF(DecoupledTransformer, BaseVJF):
             q0 = self.q[0].detach().numpy()
             data = ArrayWithTime.from_transformed_data(q0, data)
         elif self.input_streams[stream] == 'pred_obs_space' and self.q is not None:
-            steps = data[0,0]
-            assert np.isclose(round(steps), steps)
+            dt = data[0,0]
+            if self.dt is not None:
+                steps = dt / self.dt
+                assert np.isclose(round(steps), steps)  # check that dt is an integer
             steps = int(steps)
             data = self.predict(steps)
 
@@ -260,4 +266,4 @@ class VJF(DecoupledTransformer, BaseVJF):
         return super().fit(y, u)
 
     def get_params(self, deep=True):
-        return super().get_params(deep=deep) | dict(take_U=self.take_U, latent_d=self.latent_d, config=self.config)
+        return super().get_params(deep=deep) | dict(take_U=self.take_U, latent_d=self.latent_d, config=self.config, rng=self.rng)

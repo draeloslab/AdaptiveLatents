@@ -93,7 +93,7 @@ class LDS:
         return lds
 
     @classmethod
-    def nest_dynamical_system(cls, rotations, transitions_per_rotation=30 + 1 / np.pi, stims_per_rotation=1, u_function=None, rng=None):
+    def nest_dynamical_system(cls, rotations, transitions_per_rotation=30 + 1 / np.pi, stims_per_rotation=1, radius=5, u_function=None, rng=None):
         rng = rng if rng is not None else np.random.default_rng()
         transitions_per_rotation = transitions_per_rotation
         base_lds = LDS.circular_lds(transitions_per_rotation=transitions_per_rotation, rng=rng)
@@ -121,7 +121,7 @@ class LDS:
                 u[2] = stim[i] * state[0] / np.linalg.norm(state[:2])
                 return u
 
-        states, observations, received_stim = lds.simulate(N, initial_state=[5, 0, 0], U=u_function, rng=rng)
+        states, observations, received_stim = lds.simulate(N, initial_state=[radius, 0, 0], U=u_function, rng=rng)
 
         X = ArrayWithTime(states, t)
         Y = ArrayWithTime(observations, t)
