@@ -1,4 +1,5 @@
 import numpy as np
+from adaptive_latents.transformer import StreamingTransformer, ArrayWithTime
 
 
 class KalmanFilter:
@@ -86,57 +87,60 @@ class KalmanFilter:
         if initial_state is not None:
             self.state = initial_state - self.X_mean
         if initial_state_var is None:
-            self.state_var = self.W
+            self.state_var = self.state_var
 
-        prediction = np.zeros((n_steps, self.A.shape[0])) * np.nan
+        prediction = np.zeros((n_steps+1, self.A.shape[0])) * np.nan
+        prediction[0] = self.state
         for i in range(n_steps):
-            prediction[i] = self.step()
+            prediction[i+1,:] = self.step()
 
         self.state, self.state_var = old_state, old_var
         return prediction
 
 
-if __name__ == '__main__':
-    rng = np.random.default_rng()
+class StreamingKalmanFilter(StreamingTransformer, KalmanFilter):
+    base_algorithm = KalmanFilter
 
-    import matplotlib.pyplot as plt
-    from scipy.stats import special_ortho_group
+    def __init__(self, use_steady_state_k=False, subtract_means=True, no_hidden_state=True, input_streams=None, output_streams=None, log_level=None):
+        input_streams = input_streams or {0:'X', 1:'Y'}
+        KalmanFilter.__init__(self, use_steady_state_k=use_steady_state_k, subtract_means=subtract_means)
+        StreamingTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level)
 
-    samples_per_second = 20
-    seconds_per_rotation = 3
-    total_seconds = 12
+        self.no_hidden_state = no_hidden_state
 
-    t = np.linspace(0, total_seconds / seconds_per_rotation * np.pi * 2, total_seconds * samples_per_second + 1)
-    X = np.vstack((np.cos(t), np.sin(t))).T
-    X = X + 10
-    Y = X @ special_ortho_group(dim=20, seed=rng).rvs()[:, :2].T
+        self.last_seen = {}
+        self.latent_state_history = []
+        self.observation_history = []
 
+    def _partial_fit_transform(self, data, stream, return_output_stream):
+        semantic_stream = self.input_streams[stream]
+        if semantic_stream in {'X', 'Y'}:
+            self.last_seen[semantic_stream] = data
 
-    kf = KalmanFilter(use_steady_state_k=False, subtract_means=True)
-    kf.fit(X, Y)
+            if semantic_stream =='X' and self.A is not None:
+                self.step(data)
 
-    plt.plot(X[:, 0], X[:, 1])
+            if ('Y' in self.last_seen or self.no_hidden_state) and 'X' in self.last_seen:
+                self.observation_history.append(self.last_seen['X'])
+                self.latent_state_history.append(self.last_seen['X' if self.no_hidden_state else 'Y'])
 
-    initial_point = X[-1:]
-    X_hat = kf.predict(n_steps=samples_per_second * seconds_per_rotation, initial_state=initial_point)
+            if len(self.latent_state_history) == len(self.observation_history) and len(self.observation_history) and len(self.observation_history) % 25 == 0:
+                latent = np.squeeze(self.latent_state_history)
+                obs = np.squeeze(self.observation_history)
+                self.fit(X=latent, Y=obs)
+                self.state = latent[obs.shape[0]-25]
+                for i in range(25):
+                    self.step(Y=obs[obs.shape[0]-25+i])
 
+        elif semantic_stream == 'dt_X':
+            if self.A is not None:
+                dt = self.observation_history[-1].t - self.observation_history[-2].t
+                steps = data[0,0] / dt
+                assert np.isclose(steps, steps:=int(steps))
+                predicted_latent_state = self.predict(steps)
+                predicted_observation = (predicted_latent_state @ self.C)[-1]
+                data = ArrayWithTime.from_transformed_data(predicted_observation, data)
+            else:
+                data = np.nan * data
 
-    one_step_distance = np.linalg.norm(X[0] - X[1])
-    def close(a, b, radius):
-        return np.linalg.norm(a - b) < radius
-
-
-    plt.plot([initial_point[0, 0], X_hat[0, 0]], [initial_point[0, 1], X_hat[0, 1]], '--.', color='C1')
-    plt.plot(X_hat[:, 0], X_hat[:, 1], '.-')
-
-    assert close(X_hat[-1], initial_point, 2 * one_step_distance)
-    assert not close(X_hat[X_hat.shape[0] // 2], initial_point, 2 * one_step_distance)
-
-    initial_point = np.array([[10, 10]])
-    X_hat = kf.predict(initial_state=initial_point, n_steps=samples_per_second * seconds_per_rotation)
-    plt.plot([initial_point[0, 0], X_hat[0, 0]], [initial_point[0, 1], X_hat[0, 1]], '--.', color='C2')
-    plt.plot(X_hat[:, 0], X_hat[:, 1], '.-')
-    assert close(X_hat[-1], initial_point, .1 * one_step_distance)
-    assert close(X_hat[X_hat.shape[0] // 2], initial_point, .3)
-    plt.axis('equal')
-    plt.show()
+        return (data, stream) if return_output_stream else data

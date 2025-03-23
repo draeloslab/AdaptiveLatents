@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 from adaptive_latents.input_sources import LDS, KalmanFilter, AR_K
+from adaptive_latents.input_sources.kalman_filter import StreamingKalmanFilter
 from adaptive_latents import VJF, Bubblewrap, ArrayWithTime
 import adaptive_latents
 import functools
@@ -71,14 +72,14 @@ def test_ar_k(rng, rank_limit, show_plots):
 
 @longrun
 @pytest.mark.parametrize('predictor_maker', [
+    StreamingKalmanFilter,
     functools.partial(VJF, latent_d=2, rng=np.random.default_rng(4)),
-    functools.partial(Bubblewrap)
+    functools.partial(Bubblewrap),
 ])
 def test_predictor(predictor_maker, rng, show_plots):
     transitions_per_rotation = 30
     radius = 10
     _, Y, _ = LDS.nest_dynamical_system(rotations=1000, transitions_per_rotation=transitions_per_rotation, radius=radius, u_function=lambda **_: np.zeros(3), rng=rng)
-    Y = Y[:, :3]
 
     predictor: adaptive_latents.transformer.StreamingTransformer = predictor_maker()
 
@@ -86,9 +87,12 @@ def test_predictor(predictor_maker, rng, show_plots):
 
     trajectory = []
     for i in range(0, transitions_per_rotation+1):  # TODO: what's the correct number of transitions here? +1 or +2?
-        stream = 'pred_obs_space'  # TODO: change this string
+        stream = 'dt_X'
         prediction = predictor.partial_fit_transform(ArrayWithTime([[i * Y.dt]], Y.t[-1]), stream=stream)
         trajectory.append(prediction)
+
+    assert not np.isclose(trajectory[1].t, Y.t[-1] + Y.dt)
+    assert np.isclose(trajectory[1].t, Y.t[-1])
 
     trajectory = np.squeeze(trajectory)
 
@@ -97,7 +101,7 @@ def test_predictor(predictor_maker, rng, show_plots):
         fig, ax = plt.subplots()
         ax.plot(Y[:, 0], Y[:, 1])
         ax.plot([Y[-1, 0], trajectory[0, 0]], [Y[-1, 1], trajectory[0, 1]], '--.', color='C2')
-        ax.plot(trajectory[:, 0], trajectory[:, 1], '.-')
+        ax.plot(trajectory[:, 0], trajectory[:, 1], '.-', color='C1')
         ax.axis('equal')
         plt.show(block=True)
 

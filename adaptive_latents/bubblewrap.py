@@ -539,7 +539,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
                  n_steps_to_predict=1, check_consistent_dt=True,
                  **kwargs,  # see BaseBubblewrap parameters, there are too many
              ):
-        input_streams = input_streams or {0: 'X', 'dt': 'dt', 'pred_obs_space':'pred_obs_space'}
+        input_streams = input_streams or {0: 'X', 'dt': 'dt', 'dt_X':'dt_X'}
         StreamingTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level)
         BaseBubblewrap.__init__(self, **kwargs)
         self.unevaluated_predictions = {}
@@ -615,7 +615,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
                 data = alpha_pred.reshape([1,-1])
             else:
                 data = ArrayWithTime(numpy.nan * numpy.zeros([1, self.N]), data.t)
-        elif self.input_streams[stream] == 'pred_obs_space':
+        elif self.input_streams[stream] == 'dt_X':
             assert data.size == 1
             if self.is_initialized:
                 location_pred = self.get_obs_space_pred_at_t(data[0,0], relative_t=True)

@@ -141,8 +141,8 @@ class BaseVJF:
             logprobs.append(-0.5 * ((x - m) ** 2 / v + np.log(2 * np.pi * v)))
         return sum(logprobs)
 
-    def predict(self, n_steps, method='mean'):
-        cloud = self.get_cloud_at_time_t(n_steps)
+    def predict(self, n_steps, n_points=None, method='mean'):
+        cloud = self.get_cloud_at_time_t(n_steps, n_points=n_points)
 
         if method == 'mean':
             return self._vjf.decoder(cloud).detach().numpy().mean(axis=0)
@@ -150,17 +150,19 @@ class BaseVJF:
             return self.get_most_likely_decoded_point_from_cloud(cloud)
 
     def get_most_likely_decoded_point_from_cloud(self, cloud):
-        raise NotImplementedError()
         # also see get_logprob_for_cloud
         var = self._vjf.likelihood.logvar.detach().exp().numpy().T
 
-        probs = np.zeros(cloud.shape[0])
         decoded_points = self._vjf.decoder(cloud).detach()
-        for i, decoded_point in enumerate(decoded_points):
-            sample_logprobs = [self.diagonal_normal_logpdf(y_est, var, decoded_point) for y_est in decoded_points]
-            logprob = logsumexp(sample_logprobs) - np.log(cloud.shape[0])
+        S = decoded_points.shape[0]
 
-            probs[i] = logprob
+        pairwise_logprobs = np.zeros((S,S)) * np.nan
+        for i in range(len(decoded_points)):
+            for j in range(i+1):
+                pairwise_logprobs[i,j] = self.diagonal_normal_logpdf(decoded_points[i], var, decoded_points[j])
+                pairwise_logprobs[j,i] = pairwise_logprobs[i,j]
+
+        probs = logsumexp(pairwise_logprobs, axis=0) - np.log(S)
         return decoded_points[np.argmax(probs)].numpy()
 
     def fit(self, y, u):
@@ -205,18 +207,22 @@ class BaseVJF:
         axs[1].pcolormesh(x_edges, y_edges, log_probs, vmin=np.quantile(log_probs.flatten(), .5), vmax=log_probs.max(),
                          cmap='plasma')
         axs[1].scatter(x_centers[j], y_centers[i], color='C2')
+
+        point = self.get_most_likely_decoded_point_from_cloud(cloud)
+        axs[1].scatter(point[0], point[1], color='C3')
         return fig, axs
 
 
 class VJF(DecoupledTransformer, BaseVJF):
     base_algorithm = BaseVJF
-    def __init__(self, *, config=None, latent_d=6, rng=None, take_U=False, input_streams=None, output_streams=None, log_level=None):
+    def __init__(self, *, config=None, latent_d=6, rng=None, take_U=False, n_particles_for_prediction=500, input_streams=None, output_streams=None, log_level=None):
         if input_streams is None:
             input_streams = {1: 'U'} if take_U else {}
             input_streams = input_streams | {0: 'X', 2:'dt'}
         DecoupledTransformer.__init__(self=self, input_streams=input_streams, output_streams=output_streams,
                                       log_level=log_level)
         BaseVJF.__init__(self, config=config, latent_d=latent_d, take_U=take_U, rng=rng)
+        self.n_particles_for_prediction = n_particles_for_prediction
         self.last_seen = {}
         self.dt = None  #TODO: this is just to be consistent with Bubblewrap
 
@@ -236,13 +242,13 @@ class VJF(DecoupledTransformer, BaseVJF):
         if self.input_streams[stream] == 'X' and self.q is not None:
             q0 = self.q[0].detach().numpy()
             data = ArrayWithTime.from_transformed_data(q0, data)
-        elif self.input_streams[stream] == 'pred_obs_space' and self.q is not None:
+        elif self.input_streams[stream] == 'dt_X' and self.q is not None:
             dt = data[0,0]
             if self.dt is not None:
                 steps = dt / self.dt
                 assert np.isclose(round(steps), steps)  # check that dt is an integer
             steps = int(steps)
-            data = self.predict(steps)
+            data = self.predict(steps, n_points=self.n_particles_for_prediction, method='mean')
 
         return (data, stream) if return_output_stream else data
 
@@ -266,4 +272,4 @@ class VJF(DecoupledTransformer, BaseVJF):
         return super().fit(y, u)
 
     def get_params(self, deep=True):
-        return super().get_params(deep=deep) | dict(take_U=self.take_U, latent_d=self.latent_d, config=self.config, rng=self.rng)
+        return super().get_params(deep=deep) | dict(take_U=self.take_U, latent_d=self.latent_d, config=self.config, rng=self.rng, n_particles_for_prediction=self.n_particles_for_prediction)

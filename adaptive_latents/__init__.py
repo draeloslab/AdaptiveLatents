@@ -17,4 +17,4 @@ from .regressions import VanillaOnlineRegressor
 from .timed_data_source import ArrayWithTime
 from .transformer import CenteringTransformer, Concatenator, KernelSmoother, Pipeline, Tee, ZScoringTransformer
 from .vjf import VJF
-from .input_sources.kalman_filter import KalmanFilter
+from .input_sources.kalman_filter import StreamingKalmanFilter

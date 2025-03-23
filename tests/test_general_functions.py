@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 
 import adaptive_latents
+from adaptive_latents import ArrayWithTime
 
 
 class TestJaxEnvironment:
@@ -64,3 +65,31 @@ def test_cache_works(rng, tmp_path):
 #  test_nsteps_inbwrun_works_correctly
 #  also should make the timing of logs more clear
 #  make sure the config in-file defaults equal the repo defaults
+
+@pytest.mark.parametrize("a,b,expected", [
+    (
+        ArrayWithTime([1,2,3], [1,2,3]),
+        ArrayWithTime([1,2,3], [1,2,3]),
+        ArrayWithTime([0,0,0], [1,2,3])
+    ),
+    (
+        ArrayWithTime([2, 3], [2, 3]),
+        ArrayWithTime([1, 2, 3], [1, 2, 3]),
+        ArrayWithTime([0, 0], [2, 3])
+    ),
+    (
+            ArrayWithTime([2, 3, 4], [2, 3, 4]),
+            ArrayWithTime([1, 2, 3], [1, 2, 3]),
+            ArrayWithTime([0, 0], [2, 3])
+    ),
+    (
+        ArrayWithTime([0,1,2,3,4], [0,1,2,3,4]),
+        ArrayWithTime([1,2,3], [1,2,3]),
+        ArrayWithTime([0,0,0], [1,2,3])
+    ),
+])
+def test_array_subtraction_works(a,b,expected):
+    for aa, bb in [(a,b), [b,a]]:
+        diff = ArrayWithTime.subtract_aligned_indices(aa, bb)
+        assert (diff == expected).all()
+        assert (diff.t == expected.t).all()

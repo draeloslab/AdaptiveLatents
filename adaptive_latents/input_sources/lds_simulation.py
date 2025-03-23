@@ -93,8 +93,9 @@ class LDS:
         return lds
 
     @classmethod
-    def nest_dynamical_system(cls, rotations, transitions_per_rotation=30 + 1 / np.pi, stims_per_rotation=1, radius=5, u_function=None, rng=None):
+    def nest_dynamical_system(cls, rotations, transitions_per_rotation=30 + 1 / np.pi, stims_per_rotation=1, radius=5, u_function=None, rng=None, stim_early_shift=1e-8):
         rng = rng if rng is not None else np.random.default_rng()
+        u_function = 'curvy' if u_function is None else u_function
         transitions_per_rotation = transitions_per_rotation
         base_lds = LDS.circular_lds(transitions_per_rotation=transitions_per_rotation, rng=rng)
 
@@ -115,16 +116,21 @@ class LDS:
         stim = t * 0
         stim[rng.choice(stim.shape[0], size=int(stims_per_rotation * N / transitions_per_rotation), replace=False)] = 1
 
-        if u_function is None:
+        if u_function == 'curvy':
             def u_function(lds, state, i, rng):
                 u = np.zeros(lds.B.shape[0])
                 u[2] = stim[i] * state[0] / np.linalg.norm(state[:2])
+                return u
+        elif u_function == 'constant':
+            def u_function(lds, state, i, rng):
+                u = np.zeros(lds.B.shape[0])
+                u[2] = stim[i] * 100
                 return u
 
         states, observations, received_stim = lds.simulate(N, initial_state=[radius, 0, 0], U=u_function, rng=rng)
 
         X = ArrayWithTime(states, t)
         Y = ArrayWithTime(observations, t)
-        stim = ArrayWithTime(stim[:,None], t - 1e-8)
+        stim = ArrayWithTime(stim[:,None], t - stim_early_shift)
 
         return X, Y, stim
