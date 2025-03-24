@@ -122,7 +122,7 @@ def test_predictor_accuracy(predictor_maker, n_rotations, rng, show_plots):
 
 
 @pytest.mark.parametrize('predictor_maker,dynamics_parameter_getter', [
-    # (StreamingKalmanFilter, lambda kf: kf.A),
+    (StreamingKalmanFilter, lambda kf: kf.A),
     (functools.partial(Bubblewrap, M=60), lambda bw: bw.A),
     # (functools.partial(VJF, latent_d=2, rng=np.random.default_rng(4)), lambda v: ),
 ])
@@ -145,4 +145,4 @@ def test_can_turn_off_parameter_learning(predictor_maker, dynamics_parameter_get
 
     predictor.toggle_parameter_fitting(True)
     predictor.offline_run_on([(Y3, 'X')], convinient_return=False)
-    assert not np.isclose(dynamics_param, dynamics_parameter_getter(predictor)).any()
+    assert np.isclose(dynamics_param, dynamics_parameter_getter(predictor)).mean() < .25

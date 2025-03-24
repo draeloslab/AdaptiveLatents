@@ -111,9 +111,10 @@ class KalmanFilter:
 
 
 class StreamingKalmanFilter(Predictor, KalmanFilter):
-    def __init__(self, input_streams=None, output_streams=None, log_level=None, use_steady_state_k=False, subtract_means=True, no_hidden_state=True):
+    base_algorithm = KalmanFilter
+    def __init__(self, input_streams=None, output_streams=None, log_level=None, use_steady_state_k=False, subtract_means=True, no_hidden_state=True, check_dt=False):
         input_streams = input_streams or {0: 'X', 1: 'Y', 2: 'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}
-        Predictor.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level)
+        Predictor.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level, check_dt=check_dt)
         KalmanFilter.__init__(self, use_steady_state_k=use_steady_state_k, subtract_means=subtract_means)
         self.no_hidden_state = no_hidden_state
         self.steps_between_refits = 25
@@ -165,4 +166,11 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
                 self.observation_history.append([])
 
     def get_state(self):
-        return self.state
+        state = self.state if self.state is not None else np.nan
+        return state
+
+    def get_params(self, deep=True):
+        return super().get_params(deep) | dict(use_steady_state_k=self.use_steady_state_K, subtract_means=self.subtract_means)
+
+    def get_arbitrary_dynamics_parameter(self):
+        return self.A

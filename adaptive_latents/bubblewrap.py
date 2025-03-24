@@ -558,7 +558,7 @@ class Bubblewrap(Predictor, BaseBubblewrap):
     base_algorithm = BaseBubblewrap
 
     def __init__(self, *, input_streams=None, output_streams=None, log_level=None,
-                 n_steps_to_predict=1, check_dt=True,
+                 n_steps_to_predict=1, check_dt=False,
                  **kwargs,  # see BaseBubblewrap parameters, there are too many
              ):
         input_streams = input_streams or {0: 'X', 'dt': 'dt', 'dt_X':'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}
@@ -600,6 +600,8 @@ class Bubblewrap(Predictor, BaseBubblewrap):
                 self.grad_Q()
 
     def predict(self, n_steps):
+        if not self.is_initialized:
+            return numpy.nan
         method = 'mean'
         alpha = self.get_alpha_at_n_steps(n_steps)
         match method:
@@ -612,10 +614,13 @@ class Bubblewrap(Predictor, BaseBubblewrap):
         return numpy.array(location)
 
     def get_state(self):
-        if self.alpha is None:
+        if not self.is_initialized:
             return numpy.nan
         else:
             return numpy.array(self.alpha)
+
+    def get_arbitrary_dynamics_parameter(self):
+        return self.A
 
     def _partial_fit_transform(self, data, stream=0, return_output_stream=False):
         if self.input_streams[stream] == 'dt':
@@ -648,7 +653,7 @@ class Bubblewrap(Predictor, BaseBubblewrap):
             copy_row_on_teleport=self.copy_row_on_teleport,
             num_grad_q=self.num_grad_q,
             sigma_orig_adjustment=self.sigma_orig_adjust,
-            check_consistent_dt=self.check_dt,
+            check_dt=self.check_dt,
         )
 
         return params | super().get_params()

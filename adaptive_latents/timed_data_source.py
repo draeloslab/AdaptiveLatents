@@ -87,7 +87,7 @@ class ArrayWithTime(np.ndarray):
     # https://stackoverflow.com/a/51955094
     def __new__(cls, input_array, t):
         obj = np.asarray(input_array).view(cls)
-        obj.t = np.array(t)
+        obj.t = t
         return obj
 
     def __array_finalize__(self, obj):
@@ -149,16 +149,18 @@ class ArrayWithTime(np.ndarray):
     @classmethod
     def align_indices(cls, a, b):
         # there's a faster way to do this with np.searchsorted
+        a_t = np.array(a.t)
+        b_t = np.array(b.t)
         a: cls
-        assert (a.t[1:] - a.t[:-1] > 0).all()
-        assert (b.t[1:] - b.t[:-1] > 0).all()
+        assert (a_t[1:] - a_t[:-1] > 0).all()
+        assert (b_t[1:] - b_t[:-1] > 0).all()
         idx_a = 0
         idx_b = 0
         a_indices = []
         b_indices = []
 
         while idx_a < len(a) and idx_b < len(b):
-            d = a.t[idx_a] - b.t[idx_b]
+            d = a_t[idx_a] - b_t[idx_b]
             if np.isclose(0,d):
                 a_indices.append(idx_a)
                 b_indices.append(idx_b)
@@ -170,7 +172,7 @@ class ArrayWithTime(np.ndarray):
                 idx_a += 1
         a_indices = np.array(a_indices)
         b_indices = np.array(b_indices)
-        return cls(a[a_indices], a.t[a_indices]), cls(b[b_indices], b.t[b_indices])
+        return cls(a[a_indices], a_t[a_indices]), cls(b[b_indices], b_t[b_indices])
 
     @classmethod
     def subtract_aligned_indices(cls, a, b):

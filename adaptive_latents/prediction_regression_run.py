@@ -79,7 +79,6 @@ def pred_reg_run(
         num_grad_q=1,
         sigma_orig_adjustment=100,
         log_level=log_level,
-        check_consistent_dt=False,
     )
 
     dim_red = {
