@@ -1,4 +1,4 @@
-from adaptive_latents.transformer import DecoupledTransformer
+from adaptive_latents.predictor import Predictor
 from adaptive_latents.timed_data_source import ArrayWithTime
 import numpy as np
 import torch
@@ -118,11 +118,11 @@ class BaseVJF:
                 cloud = self.step_for_cloud(cloud)
             return cloud
 
-    def observe(self, y_t, u_t):
+    def observe(self, y_t, u_t, grad_kwargs):
         if self._vjf is None:
             self.init_vjf(ydim=y_t.shape[-1], udim=u_t.shape[-1])
 
-        self.q, loss = self._vjf.feed((y_t, u_t), self.q)
+        self.q, loss = self._vjf.feed((y_t, u_t), self.q, **grad_kwargs)
 
     @staticmethod
     def diagonal_normal_logpdf(mean, variance, sample):
@@ -213,44 +213,43 @@ class BaseVJF:
         return fig, axs
 
 
-class VJF(DecoupledTransformer, BaseVJF):
+class VJF(Predictor, BaseVJF):
     base_algorithm = BaseVJF
+
     def __init__(self, *, config=None, latent_d=6, rng=None, take_U=False, n_particles_for_prediction=500, input_streams=None, output_streams=None, log_level=None):
         if input_streams is None:
             input_streams = {1: 'U'} if take_U else {}
             input_streams = input_streams | {0: 'X', 2:'dt'}
-        DecoupledTransformer.__init__(self=self, input_streams=input_streams, output_streams=output_streams,
+        Predictor.__init__(self=self, input_streams=input_streams, output_streams=output_streams,
                                       log_level=log_level)
         BaseVJF.__init__(self, config=config, latent_d=latent_d, take_U=take_U, rng=rng)
         self.n_particles_for_prediction = n_particles_for_prediction
         self.last_seen = {}
-        self.dt = None  #TODO: this is just to be consistent with Bubblewrap
 
-    def _partial_fit(self, data, stream):
+    def observe(self, X, stream=None):
         if self.input_streams[stream] in ['X', 'U']:
-            if self.input_streams[stream] == 'X' and 'X' in self.last_seen and hasattr(self.last_seen['X'], 't'):
-                dt = data.t - self.last_seen['X'].t
-                assert self.dt is None or np.isclose(self.dt, dt)
-                self.dt = dt
-            self.last_seen[self.input_streams[stream]] = data
-
+            self.last_seen[self.input_streams[stream]] = X
             if len(self.last_seen) == (1 + self.take_U):
                 y, u = self.get_y_and_u()
-                self.observe(y, u)
 
-    def transform(self, data, stream=0, return_output_stream=False):
-        if self.input_streams[stream] == 'X' and self.q is not None:
-            q0 = self.q[0].detach().numpy()
-            data = ArrayWithTime.from_transformed_data(q0, data)
-        elif self.input_streams[stream] == 'dt_X' and self.q is not None:
-            dt = data[0,0]
-            if self.dt is not None:
-                steps = dt / self.dt
-                assert np.isclose(round(steps), steps)  # check that dt is an integer
-            steps = int(steps)
-            data = self.predict(steps, n_points=self.n_particles_for_prediction, method='mean')
+                grad_kwargs = {m:self.parameter_fitting for m in ['decoder', 'encoder', 'dynamics', 'noise']}
+                BaseVJF.observe(self, y, u, grad_kwargs=grad_kwargs)
 
-        return (data, stream) if return_output_stream else data
+    def predict(self, n_steps):
+        if self.q is None:
+            return np.nan
+        return BaseVJF.predict(self, n_steps, n_points=self.n_particles_for_prediction, method='mean')
+
+    def get_state(self):
+        if self.q is None:
+            return np.nan
+
+        return self.q[0].detach().numpy()
+
+    def get_arbitrary_dynamics_parameter(self):
+        if self.q is None:
+            return np.nan
+        return self._vjf.system.transition.weight.detach().numpy()
 
     def get_y_and_u(self, y=None, u=None):
         if y is None:

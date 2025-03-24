@@ -32,7 +32,8 @@ class FlippingTransformer1(DecoupledTransformer):
         pass
 
     def transform(self, data, stream=0, return_output_stream=False):
-        data = data[:, ::-1]
+        if self.input_streams[stream] == 'X':
+            data = data[:, ::-1]
         return (data, stream) if return_output_stream else data
 
 

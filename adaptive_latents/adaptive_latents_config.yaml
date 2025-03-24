@@ -28,3 +28,4 @@ default_parameters:
     copy_row_on_teleport: True
     sigma_orig_adjustment: 0
     n_thresh: 5.0e-4
+    dead_nodes_unlikely: True

@@ -74,7 +74,7 @@ def test_ar_k(rng, rank_limit, show_plots):
 @longrun
 @pytest.mark.parametrize('predictor_maker,n_rotations', [
     (StreamingKalmanFilter, 10),
-    (functools.partial(Bubblewrap), 1000),
+    (functools.partial(Bubblewrap), 250),
     (functools.partial(VJF, latent_d=2, rng=np.random.default_rng(4)), 1000),
 ])
 def test_predictor_accuracy(predictor_maker, n_rotations, rng, show_plots):
@@ -87,9 +87,9 @@ def test_predictor_accuracy(predictor_maker, n_rotations, rng, show_plots):
     predictor.offline_run_on([(Y, 'X')], convinient_return=False)
 
     trajectory = []
-    for i in range(0, transitions_per_rotation+1):  # TODO: what's the correct number of transitions here? +1 or +2?
+    for i in range(0, transitions_per_rotation+2):  # TODO: what's the correct number of transitions here? +1 or +2?
         stream = 'dt_X'
-        prediction = predictor.partial_fit_transform(ArrayWithTime([[i * Y.dt]], Y.t[-1]), stream=stream)
+        prediction = predictor.partial_fit_transform(ArrayWithTime([[i]], Y.t[-1]), stream=stream)
         trajectory.append(prediction)
 
     assert not np.isclose(trajectory[1].t, Y.t[-1] + Y.dt)
@@ -106,14 +106,14 @@ def test_predictor_accuracy(predictor_maker, n_rotations, rng, show_plots):
         ax.axis('equal')
         plt.show(block=True)
 
-        # if isinstance(predictor, Bubblewrap):
-        #     fig, ax = plt.subplots()
-        #     ax.plot(Y[:, 0], Y[:, 1])
-        #     ax.plot([Y[-1, 0], trajectory[0, 0]], [Y[-1, 1], trajectory[0, 1]], '--.', color='C2')
-        #     ax.plot(trajectory[:, 0], trajectory[:, 1], '.-')
-        #     ax.axis('equal')
-        #     predictor.show_bubbles_2d(ax)
-        #     plt.show(block=True)
+        if isinstance(predictor, Bubblewrap):
+            fig, ax = plt.subplots()
+            ax.plot(Y[:, 0], Y[:, 1])
+            ax.plot([Y[-1, 0], trajectory[0, 0]], [Y[-1, 1], trajectory[0, 1]], '--.', color='C2')
+            ax.plot(trajectory[:, 0], trajectory[:, 1], '.-')
+            ax.axis('equal')
+            predictor.show_bubbles_2d(ax)
+            plt.show(block=True)
 
     half_idx = len(trajectory) // 2
     assert np.abs((np.atan2(trajectory[-1, 1], trajectory[-1, 0]) - np.atan2(Y[-1, 1], Y[-1, 0])) * 180 / np.pi) < 90  # TODO: make this tighter than 90 degrees
@@ -121,12 +121,12 @@ def test_predictor_accuracy(predictor_maker, n_rotations, rng, show_plots):
 
 
 
-@pytest.mark.parametrize('predictor_maker,dynamics_parameter_getter', [
-    (StreamingKalmanFilter, lambda kf: kf.A),
-    (functools.partial(Bubblewrap, M=60), lambda bw: bw.A),
-    # (functools.partial(VJF, latent_d=2, rng=np.random.default_rng(4)), lambda v: ),
+@pytest.mark.parametrize('predictor_maker', [
+    StreamingKalmanFilter,
+    functools.partial(Bubblewrap, M=60),
+    functools.partial(VJF, latent_d=2, rng=np.random.default_rng(4)),
 ])
-def test_can_turn_off_parameter_learning(predictor_maker, dynamics_parameter_getter, rng):
+def test_can_turn_off_parameter_learning(predictor_maker, rng):
     transitions_per_rotation = 30
     radius = 10
     _, Y, _ = LDS.nest_dynamical_system(rotations=10, transitions_per_rotation=transitions_per_rotation, radius=radius,
@@ -137,12 +137,12 @@ def test_can_turn_off_parameter_learning(predictor_maker, dynamics_parameter_get
     predictor: adaptive_latents.predictor.Predictor = predictor_maker()
     predictor.offline_run_on([(Y1, 'X')], convinient_return=False)
 
-    dynamics_param = copy.deepcopy(dynamics_parameter_getter(predictor))
+    dynamics_param = copy.deepcopy(predictor.get_arbitrary_dynamics_parameter())
 
     predictor.toggle_parameter_fitting(False)
     predictor.offline_run_on([(Y2, 'X')], convinient_return=False)
-    assert (dynamics_param == dynamics_parameter_getter(predictor)).all()
+    assert (dynamics_param == predictor.get_arbitrary_dynamics_parameter()).all()
 
     predictor.toggle_parameter_fitting(True)
     predictor.offline_run_on([(Y3, 'X')], convinient_return=False)
-    assert np.isclose(dynamics_param, dynamics_parameter_getter(predictor)).mean() < .25
+    assert np.isclose(dynamics_param, predictor.get_arbitrary_dynamics_parameter()).mean() < .25

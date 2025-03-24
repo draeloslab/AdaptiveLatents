@@ -23,7 +23,7 @@ epsilon = 1e-10
 class BaseBubblewrap:
     @use_config_defaults
     # note the defaults in this signature are overridden by the defaults in adaptive_latents_config
-    def __init__(self, num=1000, seed=42, M=30, lam=1, nu=1e-2, eps=3e-2, B_thresh=1e-4, step=1e-6, n_thresh=5e-4, go_fast=False, copy_row_on_teleport=True, num_grad_q=1, sigma_orig_adjustment=0):
+    def __init__(self, num=1000, seed=42, M=30, lam=1, nu=1e-2, eps=3e-2, B_thresh=1e-4, step=1e-6, n_thresh=5e-4, go_fast=False, copy_row_on_teleport=True, num_grad_q=1, sigma_orig_adjustment=0, dead_nodes_unlikely=True):
 
         self.N = num  # Number of nodes
         self.seed = seed
@@ -38,6 +38,7 @@ class BaseBubblewrap:
         self.copy_row_on_teleport = copy_row_on_teleport
         self.num_grad_q = num_grad_q
         self.sigma_orig_adjust = sigma_orig_adjustment
+        self.dead_nodes_unlikely = dead_nodes_unlikely
 
         self.go_fast = go_fast
 
@@ -196,6 +197,8 @@ class BaseBubblewrap:
         x = self.obs.curr
         self.beta = 1 + 10 / (self.t + 1)
         self.B = self.logB_jax(x, self.mu, self.L, self.L_diag)
+        if self.dead_nodes_unlikely:
+            self.B = self.B.at[numpy.array(self.dead_nodes)].set(min(-10000, numpy.min(self.B) * 10))  # TODO: test this more
         self.update_B(x)
         self.gamma, self.alpha, self.En, self.S1, self.S2, self.n_obs = self.update_internal_jax(self.A, self.B, self.alpha, self.En, self.eps, self.S1, x, self.S2, self.n_obs)
 
@@ -440,12 +443,12 @@ def expB(B):
 
 
 @jit
-def update_internal(A, B, last_alpha, En, eps, S1, obs_curr, S2, n_obs):
-    gamma = B * A / (last_alpha.dot(A).dot(B) + 1e-16)
-    alpha = last_alpha.dot(gamma)
-    En = gamma * last_alpha[:, jnp.newaxis] + (1-eps) * En
-    S1 = (1-eps) * S1 + alpha[:, jnp.newaxis] * obs_curr
-    S2 = (1-eps) * S2 + alpha[:, jnp.newaxis, jnp.newaxis] * (obs_curr[:, jnp.newaxis] * obs_curr.T)
+def update_internal(A, B, last_alpha, En, eps, S1, x, S2, n_obs):
+    gamma = B * A / (last_alpha @ A @ B + 1e-16)
+    alpha = last_alpha @ gamma
+    En = gamma * last_alpha[:, None] + (1-eps) * En
+    S1 = (1-eps) * S1 + alpha[:, None] * x
+    S2 = (1-eps) * S2 + alpha[:, None, None] * (x[:, None] * x.T)
     n_obs = (1-eps) * n_obs + alpha
     return gamma, alpha, En, S1, S2, n_obs
 
