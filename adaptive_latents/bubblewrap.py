@@ -13,7 +13,7 @@ from scipy.linalg import fractional_matrix_power
 
 from .config import use_config_defaults
 from .timed_data_source import ArrayWithTime
-from .transformer import StreamingTransformer
+from .predictor import Predictor
 
 # TODO: save frozen vs estimator frozen
 # TODO: make this a parameter?
@@ -62,6 +62,28 @@ class BaseBubblewrap:
             if self.precision_note != jnp.float64:
                 warnings.warn("You should probably run jax with 64-bit floats.")
                 # raise FloatingPointError("You should probably run jax with 64-bit floats.")
+
+        self.alpha = None
+        self.A = None
+        self.B = None
+        self.S1 = None
+        self.S2 = None
+
+        self.d = None
+        self.En = None
+        self.n_obs = None
+
+        self.mu = None
+        self.mus_orig = None
+        self.sigma_orig = None
+        self.L = None
+        self.L_diag = None
+
+        self.last_alpha = None
+        self.lam = None
+        self.dead_nodes = None
+        self.t = None
+
 
     def init_nodes(self):
         ### Based on observed data so far of length M
@@ -532,21 +554,18 @@ def update_cov(cov, last, curr, mean, n):
     return f * (cov+lastm) + (1-f) * curro - currm
 
 
-class Bubblewrap(StreamingTransformer, BaseBubblewrap):
+class Bubblewrap(Predictor, BaseBubblewrap):
     base_algorithm = BaseBubblewrap
 
     def __init__(self, *, input_streams=None, output_streams=None, log_level=None,
-                 n_steps_to_predict=1, check_consistent_dt=True,
+                 n_steps_to_predict=1, check_dt=True,
                  **kwargs,  # see BaseBubblewrap parameters, there are too many
              ):
-        input_streams = input_streams or {0: 'X', 'dt': 'dt', 'dt_X':'dt_X'}
-        StreamingTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level)
+        input_streams = input_streams or {0: 'X', 'dt': 'dt', 'dt_X':'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}
+        Predictor.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level, check_dt=check_dt)
         BaseBubblewrap.__init__(self, **kwargs)
         self.unevaluated_predictions = {}
-        self.dt = None
-        self.last_timepoint = None
         self.n_steps_to_predict = n_steps_to_predict
-        self.check_consistent_dt = check_consistent_dt
 
     def partial_fit_transform(self, data, stream=0, return_output_stream=False):
         original_data = None
@@ -568,65 +587,51 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         self.log_for_partial_fit(original_data if original_data is not None else data, stream)
         return ret
 
+    def observe(self, X, stream=None):
+        assert X.shape[0] == 1
+        BaseBubblewrap.observe(self, X[0])
+
+        if not self.is_initialized and self.obs.n_obs > self.M:
+            self.init_nodes()
+
+        if self.is_initialized:
+            self.e_step()
+            if self.parameter_fitting:
+                self.grad_Q()
+
+    def predict(self, n_steps):
+        method = 'mean'
+        alpha = self.get_alpha_at_n_steps(n_steps)
+        match method:
+            case 'argmax':
+                location = self.mu[numpy.argmax(alpha)]
+            case 'mean':
+                location = (alpha @ self.mu)
+            case _:
+                raise ValueError(f'Unknown method {method}')
+        return numpy.array(location)
+
+    def get_state(self):
+        if self.alpha is None:
+            return numpy.nan
+        else:
+            return numpy.array(self.alpha)
+
     def _partial_fit_transform(self, data, stream=0, return_output_stream=False):
-        if self.input_streams[stream] == 'X':
-            if hasattr(data, 't') and self.last_timepoint is not None and self.dt is not None:
-                new_dt = data.t - self.last_timepoint
-                larger, smaller = sorted([self.dt, new_dt])
-                assert (not self.check_consistent_dt) or larger / smaller < 1.01
-
-            output = []
-            for i in range(len(data)): # todo: how to deal with t's within a data matrix
-                # partial fit
-                datapoint = data[i]
-                if not jnp.isnan(datapoint).any():
-                    # main path (no nans)
-                    self.observe(datapoint)
-
-                    if not self.is_initialized and self.obs.n_obs > self.M:
-                        self.init_nodes()
-
-                    if self.is_initialized:
-                        self.e_step()
-                        self.grad_Q()
-                elif self.is_initialized:
-                    # if there is a nan
-                    self.alpha = self.alpha @ self.A
-
-                # transform
-                if self.is_initialized:
-                    o = numpy.array(self.alpha)
-                else:
-                    o = numpy.zeros([1, self.N]) * numpy.nan
-                output.append(o)
-
-            if isinstance(data, ArrayWithTime):
-                data = ArrayWithTime(output, data.t)
-
-            if hasattr(data, 't'):
-                if self.last_timepoint is not None:
-                    self.dt = data.t - self.last_timepoint
-                self.last_timepoint = data.t
-
-        elif self.input_streams[stream] == 'dt':
+        if self.input_streams[stream] == 'dt':
             assert data.size == 1
             if self.is_initialized:
-                alpha_pred = self.get_alpha_at_t(data[0,0], relative_t=True)
+                steps = self.data_to_n_steps(data)
+                alpha_pred = self.get_alpha_at_n_steps(steps)
                 data = alpha_pred.reshape([1,-1])
             else:
                 data = ArrayWithTime(numpy.nan * numpy.zeros([1, self.N]), data.t)
-        elif self.input_streams[stream] == 'dt_X':
-            assert data.size == 1
-            if self.is_initialized:
-                location_pred = self.get_obs_space_pred_at_t(data[0,0], relative_t=True)
-                data = location_pred.reshape([1,-1])
-            else:
-                data = ArrayWithTime(numpy.nan * numpy.zeros([1, self.N]), data.t)
 
-        stream = self.output_streams[stream]
-        if return_output_stream:
-            return data, stream
-        return data
+            stream = self.output_streams[stream]
+        else:
+            data, stream = Predictor._partial_fit_transform(self, data, stream, return_output_stream=True)
+
+        return (data, stream) if return_output_stream else data
 
     def get_params(self, deep=False):
         params = dict(
@@ -643,7 +648,7 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
             copy_row_on_teleport=self.copy_row_on_teleport,
             num_grad_q=self.num_grad_q,
             sigma_orig_adjustment=self.sigma_orig_adjust,
-            check_consistent_dt=self.check_consistent_dt,
+            check_consistent_dt=self.check_dt,
         )
 
         return params | super().get_params()
@@ -677,13 +682,8 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
                     self.log['log_pred_p_origin_t'].append(origin_t)
                     del self.unevaluated_predictions[t_to_eval]
 
-    def get_alpha_at_t(self, t, alpha=None, relative_t=False, method='power'):
-        # todo: get rid of alpha and relative_t
-        alpha = alpha or self.alpha
-        dt = t if relative_t else t - self.last_timepoint
-        n_steps = dt/self.dt
-        assert (not self.check_consistent_dt) or numpy.isclose(round(n_steps), n_steps)
-        n_steps = int(n_steps)
+    def get_alpha_at_n_steps(self, n_steps, alpha=None, method='power'):
+        alpha = alpha if alpha is not None else self.alpha
 
         if method == 'power':
             alpha = numpy.real(alpha @ jnp.linalg.matrix_power(self.A, n_steps))
@@ -694,18 +694,8 @@ class Bubblewrap(StreamingTransformer, BaseBubblewrap):
         else:
             raise ValueError(f'Unknown method {method}')
 
-        return ArrayWithTime(alpha, dt + self.last_timepoint)
+        return alpha
 
-    def get_obs_space_pred_at_t(self, t, relative_t=True, method='argmax'):
-        alpha = self.get_alpha_at_t(t, relative_t=relative_t)
-        match method:
-            case 'argmax':
-                location = self.mu[numpy.argmax(alpha)]
-            case 'mean':
-                location = (alpha @ self.mu).mean(axis=0)
-            case _:
-                raise ValueError(f'Unknown method {method}')
-        return numpy.array(location)
 
 
     def show_bubbles_2d(self, ax, dim_1=0, dim_2=1, alpha_coefficient=1, n_sds=3, name_theta=45, show_names=True, n_obs_thresh=.1):

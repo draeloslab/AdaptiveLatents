@@ -5,6 +5,7 @@ from adaptive_latents.input_sources.kalman_filter import StreamingKalmanFilter
 from adaptive_latents import VJF, Bubblewrap, ArrayWithTime
 import adaptive_latents
 import functools
+import copy
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
 
@@ -71,15 +72,15 @@ def test_ar_k(rng, rank_limit, show_plots):
 
 
 @longrun
-@pytest.mark.parametrize('predictor_maker', [
-    StreamingKalmanFilter,
-    functools.partial(VJF, latent_d=2, rng=np.random.default_rng(4)),
-    functools.partial(Bubblewrap),
+@pytest.mark.parametrize('predictor_maker,n_rotations', [
+    (StreamingKalmanFilter, 10),
+    (functools.partial(Bubblewrap), 1000),
+    (functools.partial(VJF, latent_d=2, rng=np.random.default_rng(4)), 1000),
 ])
-def test_predictor(predictor_maker, rng, show_plots):
+def test_predictor_accuracy(predictor_maker, n_rotations, rng, show_plots):
     transitions_per_rotation = 30
     radius = 10
-    _, Y, _ = LDS.nest_dynamical_system(rotations=1000, transitions_per_rotation=transitions_per_rotation, radius=radius, u_function=lambda **_: np.zeros(3), rng=rng)
+    _, Y, _ = LDS.nest_dynamical_system(rotations=n_rotations, transitions_per_rotation=transitions_per_rotation, radius=radius, u_function=lambda **_: np.zeros(3), rng=rng)
 
     predictor: adaptive_latents.transformer.StreamingTransformer = predictor_maker()
 
@@ -117,3 +118,31 @@ def test_predictor(predictor_maker, rng, show_plots):
     half_idx = len(trajectory) // 2
     assert np.abs((np.atan2(trajectory[-1, 1], trajectory[-1, 0]) - np.atan2(Y[-1, 1], Y[-1, 0])) * 180 / np.pi) < 90  # TODO: make this tighter than 90 degrees
     assert np.abs((np.atan2(trajectory[half_idx, 1], trajectory[half_idx, 0]) - np.atan2(Y[-1, 1], Y[-1, 0])) * 180 / np.pi) > 110
+
+
+
+@pytest.mark.parametrize('predictor_maker,dynamics_parameter_getter', [
+    # (StreamingKalmanFilter, lambda kf: kf.A),
+    (functools.partial(Bubblewrap, M=60), lambda bw: bw.A),
+    # (functools.partial(VJF, latent_d=2, rng=np.random.default_rng(4)), lambda v: ),
+])
+def test_can_turn_off_parameter_learning(predictor_maker, dynamics_parameter_getter, rng):
+    transitions_per_rotation = 30
+    radius = 10
+    _, Y, _ = LDS.nest_dynamical_system(rotations=10, transitions_per_rotation=transitions_per_rotation, radius=radius,
+                                        u_function=lambda **_: np.zeros(3), rng=rng)
+
+    Y1, Y2, Y3 = Y.slice(None,-2*transitions_per_rotation), Y.slice(-2*transitions_per_rotation,-1*transitions_per_rotation), Y.slice(-1*transitions_per_rotation, None)
+
+    predictor: adaptive_latents.predictor.Predictor = predictor_maker()
+    predictor.offline_run_on([(Y1, 'X')], convinient_return=False)
+
+    dynamics_param = copy.deepcopy(dynamics_parameter_getter(predictor))
+
+    predictor.toggle_parameter_fitting(False)
+    predictor.offline_run_on([(Y2, 'X')], convinient_return=False)
+    assert (dynamics_param == dynamics_parameter_getter(predictor)).all()
+
+    predictor.toggle_parameter_fitting(True)
+    predictor.offline_run_on([(Y3, 'X')], convinient_return=False)
+    assert not np.isclose(dynamics_param, dynamics_parameter_getter(predictor)).any()

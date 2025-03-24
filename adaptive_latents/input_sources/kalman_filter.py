@@ -1,5 +1,6 @@
 import numpy as np
 from adaptive_latents.transformer import StreamingTransformer, ArrayWithTime
+from adaptive_latents.predictor import Predictor
 
 
 class KalmanFilter:
@@ -18,12 +19,23 @@ class KalmanFilter:
         self.state = None
 
     def fit(self, X, Y):
+        _X = None
+        if isinstance(X, list):
+            assert len(np.array(X[0]).shape) == 3
+            _X = X
+            X, Y = np.vstack([np.vstack(x) for x in X]), np.vstack([np.vstack(y) for y in Y])
+
         X_mean, Y_mean = (X.mean(axis=0), Y.mean(axis=0)) if self.subtract_means else (0,0)
 
         X = X - X_mean
         Y = Y - Y_mean
 
-        A, _, _, _ = np.linalg.lstsq(X[:-1], X[1:])
+        origin = X[:-1]
+        destination = X[1:]
+        if _X is not None:
+            origin = np.vstack([np.vstack(x[:-1]) for x in _X])
+            destination = np.vstack([np.vstack(x[1:]) for x in _X])
+        A, _, _, _ = np.linalg.lstsq(origin, destination)
 
         C, _, _, _ = np.linalg.lstsq(X, Y)
 
@@ -98,49 +110,59 @@ class KalmanFilter:
         return prediction
 
 
-class StreamingKalmanFilter(StreamingTransformer, KalmanFilter):
-    base_algorithm = KalmanFilter
-
-    def __init__(self, use_steady_state_k=False, subtract_means=True, no_hidden_state=True, input_streams=None, output_streams=None, log_level=None):
-        input_streams = input_streams or {0:'X', 1:'Y'}
+class StreamingKalmanFilter(Predictor, KalmanFilter):
+    def __init__(self, input_streams=None, output_streams=None, log_level=None, use_steady_state_k=False, subtract_means=True, no_hidden_state=True):
+        input_streams = input_streams or {0: 'X', 1: 'Y', 2: 'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}
+        Predictor.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level)
         KalmanFilter.__init__(self, use_steady_state_k=use_steady_state_k, subtract_means=subtract_means)
-        StreamingTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level)
-
         self.no_hidden_state = no_hidden_state
+        self.steps_between_refits = 25
 
         self.last_seen = {}
-        self.latent_state_history = []
-        self.observation_history = []
+        self.latent_state_history = [[]]
+        self.observation_history = [[]]
 
-    def _partial_fit_transform(self, data, stream, return_output_stream):
+    def predict(self, n_steps):
+        if self.A is not None:
+            predicted_latent_state = KalmanFilter.predict(self, n_steps)
+            predicted_observation = (predicted_latent_state @ self.C)[-1]
+        else:
+            predicted_observation = np.nan
+        return predicted_observation
+
+    def observe(self, X, stream=None):
         semantic_stream = self.input_streams[stream]
         if semantic_stream in {'X', 'Y'}:
-            self.last_seen[semantic_stream] = data
+            if self.parameter_fitting:
+                self.last_seen[semantic_stream] = X
 
-            if semantic_stream =='X' and self.A is not None:
-                self.step(data)
+            if ('Y' in self.last_seen or self.no_hidden_state) and 'X' in self.last_seen and self.parameter_fitting:
+                self.observation_history[-1].append(self.last_seen['X'])
+                self.latent_state_history[-1].append(self.last_seen['X' if self.no_hidden_state else 'Y'])
 
-            if ('Y' in self.last_seen or self.no_hidden_state) and 'X' in self.last_seen:
-                self.observation_history.append(self.last_seen['X'])
-                self.latent_state_history.append(self.last_seen['X' if self.no_hidden_state else 'Y'])
+            if semantic_stream == 'X' and self.A is not None:
+                self.step(X)
 
-            if len(self.latent_state_history) == len(self.observation_history) and len(self.observation_history) and len(self.observation_history) % 25 == 0:
-                latent = np.squeeze(self.latent_state_history)
-                obs = np.squeeze(self.observation_history)
-                self.fit(X=latent, Y=obs)
-                self.state = latent[obs.shape[0]-25]
-                for i in range(25):
-                    self.step(Y=obs[obs.shape[0]-25+i])
+            if (
+                    len(self.latent_state_history[-1]) == len(self.observation_history[-1])
+                    and len(self.observation_history[-1])
+                    and len(self.observation_history[-1]) % self.steps_between_refits == 0
+            ):
+                self.fit(X=self.latent_state_history, Y=self.observation_history)
+                latent = np.squeeze(self.latent_state_history[-1])
+                obs = np.squeeze(self.observation_history[-1])
+                self.state = latent[obs.shape[0]-20]
+                for i in range(20):
+                    self.step(Y=obs[obs.shape[0]-20+i])
 
-        elif semantic_stream == 'dt_X':
-            if self.A is not None:
-                dt = self.observation_history[-1].t - self.observation_history[-2].t
-                steps = data[0,0] / dt
-                assert np.isclose(steps, steps:=int(steps))
-                predicted_latent_state = self.predict(steps)
-                predicted_observation = (predicted_latent_state @ self.C)[-1]
-                data = ArrayWithTime.from_transformed_data(predicted_observation, data)
-            else:
-                data = np.nan * data
+    def toggle_parameter_fitting(self, value=None):
+        super().toggle_parameter_fitting(value)
+        if not self.parameter_fitting:
+            self.last_seen = {}
+            if len(self.latent_state_history[-1]):
+                self.latent_state_history.append([])
+            if len(self.observation_history[-1]):
+                self.observation_history.append([])
 
-        return (data, stream) if return_output_stream else data
+    def get_state(self):
+        return self.state

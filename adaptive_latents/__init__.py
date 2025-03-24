@@ -5,7 +5,7 @@ from .config import CONFIG
 jax.config.update('jax_enable_x64', CONFIG.jax_enable_x64)
 jax.config.update('jax_platform_name', CONFIG.jax_platform_name)
 
-from . import input_sources, plotting_functions, profiling_functions, utils
+from . import input_sources, plotting_functions, profiling_functions, utils, predictor
 from .bubblewrap import Bubblewrap
 from .ica import mmICA
 from .input_sources import datasets
