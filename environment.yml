@@ -12,6 +12,7 @@ dependencies:
   - pyyaml
   - pytest
   - pytest-xdist
+  - pytest-timeout
   - nbval
   - pandas
   - ffmpeg

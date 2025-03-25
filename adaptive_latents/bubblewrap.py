@@ -23,7 +23,7 @@ epsilon = 1e-10
 class BaseBubblewrap:
     @use_config_defaults
     # note the defaults in this signature are overridden by the defaults in adaptive_latents_config
-    def __init__(self, num=1000, seed=42, M=30, lam=1, nu=1e-2, eps=3e-2, B_thresh=1e-4, step=1e-6, n_thresh=5e-4, go_fast=False, copy_row_on_teleport=True, num_grad_q=1, sigma_orig_adjustment=0, dead_nodes_unlikely=True):
+    def __init__(self, num=1000, seed=42, M=30, lam=1, nu=1e-2, eps=3e-2, B_thresh=1e-4, step=1e-6, n_thresh=5e-4, go_fast=False, copy_row_on_teleport=True, num_grad_q=1, sigma_orig_adjustment=0, dead_nodes_unlikely=False):
 
         self.N = num  # Number of nodes
         self.seed = seed
@@ -279,6 +279,7 @@ class BaseBubblewrap:
         self.m_A, self.v_A, self.log_A = single_adam(self.step, self.m_A, self.v_A, A, self.t, self.log_A)
 
     def unevaluated_log_pred_p(self, steps):
+        # TODO: make this work better with other functions in the class (e.g. predict(n_steps))
         if not self.is_initialized:
             return lambda x: numpy.nan
 
@@ -604,7 +605,7 @@ class Bubblewrap(Predictor, BaseBubblewrap):
 
     def predict(self, n_steps):
         if not self.is_initialized:
-            return numpy.nan
+            return numpy.array([[numpy.nan]])
         method = 'mean'
         alpha = self.get_alpha_at_n_steps(n_steps)
         match method:
@@ -618,7 +619,7 @@ class Bubblewrap(Predictor, BaseBubblewrap):
 
     def get_state(self):
         if not self.is_initialized:
-            return numpy.nan
+            return numpy.array([numpy.nan])
         else:
             return numpy.array(self.alpha)
 
@@ -631,9 +632,11 @@ class Bubblewrap(Predictor, BaseBubblewrap):
             if self.is_initialized:
                 steps = self.data_to_n_steps(data)
                 alpha_pred = self.get_alpha_at_n_steps(steps)
-                data = alpha_pred.reshape([1,-1])
+                pred = alpha_pred.reshape([1,-1])
             else:
-                data = ArrayWithTime(numpy.nan * numpy.zeros([1, self.N]), data.t)
+                pred = numpy.nan * numpy.zeros([1, self.N])
+
+            data = ArrayWithTime.from_transformed_data(pred, data)
 
             stream = self.output_streams[stream]
         else:
@@ -657,6 +660,7 @@ class Bubblewrap(Predictor, BaseBubblewrap):
             num_grad_q=self.num_grad_q,
             sigma_orig_adjustment=self.sigma_orig_adjust,
             check_dt=self.check_dt,
+            dead_nodes_unlikely=self.dead_nodes_unlikely,
         )
 
         return params | super().get_params()
@@ -672,22 +676,27 @@ class Bubblewrap(Predictor, BaseBubblewrap):
             if 'alpha' not in self.log:
                 for key in ['alpha', 'entropy', 't', 'log_pred_p', 'log_pred_p_origin_t']:
                     self.log[key] = []
-            if hasattr(data, 't'):
+            if hasattr(data, 't') and self.check_dt:
+                # without self.check_dt otherwise self.dt is not defined
                 t = data.t
+                dt = self.dt
             else:
                 # TODO: this is not a great fix, but it works
                 t = self.obs.n_obs
+                dt = 1
             self.log['alpha'].append(numpy.array(self.alpha))
             self.log['entropy'].append(self.entropy(n_steps=self.n_steps_to_predict))
             self.log['t'].append(t)
 
-            real_time_offset = (self.dt or 1) * self.n_steps_to_predict
+            real_time_offset = dt * self.n_steps_to_predict
             self.unevaluated_predictions[t + real_time_offset] = (t, self.unevaluated_log_pred_p(self.n_steps_to_predict))
             for t_to_eval in list(self.unevaluated_predictions.keys()):
                 if numpy.isclose(t, t_to_eval):
                     origin_t, f = self.unevaluated_predictions[t_to_eval]
                     self.log['log_pred_p'].append(f(data))
                     self.log['log_pred_p_origin_t'].append(origin_t)
+                    del self.unevaluated_predictions[t_to_eval]
+                elif t_to_eval < t:
                     del self.unevaluated_predictions[t_to_eval]
 
     def get_alpha_at_n_steps(self, n_steps, alpha=None, method='power'):
@@ -1020,8 +1029,3 @@ class Bubblewrap(Predictor, BaseBubblewrap):
                 yield ArrayWithTime([[1]], 1), s
             else:
                 super().expected_data_streams(rng, DIM)
-
-    @staticmethod
-    def make_prediction_times(source):
-        source: ArrayWithTime
-        return ArrayWithTime(numpy.ones_like(source.t).reshape(-1,1) * source.dt, source.t)

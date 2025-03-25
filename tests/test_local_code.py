@@ -34,7 +34,6 @@ def test_script_execution(script, show_plots):
     main(**kwargs)
 
 
-
 # collect all the datasets
 to_test = []
 for dataset in get_all_subclasses(datasets.Dataset):
@@ -56,7 +55,6 @@ def test_all_datasets(dataset):
 
 
 @longrun
-def test_all_prr_defaults():
-    prr.pred_reg_run_with_defaults('odoherty21', exit_time=60)
-    prr.pred_reg_run_with_defaults('naumann24u', exit_time=300)
-    prr.pred_reg_run_with_defaults('zong22', exit_time=60)
+@pytest.mark.parametrize("dataset,exit_time", [('odoherty21', 60), ('naumann24u',300), ('zong22', 60)])
+def test_all_prr_defaults(dataset, exit_time):
+    prr.pred_reg_run_with_defaults(dataset, exit_time=exit_time)

@@ -50,11 +50,12 @@ class Predictor(StreamingTransformer):
                         self.dt = dt
                 self._last_t = data.t
 
-            assert data.shape[0] == 1
+            data_depth = 1
+            assert data.shape[0] == data_depth
 
-            self.observe(data, stream=stream)
-
-            data = ArrayWithTime.from_transformed_data(self.get_state(), data)
+            if np.isfinite(data).all():
+                self.observe(data, stream=stream)
+            data = ArrayWithTime.from_transformed_data(self.get_state().reshape(data_depth,-1), data)
 
         elif self.input_streams[stream] == 'dt_X':
             steps = self.data_to_n_steps(data)
@@ -77,6 +78,10 @@ class Predictor(StreamingTransformer):
         steps = int(steps)
         return steps
 
+    def make_prediction_times(self, source, n_steps=1):
+        dt = (source.dt if self.check_dt else 1) * n_steps
+        return ArrayWithTime(np.ones_like(source.t).reshape(-1,1) * dt, source.t)
+
     def get_params(self, deep=True):
         return super().get_params(deep) | dict(check_dt=self.check_dt)
 
@@ -91,7 +96,7 @@ class Predictor(StreamingTransformer):
 
     @classmethod
     def test_if_api_compatible(cls, constructor=None, rng=None, DIM=None):
-        constructor, rng, dim = super().test_if_api_compatible(constructor, rng, DIM)
+        constructor, rng, DIM = super().test_if_api_compatible(constructor, rng, DIM)
         cls._test_checks_dt(constructor, rng, DIM)
 
     @staticmethod

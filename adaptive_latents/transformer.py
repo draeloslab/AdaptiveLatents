@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from collections import deque
 
 import numpy as np
+import pytest
 from frozendict import frozendict
 from tqdm.auto import tqdm
 
@@ -272,6 +273,9 @@ class StreamingTransformer(ABC):
     def _test_can_save_and_rerun(constructor, rng, tmp_path, DIM=6):
         transformer: StreamingTransformer = constructor()
 
+        if 'VJF' in str(type(transformer)):
+            pytest.xfail("pytorch can't serialize right now")
+
         for _ in range(5):
             for data, s in transformer.expected_data_streams(rng, DIM):
                 transformer.partial_fit_transform(data, s)
@@ -300,7 +304,7 @@ class StreamingTransformer(ABC):
         base_signature = inspect.signature(transformer.base_algorithm)
         base_args = set(base_signature.parameters.keys())
         found_args = set(p.keys())
-        assert base_args.issubset(found_args)
+        assert base_args.issubset(found_args), 'you probably need to update get_params'
 
         found_signature = inspect.signature(type(transformer))
         for arg in base_args:

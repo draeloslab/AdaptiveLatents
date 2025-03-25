@@ -22,7 +22,7 @@ def main(show_plots=True):
         reg := VanillaOnlineRegressor(input_streams={0: 'X', 2: 'qX', 3: 'Y'}, log_level=2),
     ])
 
-    prediction_query_times = Bubblewrap.make_prediction_times(neural_data)
+    prediction_query_times = bw.make_prediction_times(neural_data)
 
     result = p.offline_run_on(
         sources=[neural_data, behavioral_data, prediction_query_times, behavioral_data],

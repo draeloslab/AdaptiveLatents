@@ -128,7 +128,7 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
             predicted_latent_state = KalmanFilter.predict(self, n_steps)
             predicted_observation = (predicted_latent_state @ self.C)[-1]
         else:
-            predicted_observation = np.nan
+            predicted_observation = np.array([[np.nan]])
         return predicted_observation
 
     def observe(self, X, stream=None):
@@ -166,7 +166,7 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
                 self.observation_history.append([])
 
     def get_state(self):
-        state = self.state if self.state is not None else np.nan
+        state = self.state if self.state is not None else np.array([np.nan])
         return state
 
     def get_params(self, deep=True):

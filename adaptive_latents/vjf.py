@@ -216,12 +216,11 @@ class BaseVJF:
 class VJF(Predictor, BaseVJF):
     base_algorithm = BaseVJF
 
-    def __init__(self, *, config=None, latent_d=6, rng=None, take_U=False, n_particles_for_prediction=500, input_streams=None, output_streams=None, log_level=None):
+    def __init__(self, *, config=None, latent_d=6, rng=None, take_U=False, n_particles_for_prediction=500, check_dt=False, input_streams=None, output_streams=None, log_level=None):
         if input_streams is None:
             input_streams = {1: 'U'} if take_U else {}
             input_streams = input_streams | {0: 'X', 2:'dt'}
-        Predictor.__init__(self=self, input_streams=input_streams, output_streams=output_streams,
-                                      log_level=log_level)
+        Predictor.__init__(self=self, input_streams=input_streams, output_streams=output_streams, log_level=log_level, check_dt=check_dt)
         BaseVJF.__init__(self, config=config, latent_d=latent_d, take_U=take_U, rng=rng)
         self.n_particles_for_prediction = n_particles_for_prediction
         self.last_seen = {}

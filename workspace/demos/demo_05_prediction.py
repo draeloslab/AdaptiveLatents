@@ -23,9 +23,9 @@ def main(show_plots=True):
         bw := Bubblewrap(log_level=2, input_streams={0: 'X', 2: 'dt'})
     ])
 
-    prediction_query_times = Bubblewrap.make_prediction_times(neural_data)
+    prediction_query_times = bw.make_prediction_times(neural_data)
 
-    p.offline_run_on([neural_data, behavioral_data, prediction_query_times], show_tqdm=True)
+    p.offline_run_on([neural_data, behavioral_data, prediction_query_times], show_tqdm=True, exit_time=60)
 
     Bubblewrap.compare_runs([bw])
     if show_plots:

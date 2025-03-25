@@ -58,17 +58,8 @@ def pred_reg_run(
 ):
     stream_scaling_factors = stream_scaling_factors or {0: 1, 1: 0}
 
-    neural_data = copy.deepcopy(neural_data)
-    neural_data.t = neural_data.t + neural_lag
 
-    sources = [
-        (neural_data, 0),
-        (behavioral_data, 1),
-        (target_data, 2),
-        (ArrayWithTime((neural_data.t[1:] - neural_data.t[:-1]).reshape(-1, 1, 1), neural_data.t[:-1]), 3)
-    ]
-
-    bw = functools.partial(
+    partial_bw = functools.partial(
         Bubblewrap,
         num=n_bubbles,
         M=500,
@@ -87,9 +78,11 @@ def pred_reg_run(
         'mmica': mmICA,
     }.get(dim_red_method)(log_level=log_level)
 
-    last_steps = [bw(input_streams={0: 'X', 3: 'dt'}, log_level=log_level),
-                  VanillaOnlineRegressor(input_streams={0: 'X', 2: 'Y', 3: 'qX'},
-                                         log_level=log_level)] if predict else []
+    bw = partial_bw(input_streams={0: 'X', 3: 'dt'}, log_level=log_level)
+    last_steps = [
+        bw,
+        VanillaOnlineRegressor(input_streams={0: 'X', 2: 'Y', 3: 'qX'}, log_level=log_level),
+    ] if predict else []
 
     pipeline = Pipeline([
         CenteringTransformer(init_size=100, log_level=log_level),
@@ -100,6 +93,17 @@ def pred_reg_run(
         tee := Tee(input_streams={0: 0}, log_level=log_level),
         *last_steps
     ], log_level=log_level)
+
+    neural_data = copy.deepcopy(neural_data)
+    neural_data.t = neural_data.t + neural_lag
+    bw: Bubblewrap
+
+    sources = [
+        (neural_data, 0),
+        (behavioral_data, 1),
+        (target_data, 2),
+        (bw.make_prediction_times(target_data), 3)
+    ]
 
     e = PredictionEvaluation(sources, pipeline, target_pairs={'joint to beh': (3, 2)} if predict else {}, stream_names={3: 'pred', 2: 'target'}, exit_time=exit_time, evaluate=evaluate)
 

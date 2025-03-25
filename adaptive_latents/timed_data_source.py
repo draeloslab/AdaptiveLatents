@@ -1,5 +1,6 @@
 import types
 from abc import ABC, abstractmethod
+import warnings
 
 import numpy as np
 
@@ -187,12 +188,22 @@ class ArrayWithTime(np.ndarray):
         return dt
 
     @classmethod
-    def from_list(cls, input_list, squeeze_type='none', drop_early_nans=False):
+    def from_list(cls, input_list, squeeze_type='none', drop_early_nans=False, reshape_mid_nans=True):
         if drop_early_nans:
             i = 0
             while i < len(input_list) and not np.isfinite(input_list[i]).all():
                 i += 1
             input_list = input_list[i:]
+
+        if reshape_mid_nans:
+            for i in range(len(input_list)):
+                hit = False
+                if not np.isfinite(input_list[i]).any() and np.array(input_list[i]).shape[-1] != np.array(input_list[0]).shape[-1]:
+                    hit = True
+                    input_list[i] = input_list[i][..., :np.shape(input_list[0])[-1]]
+                    assert input_list[i].shape == np.array(input_list[0]).shape
+                if hit:
+                    warnings.warn('truncated an all-nan in the middle of a run')
 
         t = np.array([x.t for x in input_list])
         if squeeze_type == 'none' or squeeze_type is None:

@@ -21,6 +21,7 @@ pythonpath = [
 norecursedirs = ['datasets']
 addopts = '--doctest-modules --doctest-continue-on-failure'
 doctest_optionflags = "ELLIPSIS NORMALIZE_WHITESPACE"
+timeout = 120
 
 [tool.setuptools]
 packages = ["adaptive_latents"]
