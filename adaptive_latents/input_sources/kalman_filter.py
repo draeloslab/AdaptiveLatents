@@ -160,9 +160,9 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
         super().toggle_parameter_fitting(value)
         if not self.parameter_fitting:
             self.last_seen = {}
-            if len(self.latent_state_history[-1]):
+            if len(self.latent_state_history[-1]) < 2:
                 self.latent_state_history.append([])
-            if len(self.observation_history[-1]):
+            if len(self.observation_history[-1]) < 2:
                 self.observation_history.append([])
 
     def get_state(self):

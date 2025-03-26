@@ -115,31 +115,38 @@ class ArrayWithTime(np.ndarray):
         else:
             return super().__iter__()
 
-    def slice(self, start, stop=None):
-        if isinstance(start, np.ndarray) or isinstance(start, slice):
-            s = start
-        else:
-            s = slice(start, stop)
-        return ArrayWithTime(self[s], self.t[s])
+    def slice(self, *args, all_axes=False):
+        if not all_axes:
+            return ArrayWithTime(self[*args], self.t[*args])
+        elif all_axes:
+            return ArrayWithTime(self[*args], self.t[args[0]])
 
-    def slice_by_time(self, s, *args):
-        if not isinstance(s, slice):
-            s = slice(s, *args)
-        s: slice
-        assert s.step in (1, None)
+    def slice_by_time(self, *args, all_axes=False):
+        def convert_from_time_to_indices(x):
+            if isinstance(x, slice):
+                assert x.step is None
+                start, stop = x.start, x.stop
+                if start is None:
+                    start = self.t.min()
+                if stop is None:
+                    stop = self.t.max()
+                if stop < start:
+                    warnings.warn('stop greater than start; remember that time can be negative in slices')
+                start = np.searchsorted(self.t, start, side='left')
+                stop = np.searchsorted(self.t, stop, side='right')
+                return slice(start, stop)
+            elif x is ...:
+                return x
+            else:
+                return self.time_to_sample(x)
 
-        if s.start is None:
-            lower_constraint = True
-        else:
-            lower_constraint = (s.start <= self.t)
+        if len(args):
+            if all_axes:
+                args = (convert_from_time_to_indices(args[0]),) + args[1:]
+            else:
+                args = tuple(convert_from_time_to_indices(x) for x in args)
 
-        if s.stop is None:
-            upper_constraint = True
-        else:
-            upper_constraint = (self.t < s.stop)
-
-        s_in_samples = lower_constraint & upper_constraint
-        return ArrayWithTime(self[s_in_samples], self.t[s_in_samples])
+        return self.slice(*args, all_axes=all_axes)
 
     def as_array(self):
         return np.array(self)

@@ -132,7 +132,11 @@ def test_can_turn_off_parameter_learning(predictor_maker, rng):
     _, Y, _ = LDS.nest_dynamical_system(rotations=10, transitions_per_rotation=transitions_per_rotation, radius=radius,
                                         u_function=lambda **_: np.zeros(3), rng=rng)
 
-    Y1, Y2, Y3 = Y.slice(None,-2*transitions_per_rotation), Y.slice(-2*transitions_per_rotation,-1*transitions_per_rotation), Y.slice(-1*transitions_per_rotation, None)
+    Y1, Y2, Y3 = (
+        Y.slice(slice(None, -2*transitions_per_rotation)),
+        Y.slice(slice(-2*transitions_per_rotation, -1*transitions_per_rotation)),
+        Y.slice(slice(-1*transitions_per_rotation, None)),
+    )
 
     predictor: adaptive_latents.predictor.Predictor = predictor_maker()
     predictor.offline_run_on([(Y1, 'X')], convinient_return=False)

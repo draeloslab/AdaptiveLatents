@@ -93,3 +93,58 @@ def test_array_subtraction_works(a,b,expected):
         diff = ArrayWithTime.subtract_aligned_indices(aa, bb)
         assert (diff == expected).all()
         assert (diff.t == expected.t).all()
+
+
+def test_array_index_slicing_works():
+    a = ArrayWithTime.from_notime(np.arange(12).reshape(4,3))
+
+    b = a.slice()
+    assert (b == a).all()
+    assert (b.t == a.t).all()
+
+    b = a.slice(1)
+    assert (b == a[1]).all()
+    assert (b.t == a.t[1]).all()
+
+    b = a.slice(slice(None, None))
+    assert (b == a).all()
+    assert (b.t == a.t).all()
+
+    b = a.slice(slice(1, None))
+    assert (b == a[1:]).all()
+    assert (b.t == a.t[1:]).all()
+
+    b = a.slice(slice(1,None), ...)
+    assert (b == a[1:]).all()
+    assert (b.t == a.t[1:]).all()
+
+    b = a.slice(slice(1,None), slice(-1,None), all_axes=True)
+    assert (b == a[1:, -1:]).all()
+    assert (b.t == a.t[1:]).all()
+
+def test_array_index_slice_by_time_works():
+    a = ArrayWithTime.from_notime(np.arange(12).reshape(4,3))
+
+    b = a.slice_by_time()
+    assert (b == a).all()
+    assert (b.t == a.t).all()
+
+    b = a.slice_by_time(1)
+    assert (b == a[1]).all()
+    assert (b.t == a.t[1]).all()
+
+    b = a.slice_by_time(slice(None, None))
+    assert (b == a).all()
+    assert (b.t == a.t).all()
+
+    b = a.slice_by_time(slice(1, None))
+    assert (b == a[1:]).all()
+    assert (b.t == a.t[1:]).all()
+
+    b = a.slice_by_time(slice(1,None), ...)
+    assert (b == a[1:]).all()
+    assert (b.t == a.t[1:]).all()
+
+    b = a.slice_by_time(slice(1,None), slice(a.t[-1],None), all_axes=True)
+    assert (b == a[1:, -1:]).all()
+    assert (b.t == a.t[1:]).all()
