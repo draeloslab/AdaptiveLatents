@@ -3,6 +3,7 @@ import numpy as np
 from .transformer import StreamingTransformer
 from .timed_data_source import ArrayWithTime
 import copy
+import pytest
 
 
 class Predictor(StreamingTransformer):
@@ -98,10 +99,19 @@ class Predictor(StreamingTransformer):
     def test_if_api_compatible(cls, constructor=None, rng=None, DIM=None):
         constructor, rng, DIM = super().test_if_api_compatible(constructor, rng, DIM)
         cls._test_checks_dt(constructor, rng, DIM)
+        cls._test_output_t_is_origin_t(constructor, rng, DIM)
+
+    @staticmethod
+    def _test_output_t_is_origin_t(constructor, rng, DIM):
+        predictor: Predictor = constructor()
+
+        predictor.offline_run_on(rng.normal(size=(100, DIM)))
+
+        output = predictor.partial_fit_transform(ArrayWithTime([[1]], t=100), stream='dt_X')
+        assert np.all(output.t == 100)
 
     @staticmethod
     def _test_checks_dt(constructor, rng, DIM):
-        import pytest
 
         predictor: Predictor = constructor(check_dt=True)
         dt = 1/np.pi

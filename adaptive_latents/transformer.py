@@ -208,13 +208,14 @@ class StreamingTransformer(ABC):
                     pbar.update(round(float(data.t), 2) - pbar.n)
 
         if convinient_return:
-            if 0 not in outputs:
+            if isinstance(convinient_return, bool):
+                convinient_return = 0
+
+            if convinient_return not in outputs:
                 raise Exception("No outputs were routed to stream 0.")
 
-            data = outputs[0]
-            while data and np.isnan(data[0]).any():
-                data.pop(0)
-            outputs = ArrayWithTime.from_list(data, squeeze_type='to_2d')  # can be replaced with np.squeeze
+            data = outputs[convinient_return]
+            outputs = ArrayWithTime.from_list(data, squeeze_type='to_2d', drop_early_nans=True)  # can be replaced with np.squeeze
 
         return outputs
 
