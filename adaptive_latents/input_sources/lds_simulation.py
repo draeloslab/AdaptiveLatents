@@ -1,8 +1,11 @@
-import numpy as np
-from .kalman_filter import KalmanFilter
-from adaptive_latents.timed_data_source import ArrayWithTime
-from scipy.stats import special_ortho_group
 import warnings
+
+import numpy as np
+from scipy.stats import special_ortho_group
+
+from adaptive_latents.timed_data_source import ArrayWithTime
+
+from .kalman_filter import KalmanFilter
 
 
 class LDS:

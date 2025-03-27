@@ -1,7 +1,8 @@
+import warnings
+
 import jax
 import numpy as np
 from jax import numpy as jnp
-import warnings
 
 
 class AdamOptimizer:

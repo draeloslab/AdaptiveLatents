@@ -1,6 +1,7 @@
 import numpy as np
-from adaptive_latents.transformer import StreamingTransformer, ArrayWithTime
+
 from adaptive_latents.predictor import Predictor
+from adaptive_latents.transformer import ArrayWithTime, StreamingTransformer
 
 
 class KalmanFilter:

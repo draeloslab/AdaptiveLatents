@@ -2,11 +2,11 @@ from collections import deque
 
 import numpy as np
 
-from .transformer import StreamingTransformer
-from .predictor import Predictor
-from .regressions import OnlineRegressor, BaseKNearestNeighborRegressor
-from .timed_data_source import ArrayWithTime
 from . import StreamingKalmanFilter
+from .predictor import Predictor
+from .regressions import BaseKNearestNeighborRegressor, OnlineRegressor
+from .timed_data_source import ArrayWithTime
+from .transformer import StreamingTransformer
 
 
 class StimRegressor(StreamingTransformer):

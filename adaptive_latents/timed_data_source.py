@@ -1,6 +1,6 @@
 import types
-from abc import ABC, abstractmethod
 import warnings
+from abc import ABC, abstractmethod
 
 import numpy as np
 

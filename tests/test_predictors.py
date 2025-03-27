@@ -1,11 +1,13 @@
-import pytest
-import numpy as np
-from adaptive_latents.input_sources import LDS, KalmanFilter, AR_K
-from adaptive_latents.input_sources.kalman_filter import StreamingKalmanFilter
-from adaptive_latents import VJF, Bubblewrap, ArrayWithTime
-import adaptive_latents
-import functools
 import copy
+import functools
+
+import numpy as np
+import pytest
+
+import adaptive_latents
+from adaptive_latents import VJF, ArrayWithTime, Bubblewrap
+from adaptive_latents.input_sources import AR_K, LDS, KalmanFilter
+from adaptive_latents.input_sources.kalman_filter import StreamingKalmanFilter
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
 

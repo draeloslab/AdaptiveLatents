@@ -1,11 +1,13 @@
-from adaptive_latents.predictor import Predictor
-from adaptive_latents.timed_data_source import ArrayWithTime
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import vjf.online
-from scipy.stats import multivariate_normal
 from scipy.special import logsumexp
-import matplotlib.pyplot as plt
+from scipy.stats import multivariate_normal
+
+from adaptive_latents.predictor import Predictor
+from adaptive_latents.timed_data_source import ArrayWithTime
+
 
 class BaseVJF:
     def __init__(self, *, config=None, latent_d=6, take_U=False, rng=None):

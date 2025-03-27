@@ -4,9 +4,9 @@ from scipy.stats import special_ortho_group
 
 from adaptive_latents.regressions import BaseVanillaOnlineRegressor
 
+from .input_sources.lds_simulation import LDS
 from .transformer import TypicalTransformer
 from .utils import align_column_spaces, principle_angles
-from .input_sources.lds_simulation import LDS
 
 
 class BaseSJPCA:

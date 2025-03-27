@@ -1,9 +1,11 @@
-from abc import abstractmethod
-import numpy as np
-from .transformer import StreamingTransformer
-from .timed_data_source import ArrayWithTime
 import copy
+from abc import abstractmethod
+
+import numpy as np
 import pytest
+
+from .timed_data_source import ArrayWithTime
+from .transformer import StreamingTransformer
 
 
 class Predictor(StreamingTransformer):
