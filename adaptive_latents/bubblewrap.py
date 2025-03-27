@@ -1024,6 +1024,7 @@ class Bubblewrap(Predictor, BaseBubblewrap):
         return fig, axs
 
     def expected_data_streams(self, rng, DIM):
+        # TODO: make sure this works with Predictor's; it mixes a return with a yeild
         for s in self.input_streams:
             if s == 'dt':
                 yield ArrayWithTime([[1]], 1), s

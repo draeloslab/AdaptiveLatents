@@ -91,6 +91,7 @@ class Predictor(StreamingTransformer):
     # this is mostly for testing
     def expected_data_streams(self, rng, DIM):
         # TODO: do this better
+        # TODO: this should be a yield statement, maybe
         return [
             (rng.normal(size=(1, DIM)), 'X'),
             (np.ones((1,1)), 'dt_X'),

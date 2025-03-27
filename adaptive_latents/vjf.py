@@ -21,7 +21,7 @@ class BaseVJF:
         config = config or {}
         self.config = self.default_config_dict({'xdim': self.latent_d}) | config
         self._vjf: vjf.online.VJF | None = None
-        self.q = None
+        self.q = None  # center, variance
 
     @staticmethod
     def set_torch_seeds(rng):
@@ -213,6 +213,9 @@ class BaseVJF:
         point = self.get_most_likely_decoded_point_from_cloud(cloud)
         axs[1].scatter(point[0], point[1], color='C3')
         return fig, axs
+
+    def __getstate__(self):
+        return super().__getstate__() | dict(q=tuple(x.detach() for x in self.q))
 
 
 class VJF(Predictor, BaseVJF):

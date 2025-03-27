@@ -274,9 +274,6 @@ class StreamingTransformer(ABC):
     def _test_can_save_and_rerun(constructor, rng, tmp_path, DIM=6):
         transformer: StreamingTransformer = constructor()
 
-        if 'VJF' in str(type(transformer)):
-            pytest.xfail("pytorch can't serialize right now")
-
         for _ in range(5):
             for data, s in transformer.expected_data_streams(rng, DIM):
                 transformer.partial_fit_transform(data, s)
