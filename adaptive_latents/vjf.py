@@ -23,7 +23,7 @@ class BaseVJF:
 
     @staticmethod
     def set_torch_seeds(rng):
-        seed = rng.integers(0, int(1e12), 1)
+        seed = rng.integers(0, int(1e12), 1)[0]
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
         torch.cuda.manual_seed(seed)
