@@ -212,7 +212,7 @@ class StreamingTransformer(ABC):
                 convinient_return = 0
 
             if convinient_return not in outputs:
-                raise Exception("No outputs were routed to stream 0.")
+                raise Exception(f"No outputs were routed to stream '{convinient_return}'.")
 
             data = outputs[convinient_return]
             outputs = ArrayWithTime.from_list(data, squeeze_type='to_2d', drop_early_nans=True)  # can be replaced with np.squeeze

@@ -1,3 +1,4 @@
+import warnings
 from collections import deque
 
 import numpy as np
@@ -32,13 +33,15 @@ class StimRegressor(StreamingTransformer):
                 if self.last_seen_stims and self.last_seen_stims[-1]:
                     pred = self.autoreg.predict(n_steps=1)
                     residual = data - pred
-                    self.stim_reg.observe(pred, residual)
+                    self.stim_reg.observe(self.autoreg.predict(n_steps=0), residual)
 
                     self.autoreg.toggle_parameter_fitting(False)
                     self.autoreg.observe(data, stream=self.input_streams[stream])
                     self.autoreg.toggle_parameter_fitting(True)
                 else:
                     self.autoreg.observe(data, stream=self.input_streams[stream])
+            else:
+                warnings.warn('there should probably be an autonomous dynamics call here')
 
             data = ArrayWithTime.from_transformed_data(self.autoreg.get_state().reshape(data_depth, -1), data)
 
@@ -48,7 +51,7 @@ class StimRegressor(StreamingTransformer):
 
             if np.isfinite(pred).all():
                 if self.last_seen_stims and self.last_seen_stims[-1] and self.attempt_correction:
-                    pred = pred + self.stim_reg.predict(pred)
+                    pred = pred + self.stim_reg.predict(self.autoreg.predict(n_steps=0))
 
             data = ArrayWithTime.from_transformed_data(pred, data)
 

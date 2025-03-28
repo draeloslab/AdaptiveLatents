@@ -82,7 +82,7 @@ def test_ar_k(rng, rank_limit, show_plots):
 def test_predictor_accuracy(predictor_maker, n_rotations, rng, show_plots):
     transitions_per_rotation = 30
     radius = 10
-    _, Y, _ = LDS.nest_dynamical_system(rotations=n_rotations, transitions_per_rotation=transitions_per_rotation, radius=radius, u_function=lambda **_: np.zeros(3), rng=rng)
+    _, Y, _ = LDS.run_nest_dynamical_system(rotations=n_rotations, transitions_per_rotation=transitions_per_rotation, radius=radius, u_function=lambda **_: np.zeros(3), rng=rng)
 
     predictor: adaptive_latents.transformer.StreamingTransformer = predictor_maker()
 
@@ -131,8 +131,8 @@ def test_predictor_accuracy(predictor_maker, n_rotations, rng, show_plots):
 def test_can_turn_off_parameter_learning(predictor_maker, rng):
     transitions_per_rotation = 30
     radius = 10
-    _, Y, _ = LDS.nest_dynamical_system(rotations=10, transitions_per_rotation=transitions_per_rotation, radius=radius,
-                                        u_function=lambda **_: np.zeros(3), rng=rng)
+    _, Y, _ = LDS.run_nest_dynamical_system(rotations=10, transitions_per_rotation=transitions_per_rotation, radius=radius,
+                                            u_function=lambda **_: np.zeros(3), rng=rng)
 
     Y1, Y2, Y3 = (
         Y.slice(slice(None, -2*transitions_per_rotation)),

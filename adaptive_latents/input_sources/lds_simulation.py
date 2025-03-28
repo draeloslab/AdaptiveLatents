@@ -60,13 +60,16 @@ class LDS:
             state = state - self.state_center
 
         u = np.array([])
-        if u_function is not None:
+        if u_function is not None and isinstance(u_function, np.ndarray):
+            u = u_function
+        elif u_function is not None:
             u = u_function(lds=self, state=state, i=i, rng=rng)
-        state += u @ self.B
 
         if use_state_dynamics:  # I don't want this sometimes on the first iteration
             state = state @ self.A
             state += rng.normal(size=self.A.shape[1]) @ self.W
+
+        state += u @ self.B
 
         observation = state @ self.C
         observation += rng.normal(size=self.C.shape[1]) @ self.Q
@@ -96,10 +99,8 @@ class LDS:
         return lds
 
     @classmethod
-    def nest_dynamical_system(cls, rotations, transitions_per_rotation=30 + 1 / np.pi, stims_per_rotation=1, radius=5, u_function=None, rng=None, early_shift=1e-12):
+    def nest_lds(cls, transitions_per_rotation=30 + 1 / np.pi, rng=None):
         rng = rng if rng is not None else np.random.default_rng()
-        u_function = 'curvy' if u_function is None else u_function
-        transitions_per_rotation = transitions_per_rotation
         base_lds = LDS.circular_lds(transitions_per_rotation=transitions_per_rotation, rng=rng)
 
         A = base_lds.A
@@ -110,9 +111,12 @@ class LDS:
         B = np.eye(A.shape[1])
         W = np.eye(A.shape[1]) * 0.05
         Q = np.eye(A.shape[1]) * 0.05
+        return LDS(A, C, W, Q, B=B)
 
-        lds = LDS(A, C, W, Q, B=B)
-
+    @classmethod
+    def run_nest_dynamical_system(cls, rotations, transitions_per_rotation=30 + 1 / np.pi, stims_per_rotation=1, radius=5, u_function=None, rng=None, early_shift=1e-12):
+        rng = rng if rng is not None else np.random.default_rng()
+        lds = cls.nest_lds(transitions_per_rotation=transitions_per_rotation, rng=rng)
         N = int(rotations * transitions_per_rotation)
         t = np.linspace(0, N / transitions_per_rotation, N)
 
