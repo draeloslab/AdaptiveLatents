@@ -14,6 +14,8 @@ class LDS:
         self.C = C
         self.W = W
         self.Q = Q
+        self.W_cholesky = np.linalg.cholesky(self.W)
+        self.Q_cholesky = np.linalg.cholesky(self.Q)
         self.B = B if B is not None else np.zeros((0, A.shape[0]))
         self.state_center = state_center if state_center is not None else 0
         self.observation_center = observation_center if observation_center is not None else 0
@@ -24,6 +26,8 @@ class LDS:
         assert self.A.shape == self.W.shape
         assert self.A.shape[1] == self.C.shape[0] == self.B.shape[1]
         assert self.C.shape[1] == self.Q.shape[1] == self.Q.shape[0]
+        assert np.allclose(self.Q, self.Q.T)
+        assert np.allclose(self.W, self.W.T)
 
     def simulate(self, n_steps, initial_state=None, U=None, rng=None):
         if rng is None:
@@ -67,12 +71,14 @@ class LDS:
 
         if use_state_dynamics:  # I don't want this sometimes on the first iteration
             state = state @ self.A
-            state += rng.normal(size=self.A.shape[1]) @ self.W
+            random_jitter = rng.normal(size=self.A.shape[1]) @ self.W_cholesky
+            state = state + random_jitter
 
         state += u @ self.B
 
         observation = state @ self.C
-        observation += rng.normal(size=self.C.shape[1]) @ self.Q
+        observation_noise = rng.normal(size=self.C.shape[1]) @ self.Q_cholesky
+        observation = observation + observation_noise
 
         if add_centers:
             state = state + self.state_center
@@ -133,6 +139,8 @@ class LDS:
                 u = np.zeros(lds.B.shape[0])
                 u[2] = stim[i] * 100
                 return u
+        elif u_function is None:
+            u_function = lambda **_: np.zeros(lds.B.shape[0])
 
         states, observations, received_stim = lds.simulate(N, initial_state=[radius, 0, 0], U=u_function, rng=rng)
 

@@ -149,6 +149,7 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
                     len(self.latent_state_history[-1]) == len(self.observation_history[-1])
                     and len(self.observation_history[-1])
                     and len(self.observation_history[-1]) % self.steps_between_refits == 0
+                    and self.parameter_fitting
             ):
                 self.fit(X=self.latent_state_history, Y=self.observation_history)
                 latent = np.squeeze(self.latent_state_history[-1])

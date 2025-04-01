@@ -154,12 +154,12 @@ class ArrayWithTime(np.ndarray):
     def time_to_sample(self, time):
         return np.searchsorted(self.t, time)
 
-    @classmethod
-    def align_indices(cls, a, b):
+    @staticmethod
+    def align_indices(a, b):
         # there's a faster way to do this with np.searchsorted
         a_t = np.array(a.t)
         b_t = np.array(b.t)
-        a: cls
+        a: ArrayWithTime
         assert (a_t[1:] - a_t[:-1] > 0).all()
         assert (b_t[1:] - b_t[:-1] > 0).all()
         idx_a = 0
@@ -180,12 +180,12 @@ class ArrayWithTime(np.ndarray):
                 idx_a += 1
         a_indices = np.array(a_indices)
         b_indices = np.array(b_indices)
-        return cls(a[a_indices], a_t[a_indices]), cls(b[b_indices], b_t[b_indices])
+        return ArrayWithTime(a[a_indices], a_t[a_indices]), ArrayWithTime(b[b_indices], b_t[b_indices])
 
-    @classmethod
-    def subtract_aligned_indices(cls, a, b):
-        a, b = cls.align_indices(a, b)
-        return cls(a - b, a.t)
+    @staticmethod
+    def subtract_aligned_indices(a, b):
+        a, b = ArrayWithTime.align_indices(a, b)
+        return ArrayWithTime(a - b, a.t)
 
     @property
     def dt(self):
@@ -194,8 +194,12 @@ class ArrayWithTime(np.ndarray):
         assert np.ptp(dts)/dt < 0.05
         return dt
 
-    @classmethod
-    def from_list(cls, input_list, squeeze_type='none', drop_early_nans=False, reshape_mid_nans=True):
+    @staticmethod
+    def from_list(input_list, squeeze_type='none', drop_early_nans=False, reshape_mid_nans=True):
+        if not hasattr(input_list[-1], 't'):
+            warnings.warn("guessing t for input list")
+            input_list = [ArrayWithTime(x, i) for i, x in enumerate(input_list)]
+
         if drop_early_nans:
             i = 0
             while i < len(input_list) and not np.isfinite(input_list[i]).all():
@@ -228,27 +232,27 @@ class ArrayWithTime(np.ndarray):
         else:
             raise ValueError()
 
-        return cls(input_array=input_array, t=t)
+        return ArrayWithTime(input_array=input_array, t=t)
 
-    @classmethod
-    def from_NTDS(cls, ds: NumpyTimedDataSource):
-        return cls(np.squeeze(ds.a, axis=1), ds.t)
+    @staticmethod
+    def from_NTDS(ds: NumpyTimedDataSource):
+        return ArrayWithTime(np.squeeze(ds.a, axis=1), ds.t)
 
-    @classmethod
-    def from_transformed_data(cls, new_data, old_data):
+    @staticmethod
+    def from_transformed_data(new_data, old_data):
         # refers to the outputs of a transformer
         new_data = np.array(new_data)
         if hasattr(old_data, 't'):
-            return cls(new_data, old_data.t)
+            return ArrayWithTime(new_data, old_data.t)
         else:
             return new_data
 
-    @classmethod
-    def from_nwb_timeseries(cls, timeseries):
-        return cls(timeseries.data[:], timeseries.timestamps[:])
+    @staticmethod
+    def from_nwb_timeseries(timeseries):
+        return ArrayWithTime(timeseries.data[:], timeseries.timestamps[:])
 
 
-    @classmethod
-    def from_notime(cls, a):
-        return cls(a, np.arange(len(a)))
+    @staticmethod
+    def from_notime(a):
+        return ArrayWithTime(a, np.arange(len(a)))
 
