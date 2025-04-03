@@ -785,9 +785,10 @@ class Tee(DecoupledTransformer):
 
     def _partial_fit(self, data, stream):
         if stream in self.input_streams:
-            if stream not in self.observed:
-                self.observed[stream] = []
-            self.observed[stream].append(data)
+            semantic_stream = self.input_streams[stream]
+            if semantic_stream not in self.observed:
+                self.observed[semantic_stream] = []
+            self.observed[semantic_stream].append(data)
 
     def transform(self, data, stream=0, return_output_stream=False):
         return (data, stream) if return_output_stream else data

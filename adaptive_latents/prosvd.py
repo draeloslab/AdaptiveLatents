@@ -106,7 +106,7 @@ class proSVD(TypicalTransformer, BaseProSVD):
     def __init__(self, *, init_size=None, k=None, decay_alpha=None, whiten=None, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
         TypicalTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)
         BaseProSVD.__init__(self, k=k, decay_alpha=decay_alpha, whiten=whiten)
-        self.init_size = init_size or self.k
+        self.init_size = init_size or self.k * 2
         self.on_nan_width = self.k
         self.init_samples = []
         self.is_partially_initialized = False

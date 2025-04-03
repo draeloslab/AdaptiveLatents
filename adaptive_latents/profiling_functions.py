@@ -175,14 +175,3 @@ def get_speed_by_time(psvd_input, regression_output, prosvd_k=6, bw_params=None,
 
     return times
 
-if __name__ == '__main__':
-    d = al.datasets.Odoherty21Dataset()
-    neural_data = d.neural_data.a.squeeze()
-    behavior = d.behavioral_data.a.squeeze()
-    behavior = al.utils.resample_matched_timeseries(behavior, d.behavioral_data.t, d.neural_data.t)
-
-    input_data = np.hstack([neural_data, behavior])
-
-    with al.CONFIG.open_with_parents(al.CONFIG.bwrun_save_path / 'profile.pkl', 'wb') as fhan:
-        profile = get_speed_per_step(input_data, behavior, bw_params={'step': 10 ** -1.5, 'num': 1100}, max_steps=1_000_000_000)
-        pickle.dump(profile, fhan)

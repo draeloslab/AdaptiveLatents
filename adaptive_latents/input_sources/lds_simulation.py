@@ -14,8 +14,17 @@ class LDS:
         self.C = C
         self.W = W
         self.Q = Q
-        self.W_cholesky = np.linalg.cholesky(self.W)
-        self.Q_cholesky = np.linalg.cholesky(self.Q)
+
+        if (self.W == 0).all():
+            self.W_cholesky = 0 * self.W
+        else:
+            self.W_cholesky = np.linalg.cholesky(self.W)
+
+        if (self.Q == 0).all():
+            self.Q_cholesky = 0 * self.Q
+        else:
+            self.Q_cholesky = np.linalg.cholesky(self.Q)
+
         self.B = B if B is not None else np.zeros((0, A.shape[0]))
         self.state_center = state_center if state_center is not None else 0
         self.observation_center = observation_center if observation_center is not None else 0

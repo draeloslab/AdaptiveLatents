@@ -146,7 +146,7 @@ class BaseKNearestNeighborRegressor(OnlineRegressor):
 
     def predict(self, x):
         if self.history is None:
-            return np.nan
+            return np.array([[np.nan]])
         distances = np.linalg.norm(self.history[:self.n_observed, :self.input_d] - np.squeeze(x), axis=1)
         try:
             k = min(self.k, self.n_observed)

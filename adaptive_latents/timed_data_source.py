@@ -196,7 +196,7 @@ class ArrayWithTime(np.ndarray):
 
     @staticmethod
     def from_list(input_list, squeeze_type='none', drop_early_nans=False, reshape_mid_nans=True):
-        if not hasattr(input_list[-1], 't'):
+        if len(input_list) and not hasattr(input_list[-1], 't'):
             warnings.warn("guessing t for input list")
             input_list = [ArrayWithTime(x, i) for i, x in enumerate(input_list)]
 

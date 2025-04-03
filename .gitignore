@@ -3,6 +3,7 @@ htmlcov/*
 workspace/datasets/*
 workspace/**/*.ipynb
 scripts/*
+*.sh
 
 *.mp4
 *.db

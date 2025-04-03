@@ -30,10 +30,12 @@ class StimRegressor(StreamingTransformer):
             assert data.shape[0] == data_depth, data.shape
 
             if np.isfinite(data).all():
-                if self.last_seen_stims and self.last_seen_stims[-1]:
+                if self.last_seen_stims and np.any(self.last_seen_stims[-1]):
                     pred = self.autoreg.predict(n_steps=1)
                     residual = data - pred
-                    self.stim_reg.observe(self.autoreg.predict(n_steps=0), residual)
+
+                    stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), self.last_seen_stims[-1].flatten()])
+                    self.stim_reg.observe(stim_reg_input, residual)
 
                     self.autoreg.toggle_parameter_fitting(False)
                     self.autoreg.observe(data, stream=self.input_streams[stream])
@@ -50,8 +52,9 @@ class StimRegressor(StreamingTransformer):
             pred = self.autoreg.predict(n_steps=steps)
 
             if np.isfinite(pred).all():
-                if self.last_seen_stims and self.last_seen_stims[-1] and self.attempt_correction:
-                    pred = pred + self.stim_reg.predict(self.autoreg.predict(n_steps=0))
+                if self.last_seen_stims and np.any(self.last_seen_stims[-1]) and self.attempt_correction:
+                    stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), self.last_seen_stims[-1].flatten()])
+                    pred = pred + self.stim_reg.predict(stim_reg_input)
 
             data = ArrayWithTime.from_transformed_data(pred, data)
 

@@ -246,7 +246,7 @@ class VJF(Predictor, BaseVJF):
 
     def get_state(self):
         if self.q is None:
-            return np.nan
+            return np.array([[np.nan]])
 
         return self.q[0].detach().numpy()
 
