@@ -56,7 +56,7 @@ class StimRegressor(StreamingTransformer):
                     stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), self.last_seen_stims[-1].flatten()])
                     pred = pred + self.stim_reg.predict(stim_reg_input)
 
-            data = ArrayWithTime.from_transformed_data(pred, data)
+            data = ArrayWithTime.from_transformed_data(pred.reshape(1,-1), data)
 
         elif self.input_streams[stream] == 'stim':
             self.last_seen_stims.append(data)

@@ -159,13 +159,19 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
                     self.step(Y=obs[obs.shape[0]-20+i])
 
     def toggle_parameter_fitting(self, value=None):
+        before = self.parameter_fitting
         super().toggle_parameter_fitting(value)
-        if not self.parameter_fitting:
+        if before and not self.parameter_fitting:
             self.last_seen = {}
-            if len(self.latent_state_history[-1]) < 2:
+            if len(self.latent_state_history[-1]) > 2:
                 self.latent_state_history.append([])
-            if len(self.observation_history[-1]) < 2:
+            else:
+                self.latent_state_history[-1] = []
+
+            if len(self.observation_history[-1]) > 2:
                 self.observation_history.append([])
+            else:
+                self.observation_history[-1] = []
 
     def get_state(self):
         state = self.state if self.state is not None else np.array([np.nan])

@@ -1,4 +1,4 @@
-jax_platform_name: 'gpu'
+jax_platform_name: 'cpu'
 
 attempt_to_cache: False
 
