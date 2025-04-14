@@ -77,37 +77,42 @@ class KalmanFilter:
         self.state = np.zeros_like(X[-1:])
         self.state_var = self.W
 
-    def step(self, Y=None):
-        state = self.state @ self.A
-        state_var = self.A @ self.state_var @ self.A.T + self.W
+    @staticmethod
+    def inference_step(state, state_var, *, A, C, W, Q, X_mean, Y_mean, Y=None, kalman_gain=None):
+        state = state - X_mean
+        state = state @ A
+        state_var = A @ state_var @ A.T + W
 
         if Y is not None:
-            Y = Y - self.Y_mean
-            if not self.use_steady_state_K:
-                kalman_gain = state_var @ self.C @ np.linalg.pinv(self.C.T @ state_var @ self.C + self.Q)
-            else:
-                kalman_gain = self.steady_state_K
-            state = state + (Y - state @ self.C) @ kalman_gain.T
-            state_var = (np.eye(self.C.shape[0]) - self.C @ kalman_gain.T) @ state_var
+            Y = Y - Y_mean
+            if kalman_gain is None:
+                kalman_gain = state_var @ C @ np.linalg.pinv(C.T @ state_var @ C + Q)
+            state = state + (Y - state @ C) @ kalman_gain.T
+            state_var = (np.eye(C.shape[0]) - C @ kalman_gain.T) @ state_var
 
-        self.state = state
-        self.state_var = state_var
-        return state + self.X_mean
+        return state + X_mean, state_var
+
+
+    def step(self, Y=None):
+        self.state, self.state_var = self.inference_step(self.state, self.state_var, Y=Y, A=self.A, C=self.C, W=self.W, Q=self.Q, Y_mean=self.Y_mean, X_mean=self.X_mean, kalman_gain=None if not self.use_steady_state_K else self.steady_state_K)
+        return self.state
+
+    def _predict(self, n_steps, state, state_var):
+        prediction = np.zeros((n_steps+1, self.A.shape[0])) * np.nan
+        prediction_var = np.zeros((n_steps+1, self.A.shape[0], self.A.shape[0])) * np.nan
+        prediction[0] = state
+        prediction_var[0] = state_var
+        for i in range(n_steps):
+            state, state_var = self.inference_step(state, state_var, Y=None, A=self.A, C=self.C, W=self.W, Q=self.Q, Y_mean=self.Y_mean, X_mean=self.X_mean, kalman_gain=None if not self.use_steady_state_K else self.steady_state_K)
+            prediction[i+1] = state
+            prediction_var[i+1] = state_var
+
+        return prediction, prediction_var
 
     def predict(self, n_steps, initial_state=None, initial_state_var=None):
-        old_state, old_var = self.state, self.state_var  # TODO: I don't like saving the state like this
-
-        if initial_state is not None:
-            self.state = initial_state - self.X_mean
-        if initial_state_var is None:
-            self.state_var = self.state_var
-
-        prediction = np.zeros((n_steps+1, self.A.shape[0])) * np.nan
-        prediction[0] = self.state
-        for i in range(n_steps):
-            prediction[i+1,:] = self.step()
-
-        self.state, self.state_var = old_state, old_var
+        state = initial_state if initial_state is not None else self.state
+        state_var = initial_state_var if initial_state_var is not None else self.state_var
+        prediction, prediction_var = self._predict(n_steps, state, state_var)
         return prediction
 
 
@@ -126,8 +131,8 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
 
     def predict(self, n_steps):
         if self.A is not None:
-            predicted_latent_state = KalmanFilter.predict(self, n_steps)
-            predicted_observation = (predicted_latent_state @ self.C)[-1]
+            predicted_latent_state = KalmanFilter.predict(self, n_steps)[-1]
+            predicted_observation = (predicted_latent_state @ self.C)
         else:
             predicted_observation = np.array([[np.nan]])
         return predicted_observation
