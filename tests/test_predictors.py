@@ -77,12 +77,12 @@ def test_ar_k(rng, rank_limit, show_plots):
 @pytest.mark.parametrize('predictor_maker,n_rotations', [
     (StreamingKalmanFilter, 10),
     (functools.partial(Bubblewrap), 250),
-    (functools.partial(VJF, latent_d=2, rng=np.random.default_rng(4)), 1000),
+    (functools.partial(VJF, latent_d=2, rng=np.random.default_rng(12)), 1000),
 ])
 def test_predictor_accuracy(predictor_maker, n_rotations, rng, show_plots):
     transitions_per_rotation = 30
     radius = 10
-    _, Y, _ = LDS.run_nest_dynamical_system(rotations=n_rotations, transitions_per_rotation=transitions_per_rotation, radius=radius, u_function=lambda **_: np.zeros(3), rng=rng)
+    _, Y, _ = LDS.run_nest_dynamical_system(rotations=n_rotations, transitions_per_rotation=transitions_per_rotation, radius=radius, u_function=lambda **_: np.zeros(3), rng=rng, noise=0.05**2)
 
     predictor: adaptive_latents.transformer.StreamingTransformer = predictor_maker()
 

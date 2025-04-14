@@ -114,7 +114,7 @@ class LDS:
         return lds
 
     @classmethod
-    def nest_lds(cls, transitions_per_rotation=30 + 1 / np.pi, rng=None):
+    def nest_lds(cls, transitions_per_rotation=30 + 1 / np.pi, rng=None, noise=0.05):
         rng = rng if rng is not None else np.random.default_rng()
         base_lds = LDS.circular_lds(transitions_per_rotation=transitions_per_rotation, rng=rng)
 
@@ -124,14 +124,14 @@ class LDS:
         A[-1, -1] = .8
         C = np.eye(A.shape[1])
         B = np.eye(A.shape[1])
-        W = np.eye(A.shape[1]) * 0.05
-        Q = np.eye(A.shape[1]) * 0.05
+        W = np.eye(A.shape[1]) * noise
+        Q = np.eye(A.shape[1]) * noise
         return LDS(A, C, W, Q, B=B)
 
     @classmethod
-    def run_nest_dynamical_system(cls, rotations, transitions_per_rotation=30 + 1 / np.pi, stims_per_rotation=1, radius=5, u_function=None, rng=None, early_shift=1e-12):
+    def run_nest_dynamical_system(cls, rotations, transitions_per_rotation=30 + 1 / np.pi, stims_per_rotation=1, radius=5, u_function=None, rng=None, early_shift=1e-12, noise=0.05):
         rng = rng if rng is not None else np.random.default_rng()
-        lds = cls.nest_lds(transitions_per_rotation=transitions_per_rotation, rng=rng)
+        lds = cls.nest_lds(transitions_per_rotation=transitions_per_rotation, rng=rng, noise=noise)
         N = int(rotations * transitions_per_rotation)
         t = np.linspace(0, N / transitions_per_rotation, N)
 
