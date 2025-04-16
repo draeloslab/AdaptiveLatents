@@ -276,3 +276,14 @@ class VJF(Predictor, BaseVJF):
 
     def get_params(self, deep=True):
         return super().get_params(deep=deep) | dict(take_U=self.take_U, latent_d=self.latent_d, config=self.config, rng=self.rng, n_particles_for_prediction=self.n_particles_for_prediction)
+
+    def unevaluated_log_pred_p(self, n_steps):
+        cloud = self.get_cloud_at_time_t(n_steps)
+
+        decoded_cloud = np.array(self._vjf.decoder(cloud).detach().numpy())
+        y_var = np.array(self._vjf.likelihood.logvar.detach().exp().numpy().T)
+        def f(future_point):
+            sample_logprobs = [VJF.diagonal_normal_logpdf(y_est, y_var, future_point) for y_est in decoded_cloud]
+            logprob = logsumexp(sample_logprobs) - np.log(cloud.shape[0])
+            return logprob
+        return f

@@ -48,6 +48,21 @@ def check_lds_predicts_circle(predictor, X, trasitions_per_rotation, show_plots)
         plt.show()
 
 
+def test_kf_cov_pos_def(rng):
+    """
+    see the `evals = np.abs(evals)  # TODO: this should not be necessary` line in kalman_filter.py
+    """
+    transitions_per_rotation = 30
+    radius = 10
+    n_rotations = 10
+    _, Y, _ = LDS.run_nest_dynamical_system(rotations=n_rotations, transitions_per_rotation=transitions_per_rotation, radius=radius, u_function=lambda **_: np.zeros(3), rng=rng, noise=0.05**2)
+
+    kf = StreamingKalmanFilter()
+    kf.offline_run_on(Y)
+
+    evals = np.linalg.eigvals(kf.state_var)
+    assert  (evals > 0).all()
+
 
 @pytest.mark.parametrize('use_steady_state_k', [True, False])
 def test_kalman_filter(rng, show_plots, use_steady_state_k):
@@ -84,9 +99,11 @@ def test_predictor_accuracy(predictor_maker, n_rotations, rng, show_plots):
     radius = 10
     _, Y, _ = LDS.run_nest_dynamical_system(rotations=n_rotations, transitions_per_rotation=transitions_per_rotation, radius=radius, u_function=lambda **_: np.zeros(3), rng=rng, noise=0.05**2)
 
+    Y_first_part = Y.slice(slice(None, -transitions_per_rotation))
+
     predictor: adaptive_latents.transformer.StreamingTransformer = predictor_maker()
 
-    predictor.offline_run_on([(Y, 'X')], convinient_return=False)
+    predictor.offline_run_on([(Y_first_part, 'X')], convinient_return=False)
 
     trajectory = []
     for i in range(0, transitions_per_rotation+2):  # TODO: what's the correct number of transitions here? +1 or +2?
@@ -120,6 +137,59 @@ def test_predictor_accuracy(predictor_maker, n_rotations, rng, show_plots):
     half_idx = len(trajectory) // 2
     assert np.abs((np.atan2(trajectory[-1, 1], trajectory[-1, 0]) - np.atan2(Y[-1, 1], Y[-1, 0])) * 180 / np.pi) < 90  # TODO: make this tighter than 90 degrees
     assert np.abs((np.atan2(trajectory[half_idx, 1], trajectory[half_idx, 0]) - np.atan2(Y[-1, 1], Y[-1, 0])) * 180 / np.pi) > 110
+
+    Y_second_part = Y.slice(slice(-transitions_per_rotation,-transitions_per_rotation + transitions_per_rotation//2))
+
+    a = Y_first_part[-1]
+    pdf_a_to_a = predictor.unevaluated_log_pred_p(0)
+    pdf_a_to_b = predictor.unevaluated_log_pred_p(transitions_per_rotation//2)
+    predictor.offline_run_on([(Y_second_part, 'X')], convinient_return=False)
+    b = Y_second_part.slice(-1)
+    pdf_b_to_b = predictor.unevaluated_log_pred_p(0)
+    pdf_b_to_a = predictor.unevaluated_log_pred_p(transitions_per_rotation//2)
+
+    if show_plots:
+        fig, axs = plt.subplots(nrows=2, ncols=2)
+        titles = []
+        pdfs = []
+        for title, pdf_f in zip(['a to a', 'a to b', 'b to a', 'b to b'], [pdf_a_to_a, pdf_a_to_b, pdf_b_to_a, pdf_b_to_b]):
+            density = 100
+            xlim = [Y[:,0].min(), Y[:,0].max()]
+            ylim = [Y[:,1].min(), Y[:,1].max()]
+            x_bins = np.linspace(*xlim, density + 1)
+            y_bins = np.linspace(*ylim, density + 1)
+            pdf_values = np.zeros(shape=(density, density))
+            for i in range(density):
+                for j in range(density):
+                    x = np.array([x_bins[i] + x_bins[i + 1], y_bins[j] + y_bins[j + 1], 0]) / 2
+                    pdf_values[i, j] = pdf_f(x)
+            pdfs.append(pdf_values)
+            titles.append(title)
+        pdfs = np.array(pdfs)
+
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+        for ax, title, pdf_values in zip(axs.flatten(), titles, pdfs):
+
+
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes('right', size='5%', pad=0.05)
+            im = ax.pcolormesh(x_bins, y_bins, pdf_values.T, cmap='plasma')
+            fig.colorbar(im, cax=cax, orientation='vertical')
+
+            ax.scatter(a[0], a[1], s=50, color='r')
+            ax.scatter(b[0], b[1], s=50, color='b')
+
+            ax.axis('equal')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_title(title)
+        plt.show(block=True)
+
+    assert pdf_a_to_a(a) > pdf_b_to_a(a) > pdf_a_to_b(a) >= pdf_b_to_b(a)
+    assert pdf_b_to_b(b) > pdf_a_to_b(b) > pdf_b_to_a(b) >= pdf_a_to_a(b)
+
+
+
 
 
 

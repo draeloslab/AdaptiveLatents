@@ -1,7 +1,7 @@
 import numpy as np
+from scipy.stats import multivariate_normal
 
 from adaptive_latents.predictor import Predictor
-from adaptive_latents.transformer import ArrayWithTime, StreamingTransformer
 
 
 class KalmanFilter:
@@ -97,7 +97,7 @@ class KalmanFilter:
         self.state, self.state_var = self.inference_step(self.state, self.state_var, Y=Y, A=self.A, C=self.C, W=self.W, Q=self.Q, Y_mean=self.Y_mean, X_mean=self.X_mean, kalman_gain=None if not self.use_steady_state_K else self.steady_state_K)
         return self.state
 
-    def _predict(self, n_steps, state, state_var):
+    def predict_state_and_var(self, n_steps, state, state_var):
         prediction = np.zeros((n_steps+1, self.A.shape[0])) * np.nan
         prediction_var = np.zeros((n_steps+1, self.A.shape[0], self.A.shape[0])) * np.nan
         prediction[0] = state
@@ -112,7 +112,7 @@ class KalmanFilter:
     def predict(self, n_steps, initial_state=None, initial_state_var=None):
         state = initial_state if initial_state is not None else self.state
         state_var = initial_state_var if initial_state_var is not None else self.state_var
-        prediction, prediction_var = self._predict(n_steps, state, state_var)
+        prediction, prediction_var = self.predict_state_and_var(n_steps, state, state_var)
         return prediction
 
 
@@ -187,3 +187,28 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
 
     def get_arbitrary_dynamics_parameter(self):
         return self.A
+
+
+    def unevaluated_log_pred_p(self, n_steps):
+        if self.A is None:
+            return lambda x: np.array([[np.nan]])
+
+        evals, evecs  = np.linalg.eigh(self.state_var)
+        evals = np.abs(evals)  # TODO: this should not be necessary
+        state_var = (evecs * evals) @ evecs.T
+
+        state = np.array(self.state)
+        A = np.array(self.A)
+        C = np.array(self.C)
+        W = np.array(self.W)
+        Q = np.array(self.Q)
+        X_mean = np.array(self.X_mean)
+        Y_mean = np.array(self.Y_mean)
+
+        inner_state = state
+        inner_state_var = state_var
+        for i in range(n_steps):
+            inner_state, inner_state_var = KalmanFilter.inference_step(inner_state, inner_state_var, A=A, C=C, W=W, Q=Q, X_mean=X_mean, Y_mean=Y_mean)
+        rv = multivariate_normal(mean=inner_state.flatten(), cov=inner_state_var)
+
+        return rv.logpdf

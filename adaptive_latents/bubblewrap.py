@@ -169,7 +169,6 @@ class BaseBubblewrap:
         self.expB_jax = jit(expB)
         self.update_internal_jax = jit(update_internal)
         self.kill_nodes = jit(kill_dead_nodes)
-        self._pred_ahead = jit(pred_ahead, static_argnames=['steps_ahead'])
         self.sum_me = jit(sum_me)
         self.compute_L = jit(vmap(get_L, (0, 0)))
         self.get_amax = jit(amax)
@@ -278,12 +277,12 @@ class BaseBubblewrap:
         self.m_L_diag, self.v_L_diag, self.L_diag = single_adam(self.step, self.m_L_diag, self.v_L_diag, L_diag, self.t, self.L_diag)
         self.m_A, self.v_A, self.log_A = single_adam(self.step, self.m_A, self.v_A, A, self.t, self.log_A)
 
-    def unevaluated_log_pred_p(self, steps):
-        # TODO: make this work better with other functions in the class (e.g. predict(n_steps))
-        if not self.is_initialized:
-            return lambda x: numpy.nan
 
-        assert round(steps) == steps
+    def unevaluated_log_pred_p(self, n_steps):
+        if not self.is_initialized:
+            return lambda x: numpy.array([[numpy.nan]])
+
+        assert round(n_steps) == n_steps
 
         mu = numpy.array(self.mu)
         L = numpy.array(self.L)
@@ -293,22 +292,13 @@ class BaseBubblewrap:
 
         def f(future_point):
             b = self.logB_jax(future_point, mu, L, L_diag)
-            AT = jnp.linalg.matrix_power(A, steps)
+            AT = jnp.linalg.matrix_power(A, n_steps)
             p = jnp.log(alpha @ AT @ jnp.exp(b) + 1e-16)
             return numpy.array(p)
         return f
 
     def log_pred_p(self, future_point, n_steps):
-        if not self.is_initialized:
-            return numpy.nan
-        b = self.logB_jax(future_point, self.mu, self.L, self.L_diag)
-
-        assert round(n_steps) == n_steps
-        n_steps = int(n_steps)
-        p = self._pred_ahead(b, self.A, self.alpha, n_steps)
-        # AT = fractional_matrix_power(self.A, n_steps)
-        # p = jnp.log(self.alpha @ AT @ jnp.exp(b) + 1e-16)
-        return numpy.array(p)
+        return self.unevaluated_log_pred_p(n_steps)(future_point)
 
     def entropy(self, n_steps, alpha=None):
         if not self.is_initialized:
@@ -467,12 +457,6 @@ def kill_dead_nodes(ind2, n_thresh, n_obs, S1, S2, En, log_A):
 
 
 # gets jit-ed later
-def pred_ahead(B, A, alpha, steps_ahead):
-    AT = jnp.linalg.matrix_power(A, steps_ahead)
-    return jnp.log(alpha @ AT @ jnp.exp(B) + 1e-16)
-
-
-# gets jit-ed later
 def entropy(A, alpha, steps_ahead):
     AT = jnp.linalg.matrix_power(A, steps_ahead)
     one = alpha @ AT
@@ -625,6 +609,9 @@ class Bubblewrap(Predictor, BaseBubblewrap):
 
     def get_arbitrary_dynamics_parameter(self):
         return self.A
+
+    def unevaluated_log_pred_p(self, n_steps):
+        return BaseBubblewrap.unevaluated_log_pred_p(self, n_steps)
 
     def _partial_fit_transform(self, data, stream=0, return_output_stream=False):
         if self.input_streams[stream] == 'dt':

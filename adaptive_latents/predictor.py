@@ -33,9 +33,9 @@ class Predictor(StreamingTransformer):
     def get_arbitrary_dynamics_parameter(self):
         pass
 
-    # @abstractmethod
-    # def n_step_prediction_log_pdf(self):
-    #     pass
+    @abstractmethod
+    def unevaluated_log_pred_p(self, n_steps):
+        pass
 
     def toggle_parameter_fitting(self, value=None):
         if value is not None:
