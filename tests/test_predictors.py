@@ -88,74 +88,102 @@ def test_ar_k(rng, rank_limit, show_plots):
     check_lds_predicts_circle(ar, X, trasitions_per_rotation, show_plots)
 
 
-@longrun
-@pytest.mark.parametrize('predictor_maker,n_rotations', [
-    (StreamingKalmanFilter, 10),
-    (functools.partial(Bubblewrap), 250),
-    (functools.partial(VJF, latent_d=2, rng=np.random.default_rng(12)), 1000),
+@pytest.fixture(params=[
+    pytest.param('kalman_filter', marks=()),
+    pytest.param('bubblewrap', marks=longrun),
+    pytest.param('VJF', marks=longrun),
 ])
-def test_predictor_accuracy(predictor_maker, n_rotations, rng, show_plots):
+def fitted_predictor_tuple(request, rng):
+    predictor: adaptive_latents.predictor.Predictor
+    match request.param:
+        case 'kalman_filter':
+            predictor = StreamingKalmanFilter()
+            n_rotations = 10
+        case 'bubblewrap':
+            predictor = Bubblewrap()
+            n_rotations = 250
+        case 'VJF':
+            predictor = VJF(latent_d=2, rng=np.random.default_rng(12))
+
+            bit_generator = np.random.PCG64()
+            bit_generator.state = {'bit_generator': 'PCG64', 'state': {'state': 281364121276374771136523600236232687944, 'inc': 141594020766391051164819261345714058667}, 'has_uint32': 0, 'uinteger': 0}
+            rng = np.random.Generator(bit_generator)
+
+            n_rotations = 500
+        case _:
+                raise ValueError()
+
+
     transitions_per_rotation = 30
     radius = 10
     _, Y, _ = LDS.run_nest_dynamical_system(rotations=n_rotations, transitions_per_rotation=transitions_per_rotation, radius=radius, u_function=lambda **_: np.zeros(3), rng=rng, noise=0.05**2)
 
-    Y_first_part = Y.slice(slice(None, -transitions_per_rotation))
 
-    predictor: adaptive_latents.transformer.StreamingTransformer = predictor_maker()
+    Y_train = Y.slice(slice(None, -transitions_per_rotation))
+    Y_test = Y.slice(slice(-transitions_per_rotation,-transitions_per_rotation + transitions_per_rotation//2))
 
-    predictor.offline_run_on([(Y_first_part, 'X')], convinient_return=False)
+    predictor.offline_run_on([(Y_train, 'X')], convinient_return=False)
+
+    return predictor, Y_train, Y_test, transitions_per_rotation
+
+
+def test_predictor_accuracy(fitted_predictor_tuple, show_plots):
+    predictor, Y_train, Y_test, transitions_per_rotation = fitted_predictor_tuple
 
     trajectory = []
     for i in range(0, transitions_per_rotation+2):  # TODO: what's the correct number of transitions here? +1 or +2?
         stream = 'dt_X'
-        prediction = predictor.partial_fit_transform(ArrayWithTime([[i]], Y.t[-1]), stream=stream)
+        prediction = predictor.partial_fit_transform(ArrayWithTime([[i]], Y_train.t[-1]), stream=stream)
         trajectory.append(prediction)
 
-    assert not np.isclose(trajectory[1].t, Y.t[-1] + Y.dt)
-    assert np.isclose(trajectory[1].t, Y.t[-1])
+    assert not np.isclose(trajectory[1].t, Y_train.t[-1] + Y_train.dt)
+    assert np.isclose(trajectory[1].t, Y_train.t[-1])
 
     trajectory = np.squeeze(trajectory)
 
     if show_plots:
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots()
-        ax.plot(Y[:, 0], Y[:, 1])
-        ax.plot([Y[-1, 0], trajectory[0, 0]], [Y[-1, 1], trajectory[0, 1]], '--.', color='C2')
+        ax.plot(Y_train[:, 0], Y_train[:, 1])
+        ax.plot([Y_train[-1, 0], trajectory[0, 0]], [Y_train[-1, 1], trajectory[0, 1]], '--.', color='C2')
         ax.plot(trajectory[:, 0], trajectory[:, 1], '.-', color='C1')
         ax.axis('equal')
         plt.show(block=True)
 
         if isinstance(predictor, Bubblewrap):
             fig, ax = plt.subplots()
-            ax.plot(Y[:, 0], Y[:, 1])
-            ax.plot([Y[-1, 0], trajectory[0, 0]], [Y[-1, 1], trajectory[0, 1]], '--.', color='C2')
+            ax.plot(Y_train[:, 0], Y_train[:, 1])
+            ax.plot([Y_train[-1, 0], trajectory[0, 0]], [Y_train[-1, 1], trajectory[0, 1]], '--.', color='C2')
             ax.plot(trajectory[:, 0], trajectory[:, 1], '.-')
             ax.axis('equal')
             predictor.show_bubbles_2d(ax)
             plt.show(block=True)
 
     half_idx = len(trajectory) // 2
-    assert np.abs((np.atan2(trajectory[-1, 1], trajectory[-1, 0]) - np.atan2(Y[-1, 1], Y[-1, 0])) * 180 / np.pi) < 90  # TODO: make this tighter than 90 degrees
-    assert np.abs((np.atan2(trajectory[half_idx, 1], trajectory[half_idx, 0]) - np.atan2(Y[-1, 1], Y[-1, 0])) * 180 / np.pi) > 110
+    assert np.abs((np.atan2(trajectory[-1, 1], trajectory[-1, 0]) - np.atan2(Y_train[-1, 1], Y_train[-1, 0])) * 180 / np.pi) < 90  # TODO: make this tighter than 90 degrees
+    assert np.abs((np.atan2(trajectory[half_idx, 1], trajectory[half_idx, 0]) - np.atan2(Y_train[-1, 1], Y_train[-1, 0])) * 180 / np.pi) > 110
 
-    Y_second_part = Y.slice(slice(-transitions_per_rotation,-transitions_per_rotation + transitions_per_rotation//2))
 
-    a = Y_first_part[-1]
+def test_predictor_pdf(fitted_predictor_tuple, show_plots):
+    predictor, Y_train, Y_test, transitions_per_rotation = fitted_predictor_tuple
+
+    a = Y_train[-1]
     pdf_a_to_a = predictor.unevaluated_log_pred_p(0)
     pdf_a_to_b = predictor.unevaluated_log_pred_p(transitions_per_rotation//2)
-    predictor.offline_run_on([(Y_second_part, 'X')], convinient_return=False)
-    b = Y_second_part.slice(-1)
+    predictor.offline_run_on([(Y_test, 'X')], convinient_return=False)
+    b = Y_test.slice(-1)
     pdf_b_to_b = predictor.unevaluated_log_pred_p(0)
     pdf_b_to_a = predictor.unevaluated_log_pred_p(transitions_per_rotation//2)
 
     if show_plots:
+        import matplotlib.pyplot as plt
         fig, axs = plt.subplots(nrows=2, ncols=2)
         titles = []
         pdfs = []
         for title, pdf_f in zip(['a to a', 'a to b', 'b to a', 'b to b'], [pdf_a_to_a, pdf_a_to_b, pdf_b_to_a, pdf_b_to_b]):
             density = 100
-            xlim = [Y[:,0].min(), Y[:,0].max()]
-            ylim = [Y[:,1].min(), Y[:,1].max()]
+            xlim = [Y_train[:,0].min(), Y_train[:,0].max()]
+            ylim = [Y_train[:,1].min(), Y_train[:,1].max()]
             x_bins = np.linspace(*xlim, density + 1)
             y_bins = np.linspace(*ylim, density + 1)
             pdf_values = np.zeros(shape=(density, density))
@@ -169,8 +197,6 @@ def test_predictor_accuracy(predictor_maker, n_rotations, rng, show_plots):
 
         from mpl_toolkits.axes_grid1 import make_axes_locatable
         for ax, title, pdf_values in zip(axs.flatten(), titles, pdfs):
-
-
             divider = make_axes_locatable(ax)
             cax = divider.append_axes('right', size='5%', pad=0.05)
             im = ax.pcolormesh(x_bins, y_bins, pdf_values.T, cmap='plasma')
