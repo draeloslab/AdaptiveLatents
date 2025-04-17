@@ -10,6 +10,7 @@ from collections import namedtuple
 import numpy as np
 
 from adaptive_latents.config import CONFIG
+from adaptive_latents.timed_data_source import ArrayWithTime
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -147,7 +148,7 @@ def resample_matched_timeseries(old_timeseries, old_sample_times, new_sample_tim
     resampled_behavior = np.zeros((new_sample_times.shape[0], old_timeseries.shape[1]))
     for c in range(resampled_behavior.shape[1]):
         resampled_behavior[:, c] = np.interp(new_sample_times, old_sample_times[good_samples], old_timeseries[good_samples, c])
-    return resampled_behavior
+    return ArrayWithTime(resampled_behavior, new_sample_times)
 
 
 def evaluate_regression(estimate, estimate_t,  target, target_t):

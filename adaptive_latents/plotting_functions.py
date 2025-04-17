@@ -1,5 +1,6 @@
 import datetime
 import functools
+import itertools
 import pathlib
 import warnings
 
@@ -8,8 +9,10 @@ from IPython import display
 from matplotlib import pyplot as plt
 from matplotlib.animation import FFMpegWriter, PillowWriter
 
+import adaptive_latents
 from adaptive_latents import CONFIG
 from adaptive_latents.timed_data_source import ArrayWithTime
+from adaptive_latents.utils import resample_matched_timeseries
 
 
 class AnimationManager:
@@ -287,3 +290,160 @@ def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, 
 
         ax.axis('equal')
         ax.axis('off')
+
+
+class MultiRowRunComparison:
+    def __init__(self, n_rows, time_in_samples=False, error_plot_multi_color=False):
+        self.n_rows = n_rows
+        self.time_in_samples = time_in_samples
+        self.error_plot_multi_color = error_plot_multi_color  # controls if error plots color by component
+
+        self.fig, self.axs = plt.subplots(figsize=(14, 2*n_rows-1), nrows=n_rows, ncols=2, sharex='col', layout='tight', gridspec_kw={'width_ratios': [7, 1]})
+        gs = self.axs[0, 1].get_gridspec()
+        for a in self.axs[:, 1]:
+            a.remove()
+        self.axbig = self.fig.add_subplot(gs[:, 1])
+
+        self.entries = [[] for _ in range(n_rows)]
+
+        self.halfway_time = None
+        self.common_time_start = None
+        self.common_time_end = None
+        self.any_time_start = None
+        self.any_time_end = None
+
+
+        self.to_write = [[] for _ in range(n_rows)]
+        self.color_sequence = itertools.chain(['C0'], itertools.repeat('k'))
+        self.current_color = next(self.color_sequence)
+
+    def new_set(self):
+        self.current_color = next(self.color_sequence)
+
+    def register_entry(self, row_n, plot_type='line', **kwargs):
+        self.entries[row_n].append(dict(color=self.current_color, plot_type=plot_type) | kwargs)
+
+    def plot_entries(self):
+        for row in self.entries:
+            assert len(set([entry.get('ylabel', '') for entry in row])) == 1
+
+        self.any_time_start = min([min(e['to_plot'].t) for row in self.entries for e in row])
+        self.any_time_end = max([max(e['to_plot'].t) for row in self.entries for e in row])
+
+        self.common_time_start = max([min(e['to_plot'].t) for row in self.entries for e in row])
+        self.common_time_end = min([max(e['to_plot'].t) for row in self.entries for e in row])
+
+        self.halfway_time = (self.common_time_start + self.common_time_end) / 2
+
+        for row_idx in range(self.n_rows):
+            for layer_idx, e in enumerate(self.entries[row_idx]):
+                ax = self.axs[row_idx, 0]
+                match e.pop('plot_type'):
+                    case 'line':
+                        text, style = self.plot_line_entry(ax=ax, **e)
+                    case 'error':
+                        text, style = self.plot_error_entry(ax=ax, **e)
+                    case _:
+                        raise ValueError()
+
+
+                self.to_write[row_idx].append((layer_idx, text, {'color': e['color']} | style))
+
+        xlabel = 'time' if not self.time_in_samples else 'time (samples)'
+        self.axs[-1,0].set_xlabel(xlabel)
+
+        self.set_axlim_and_coord_format()
+        self.write_last_half_means(self.to_write)
+
+
+    def plot_line_entry(self, ax, to_plot, ylabel, color):
+        t = to_plot.t
+        if self.time_in_samples:
+            t = to_plot.t / to_plot.dt
+        self.plot_with_trendline(ax, t, to_plot, color)
+        ax.set_ylabel(ylabel)
+
+        test_slice = (self.halfway_time < to_plot.t) & (to_plot.t < self.common_time_end)
+        last_half_mean = to_plot[test_slice].mean()
+
+        text = f'{last_half_mean:.2f}'
+        style = {}
+
+        return text, style
+
+    def plot_error_entry(self, ax, to_plot, true_values, ylabel, color):
+        predicted_values = to_plot
+        assert (true_values.t == predicted_values.t).all()
+        t = true_values.t
+
+        if self.time_in_samples:
+            t = t / predicted_values.dt
+
+        for i in range(predicted_values.shape[1]):
+            color = f'C{i}' if self.error_plot_multi_color else color
+            ax.plot(t, true_values[:, i], color=color)
+            ax.plot(t, predicted_values[:, i], color=color, alpha=.5)
+
+        ax.set_ylabel(ylabel)
+
+        test_slice = (self.halfway_time < to_plot.t) & (to_plot.t < self.common_time_end)
+        correlations = [np.corrcoef(predicted_values[test_slice, i], true_values[test_slice, i])[0, 1] for i in range(predicted_values.shape[1])]
+        text = ' '.join([f'{r:.2f}' for r in correlations] )
+        style = {'fontsize': 'x-small'}
+
+        return text, style
+
+    def add_right_text(self, to_write):
+        self.axbig.axis("off")
+        self.axbig.text(0, 1, to_write, transform=self.axbig.transAxes, verticalalignment="top")
+
+    def write_last_half_means(self, to_write):
+        for i, l in enumerate(to_write):
+            for idx, text, kw in l:
+                x, y = .92, .93 - .1 * idx
+                x, y = self.axs[i, 0].transLimits.inverted().transform([x, y])
+                self.axs[i, 0].text(x, y, text, clip_on=True, verticalalignment='top', **kw)
+
+    def set_axlim_and_coord_format(self):
+        for axis in self.axs[:, 0]:
+            data_lim = np.array(axis.dataLim).T.flatten()
+            data_lim[0] = self.any_time_start
+            data_lim[1] = self.any_time_end
+            if np.isfinite(data_lim).all():
+                bounds = data_lim
+                bounds[:2] = (bounds[:2] - bounds[:2].mean()) * np.array([1.02, 1.2]) + bounds[:2].mean()
+                bounds[2:] = (bounds[2:] - bounds[2:].mean()) * np.array([1.05, 1.05]) + bounds[2:].mean()
+                axis.axis(bounds)
+                axis.format_coord = lambda x, y: 'x={:g}, y={:g}'.format(x, y)
+
+    def write_transformer_comparison(self, transformers):
+        to_write = self.transformer_comparison(transformers)
+        self.add_right_text(to_write)
+
+
+    @staticmethod
+    def transformer_comparison(transformers, ignore_keys=('input_streams', 'output_streams', 'log_level')):
+        params_per_transformer_list = [t.get_params() for t in transformers]
+        super_param_dict = {}
+        for key in params_per_transformer_list[0].keys():
+            values = [p[key] for p in params_per_transformer_list]
+            if len(set(values)) == 1:
+                values = values[0]
+                if key in ignore_keys:
+                    continue
+            super_param_dict[key] = values
+        to_write = "\n".join(f"{k}: {v}" for k, v in super_param_dict.items())
+        return to_write
+
+
+    @staticmethod
+    def _one_sided_ewma(data, com=100):
+        import pandas as pd
+        # TODO: actually implement this
+        return pd.DataFrame(data=dict(data=data)).ewm(com).mean()["data"]
+
+    @classmethod
+    def plot_with_trendline(cls, ax, times, data, color, com=100):
+        ax.plot(times, data, alpha=.25, color=color)
+        smoothed_data = cls._one_sided_ewma(data, com, )
+        ax.plot(times, smoothed_data, color=color)

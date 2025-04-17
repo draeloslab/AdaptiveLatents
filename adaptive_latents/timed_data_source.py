@@ -209,7 +209,7 @@ class ArrayWithTime(np.ndarray):
         if reshape_mid_nans:
             for i in range(len(input_list)):
                 hit = False
-                if not np.isfinite(input_list[i]).any() and np.array(input_list[i]).shape[-1] != np.array(input_list[0]).shape[-1]:
+                if not np.isfinite(input_list[i]).any() and len(np.array(input_list[i]).shape) and np.array(input_list[i]).shape[-1] != np.array(input_list[0]).shape[-1]:
                     hit = True
                     input_list[i] = input_list[i][..., :np.shape(input_list[0])[-1]]
                     assert input_list[i].shape == np.array(input_list[0]).shape
