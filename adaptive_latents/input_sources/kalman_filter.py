@@ -191,7 +191,7 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
 
     def unevaluated_log_pred_p(self, n_steps):
         if self.A is None:
-            return lambda x: np.array([[np.nan]])
+            return lambda x: np.nan
 
         evals, evecs  = np.linalg.eigh(self.state_var)
         evals = np.abs(evals)  # TODO: this should not be necessary

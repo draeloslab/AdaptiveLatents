@@ -1,5 +1,6 @@
 import copy
 from abc import abstractmethod
+import time
 
 import numpy as np
 import pytest
@@ -9,13 +10,17 @@ from .transformer import StreamingTransformer
 
 
 class Predictor(StreamingTransformer):
-    def __init__(self, input_streams=None, output_streams=None, log_level=None, check_dt=False):
+    def __init__(self, input_streams=None, output_streams=None, log_level=None, check_dt=False, n_steps_to_predict=1):
         input_streams = input_streams or {0: 'X', 1: 'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}
         super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
         self.check_dt = check_dt
         self.dt = None
         self._last_t = None
         self.parameter_fitting = True
+
+        self.n_steps_to_predict = n_steps_to_predict
+        self.unevaluated_log_pred_ps = {}
+        self.predictions = {}
 
     @abstractmethod
     def predict(self, n_steps):
@@ -36,6 +41,62 @@ class Predictor(StreamingTransformer):
     @abstractmethod
     def unevaluated_log_pred_p(self, n_steps):
         pass
+
+
+    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
+        original_data = None
+        if self.log_level >= 2:
+            original_data = copy.deepcopy(data)
+
+        if self.log_level >= 1:
+            self.log['stream'].append(stream)
+
+        start = time.time()
+        ret = self._partial_fit_transform(data, stream, return_output_stream)
+        time_elapsed = time.time() - start
+
+        if self.log_level >= 1:
+            if hasattr(data, 't'):
+                time_elapsed = ArrayWithTime(time_elapsed, data.t)
+            self.log['step_time'].append(time_elapsed)
+
+        self.log_for_partial_fit(data, stream, original_data=original_data)
+        return ret
+
+    def log_for_partial_fit(self, data, stream, original_data=None):
+        if self.log_level >= 2:
+            assert self.check_dt
+
+            if 'pred_error' not in self.log:
+                for k in ['pred_error', 'log_pred_p', 'log_pred_p_target_t', 'pred_target_t']:
+                    self.log[k] = []
+
+            if self.dt is not None:
+                current_t = data.t
+                real_time_offset = self.dt * self.n_steps_to_predict
+
+                # normal prediction error
+                self.predictions[current_t + real_time_offset] = (current_t, self.predict(self.n_steps_to_predict))
+                for t_to_eval in list(self.predictions.keys()):
+                    if np.isclose(current_t, t_to_eval):
+                        origin_t, prediction = self.predictions[t_to_eval]
+                        self.log['pred_error'].append(ArrayWithTime(prediction - original_data, origin_t))
+                        self.log['pred_target_t'].append(current_t)
+                        del self.predictions[t_to_eval]
+                    elif t_to_eval < current_t:
+                        del self.predictions[t_to_eval]
+
+                # log pred p calculation
+                self.unevaluated_log_pred_ps[current_t + real_time_offset] = (current_t, self.unevaluated_log_pred_p(self.n_steps_to_predict))
+                for t_to_eval in list(self.unevaluated_log_pred_ps.keys()):
+                    if np.isclose(current_t, t_to_eval):
+                        origin_t, pdf = self.unevaluated_log_pred_ps[t_to_eval]
+                        self.log['log_pred_p'].append(ArrayWithTime(pdf(original_data), origin_t))
+                        self.log['log_pred_p_target_t'].append(current_t)
+                        del self.unevaluated_log_pred_ps[t_to_eval]
+                    elif t_to_eval < current_t:
+                        del self.unevaluated_log_pred_ps[t_to_eval]
+
 
     def toggle_parameter_fitting(self, value=None):
         if value is not None:

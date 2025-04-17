@@ -280,7 +280,7 @@ class BaseBubblewrap:
 
     def unevaluated_log_pred_p(self, n_steps):
         if not self.is_initialized:
-            return lambda x: numpy.array([[numpy.nan]])
+            return lambda x: numpy.array(numpy.nan)
 
         assert round(n_steps) == n_steps
 
@@ -309,9 +309,6 @@ class BaseBubblewrap:
         assert round(n_steps) == n_steps
         n_steps = int(n_steps)
         e = self._get_entropy(self.A, alpha, n_steps)
-        # AT = fractional_matrix_power(self.A, n_steps)
-        # one = alpha @ AT
-        # e = -jnp.sum(one.dot(jnp.log2(alpha @ AT)))
 
         return numpy.array(e)
 
@@ -555,25 +552,6 @@ class Bubblewrap(Predictor, BaseBubblewrap):
         self.unevaluated_predictions = {}
         self.n_steps_to_predict = n_steps_to_predict
 
-    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
-        original_data = None
-        if self.log_level >= 2:
-            original_data = copy.deepcopy(data)
-
-        if self.log_level >= 1:
-            self.log['stream'].append(stream)
-
-        start = timeit.default_timer()
-        ret = self._partial_fit_transform(data, stream, return_output_stream)
-        time_elapsed = timeit.default_timer() - start
-
-        if self.log_level >= 1:
-            if hasattr(data, 't'):
-                time_elapsed = ArrayWithTime(time_elapsed, data.t)
-            self.log['step_time'].append(time_elapsed)
-
-        self.log_for_partial_fit(original_data if original_data is not None else data, stream)
-        return ret
 
     def observe(self, X, stream=None):
         assert X.shape[0] == 1
@@ -658,33 +636,18 @@ class Bubblewrap(Predictor, BaseBubblewrap):
         bw.log = self.log
         return bw
 
-    def log_for_partial_fit(self, data, stream):
+    def log_for_partial_fit(self, data, stream, original_data=None):
+        super().log_for_partial_fit(data, stream, original_data)
         if self.log_level >= 2 and self.is_initialized and self.input_streams[stream] == 'X' and not numpy.isnan(data).any():
             if 'alpha' not in self.log:
-                for key in ['alpha', 'entropy', 't', 'log_pred_p', 'log_pred_p_origin_t']:
+                for key in ['alpha', 'entropy']:
                     self.log[key] = []
-            if hasattr(data, 't') and self.check_dt:
-                # without self.check_dt otherwise self.dt is not defined
-                t = data.t
-                dt = self.dt
-            else:
-                # TODO: this is not a great fix, but it works
-                t = self.obs.n_obs
-                dt = 1
-            self.log['alpha'].append(numpy.array(self.alpha))
-            self.log['entropy'].append(self.entropy(n_steps=self.n_steps_to_predict))
-            self.log['t'].append(t)
 
-            real_time_offset = dt * self.n_steps_to_predict
-            self.unevaluated_predictions[t + real_time_offset] = (t, self.unevaluated_log_pred_p(self.n_steps_to_predict))
-            for t_to_eval in list(self.unevaluated_predictions.keys()):
-                if numpy.isclose(t, t_to_eval):
-                    origin_t, f = self.unevaluated_predictions[t_to_eval]
-                    self.log['log_pred_p'].append(f(data))
-                    self.log['log_pred_p_origin_t'].append(origin_t)
-                    del self.unevaluated_predictions[t_to_eval]
-                elif t_to_eval < t:
-                    del self.unevaluated_predictions[t_to_eval]
+            current_t = data.t
+
+            self.log['alpha'].append(ArrayWithTime(self.alpha, current_t))
+            self.log['entropy'].append(ArrayWithTime(self.entropy(n_steps=self.n_steps_to_predict), current_t))
+
 
     def get_alpha_at_n_steps(self, n_steps, alpha=None, method='power'):
         alpha = alpha if alpha is not None else self.alpha
@@ -889,126 +852,57 @@ class Bubblewrap(Predictor, BaseBubblewrap):
 
     @staticmethod
     def compare_runs(bws, behavior_dicts=None, t_in_samples=False):
-        import matplotlib.pyplot as plt
-        def _one_sided_ewma(data, com=100):
-            import pandas as pd
-            return pd.DataFrame(data=dict(data=data)).ewm(com).mean()["data"]
+        from adaptive_latents.plotting_functions import MultiRowRunComparison
+        from adaptive_latents.utils import resample_matched_timeseries
 
-        def plot_with_trendline(ax, times, data, color, com=100):
-            ax.plot(times, data, alpha=.25, color=color)
-            smoothed_data = _one_sided_ewma(data, com, )
-            ax.plot(times, smoothed_data, color=color)
-
-        bws: [Bubblewrap]
+        bws: list[Bubblewrap]
         for bw in bws:
             assert bw.log_level >= 2
+            assert bw.check_dt
 
         has_behavior = behavior_dicts is not None
+        if not has_behavior:
+            behavior_dicts = [{} for _ in range(len(bws))]
 
+        plot = MultiRowRunComparison(n_rows=3+has_behavior, time_in_samples=t_in_samples)
 
-        fig, axs = plt.subplots(figsize=(14, 5), nrows=2 + has_behavior, ncols=2, sharex='col', layout='tight',
-                                gridspec_kw={'width_ratios': [7, 1]})
+        for bw, behavior_dict  in zip(bws, behavior_dicts):
+            to_plot = ArrayWithTime.from_list(bw.log['log_pred_p'])
+            plot.register_entry(row_n=0, to_plot=to_plot, ylabel='log_pred_p', plot_type='line')
 
-        common_time_start = max([min(bw.log['t']) for bw in bws])
-        common_time_end = min([max(bw.log['t']) for bw in bws])
-        halfway_time = (common_time_start + common_time_end) / 2
+            to_plot = ArrayWithTime.from_list(bw.log['entropy'])
+            plot.register_entry(row_n=1, to_plot=to_plot, ylabel='entropy', plot_type='line')
 
-        to_write = [[] for _ in range(axs.shape[0])]
-        colors = ['C0'] + ['k'] * (len(bws) - 1)
-        for idx, bw in enumerate(bws):
-            color = colors[idx]
+            to_plot = ArrayWithTime.from_list(bw.log['pred_error'], squeeze_type='to_2d')
+            to_plot = (to_plot**2).mean(axis=1)
+            plot.register_entry(row_n=2, to_plot=to_plot, ylabel='pred_error (mse)', plot_type='line')
 
-            # plot prediction
-            t = numpy.array(bw.log['log_pred_p_origin_t'])
-            t_to_plot = t
-            if t_in_samples:
-                t_to_plot = t / bw.dt
-            to_plot = numpy.array(bw.log['log_pred_p'])
-            plot_with_trendline(axs[0, 0], t_to_plot, to_plot, color)
-            last_half_mean = to_plot[(halfway_time < t) & (t < common_time_end)].mean()
-            to_write[0].append((idx, f'{last_half_mean:.2f}', {'color': color}))
-            axs[0, 0].set_ylabel('log pred. p')
-
-            # plot entropy
-            t = numpy.array(bw.log['t'])
-            t_to_plot = t
-            if t_in_samples:
-                t_to_plot = t / bw.dt
-            to_plot = numpy.array(bw.log['entropy'])
-            plot_with_trendline(axs[1, 0], t_to_plot, to_plot, color)
-            last_half_mean = to_plot[(halfway_time < t) & (t < common_time_end)].mean()
-            to_write[1].append((idx, f'{last_half_mean:.2f}', {'color': color}))
-            axs[1, 0].set_ylabel('entropy')
-
-            max_entropy = numpy.log2(bw.N)
-            axs[1, 0].axhline(max_entropy, color='k', linestyle='--')
-
-            # plot behavior
             if has_behavior:
-                from adaptive_latents.utils import resample_matched_timeseries
-
-                t = behavior_dicts[idx]['predicted_behavior'].t
-                targets = resample_matched_timeseries(
-                    behavior_dicts[idx]['true_behavior'],
-                    behavior_dicts[idx]['true_behavior'].t,
-                    t
+                true_values = resample_matched_timeseries(
+                    behavior_dict['true_behavior'],
+                    behavior_dict['true_behavior'].t,
+                    behavior_dict['predicted_behavior'].t
                 )
-                estimates = behavior_dicts[idx]['predicted_behavior']
+                predicted_values = behavior_dict['predicted_behavior']
 
-                test_s = t > (t[0] + t[-1]) / 2
+                plot.register_entry(
+                    row_n=3,
+                    plot_type='error',
+                    to_plot = predicted_values,
+                    true_values = true_values,
+                    ylabel = 'behavior',
+                )
 
-                correlations = [numpy.corrcoef(estimates[test_s, i], targets[test_s, i])[0, 1] for i in range(estimates.shape[1])]
-                corr_str = '\n'.join([f'{r:.2f}' for r in correlations] )
-                to_write[2].append((idx, corr_str, {'fontsize': 'x-small'}))
+            plot.new_set()
 
-                t_to_plot = t
-                if t_in_samples:
-                    t_to_plot = t / bw.dt
-                for i in range(estimates.shape[1]):
-                    axs[2,0].plot(t_to_plot, targets[:, i], color=f'C{i}')
-                    axs[2,0].plot(t_to_plot, estimates[:, i], color=f'C{i}', alpha=.5)
-                # axs[2,0].axvline(t[test_s].min(), color='k')
-                axs[2,0].set_xlabel("time")
-                axs[2,0].set_ylabel("behavior")
+        plot.plot_entries()
 
+        max_entropy = numpy.log2(bw.N)
+        plot.axs[1, 0].axhline(max_entropy, color='k', linestyle='--')
 
-        # this sets the axis bounds for the text
-        for axis in axs[:, 0]:
-            data_lim = numpy.array(axis.dataLim).T.flatten()
-            bounds = data_lim
-            bounds[:2] = (bounds[:2] - bounds[:2].mean()) * numpy.array([1.02, 1.2]) + bounds[:2].mean()
-            bounds[2:] = (bounds[2:] - bounds[2:].mean()) * numpy.array([1.05, 1.05]) + bounds[2:].mean()
-            axis.axis(bounds)
-            axis.format_coord = lambda x, y: 'x={:g}, y={:g}'.format(x, y)
+        plot.write_transformer_comparison(bws)
 
-        # this prints the last-half means
-        for i, l in enumerate(to_write):
-            for idx, text, kw in l:
-                x, y = .92, .93 - .1 * idx
-                x, y = axs[i, 0].transLimits.inverted().transform([x, y])
-                axs[i, 0].text(x, y, text, clip_on=True, verticalalignment='top', **kw)
-
-        # this creates the axis for the parameters
-        gs = axs[0, 1].get_gridspec()
-        for a in axs[:, 1]:
-            a.remove()
-        axbig = fig.add_subplot(gs[:, 1])
-        axbig.axis("off")
-
-        # this generates and prints the parameters
-        params_per_bw_list = [bw.get_params() for bw in bws]
-        super_param_dict = {}
-        for key in params_per_bw_list[0].keys():
-            values = [p[key] for p in params_per_bw_list]
-            if len(set(values)) == 1:
-                values = values[0]
-                if key in {'input_streams', 'output_streams', 'log_level'}:
-                    continue
-            super_param_dict[key] = values
-        to_write = "\n".join(f"{k}: {v}" for k, v in super_param_dict.items())
-        axbig.text(0, 1, to_write, transform=axbig.transAxes, verticalalignment="top")
-
-        return fig, axs
+        return plot.fig, plot.axs
 
     def expected_data_streams(self, rng, DIM):
         # TODO: make sure this works with Predictor's; it mixes a return with a yeild

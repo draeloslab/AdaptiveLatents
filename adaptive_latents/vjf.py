@@ -278,6 +278,9 @@ class VJF(Predictor, BaseVJF):
         return super().get_params(deep=deep) | dict(take_U=self.take_U, latent_d=self.latent_d, config=self.config, rng=self.rng, n_particles_for_prediction=self.n_particles_for_prediction)
 
     def unevaluated_log_pred_p(self, n_steps):
+        if self.q is None:
+            return lambda x: np.nan
+
         cloud = self.get_cloud_at_time_t(n_steps)
 
         decoded_cloud = np.array(self._vjf.decoder(cloud).detach().numpy())
