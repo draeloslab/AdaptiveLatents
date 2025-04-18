@@ -123,7 +123,7 @@ def clip(*args, maxlen=float("inf")):
     return clipped_arrays
 
 
-def check_same(v: np.ndarray):
+def check_same(v: np.ndarray, overwrite=True):
     var = 'temp'
     import torch
     if isinstance(v, torch.Tensor):
@@ -133,7 +133,9 @@ def check_same(v: np.ndarray):
         old_v = np.load(f"{s}.npy")
     except FileNotFoundError:
         old_v = None
-    np.save(s, v)
+
+    if overwrite:
+        np.save(s, v)
 
     if old_v is not None:
         same = np.shape(v) == np.shape(old_v) and np.nanmax((v - old_v) ** 2) == 0

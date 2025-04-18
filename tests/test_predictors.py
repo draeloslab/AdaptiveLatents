@@ -105,11 +105,8 @@ def fitted_predictor_tuple(request, rng):
             predictor = Bubblewrap()
             n_rotations = 250
         case 'VJF':
-            predictor = VJF(latent_d=2, rng=np.random.default_rng(12))
-
-            bit_generator = np.random.PCG64()
-            bit_generator.state = {'bit_generator': 'PCG64', 'state': {'state': 281364121276374771136523600236232687944, 'inc': 141594020766391051164819261345714058667}, 'has_uint32': 0, 'uinteger': 0}
-            rng = np.random.Generator(bit_generator)
+            predictor = VJF(latent_d=2, rng=np.random.default_rng(18))
+            rng = np.random.default_rng(18)
 
             n_rotations = 500
         case _:
