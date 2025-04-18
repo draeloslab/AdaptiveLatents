@@ -29,12 +29,5 @@ class TestBubblewrap:
         bw.show_A(axs[(i := i + 1)])
         bw.show_nstep_pdf(ax=axs[(i := i + 1)], other_axis=axs[0], fig=fig, density=2)
 
-        bws = [bw]
-        Bubblewrap.compare_runs(bws)
-
-        bws = [bw,bw]
-        behavior_dicts = [{'predicted_behavior': ArrayWithTime.from_notime(rng.normal(size=(20,3))), 'true_behavior':ArrayWithTime.from_notime(rng.normal(size=(10,3)))} for _ in range(len(bws))]
-        Bubblewrap.compare_runs(bws, behavior_dicts)
-
         if show_plots:
             plt.show(block=True)

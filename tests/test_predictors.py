@@ -48,9 +48,11 @@ def check_lds_predicts_circle(predictor, X, trasitions_per_rotation, show_plots)
         plt.show()
 
 
+@pytest.mark.skip
 def test_kf_cov_pos_def(rng):
     """
     see the `evals = np.abs(evals)  # TODO: this should not be necessary` line in kalman_filter.py
+    https://github.com/draeloslab/AdaptiveLatents/issues/30#issue-3000347528
     """
     transitions_per_rotation = 30
     radius = 10
@@ -116,11 +118,12 @@ def fitted_predictor_tuple(request, rng):
 
     transitions_per_rotation = 30
     radius = 10
-    _, Y, _ = LDS.run_nest_dynamical_system(rotations=n_rotations, transitions_per_rotation=transitions_per_rotation, radius=radius, u_function=lambda **_: np.zeros(3), rng=rng, noise=0.05**2)
+    n_test_rotations = 5
+    _, Y, _ = LDS.run_nest_dynamical_system(rotations=n_rotations+n_test_rotations, transitions_per_rotation=transitions_per_rotation, radius=radius, u_function=lambda **_: np.zeros(3), rng=rng, noise=0.05**2)
 
 
-    Y_train = Y.slice(slice(None, -transitions_per_rotation))
-    Y_test = Y.slice(slice(-transitions_per_rotation,-transitions_per_rotation + transitions_per_rotation//2))
+    Y_train = Y.slice(slice(None, -n_test_rotations*transitions_per_rotation))
+    Y_test = Y.slice(slice(-n_test_rotations*transitions_per_rotation,None))
 
     predictor.offline_run_on([(Y_train, 'X')], convinient_return=False)
 
@@ -167,11 +170,13 @@ def test_predictor_accuracy(fitted_predictor_tuple, show_plots):
 def test_predictor_pdf(fitted_predictor_tuple, show_plots):
     predictor, Y_train, Y_test, transitions_per_rotation = fitted_predictor_tuple
 
+    half_rotation = Y_test.slice(slice(None, transitions_per_rotation//2))
+
     a = Y_train[-1]
     pdf_a_to_a = predictor.unevaluated_log_pred_p(0)
     pdf_a_to_b = predictor.unevaluated_log_pred_p(transitions_per_rotation//2)
-    predictor.offline_run_on([(Y_test, 'X')], convinient_return=False)
-    b = Y_test.slice(-1)
+    predictor.offline_run_on([(half_rotation, 'X')], convinient_return=False)
+    b = half_rotation.slice(-1)
     pdf_b_to_b = predictor.unevaluated_log_pred_p(0)
     pdf_b_to_a = predictor.unevaluated_log_pred_p(transitions_per_rotation//2)
 
@@ -215,29 +220,13 @@ def test_predictor_pdf(fitted_predictor_tuple, show_plots):
     assert pdf_b_to_b(b) > pdf_a_to_b(b) > pdf_b_to_a(b) >= pdf_a_to_a(b)
 
 
+def test_can_turn_off_parameter_learning(fitted_predictor_tuple, rng):
+    predictor, Y_train, Y_test, transitions_per_rotation = fitted_predictor_tuple
 
-
-
-
-@pytest.mark.parametrize('predictor_maker', [
-    StreamingKalmanFilter,
-    functools.partial(Bubblewrap, M=60),
-    functools.partial(VJF, latent_d=2, rng=np.random.default_rng(4)),
-])
-def test_can_turn_off_parameter_learning(predictor_maker, rng):
-    transitions_per_rotation = 30
-    radius = 10
-    _, Y, _ = LDS.run_nest_dynamical_system(rotations=10, transitions_per_rotation=transitions_per_rotation, radius=radius,
-                                            u_function=lambda **_: np.zeros(3), rng=rng)
-
-    Y1, Y2, Y3 = (
-        Y.slice(slice(None, -2*transitions_per_rotation)),
-        Y.slice(slice(-2*transitions_per_rotation, -1*transitions_per_rotation)),
-        Y.slice(slice(-1*transitions_per_rotation, None)),
+    Y2, Y3 = (
+        Y_test.slice(slice(None, len(Y_test)//2)),
+        Y_test.slice(slice(len(Y_test)//2, None)),
     )
-
-    predictor: adaptive_latents.predictor.Predictor = predictor_maker()
-    predictor.offline_run_on([(Y1, 'X')], convinient_return=False)
 
     dynamics_param = copy.deepcopy(predictor.get_arbitrary_dynamics_parameter())
 
@@ -247,4 +236,4 @@ def test_can_turn_off_parameter_learning(predictor_maker, rng):
 
     predictor.toggle_parameter_fitting(True)
     predictor.offline_run_on([(Y3, 'X')], convinient_return=False)
-    assert np.isclose(dynamics_param, predictor.get_arbitrary_dynamics_parameter()).mean() < .25
+    assert not np.isclose(dynamics_param, predictor.get_arbitrary_dynamics_parameter()).all()

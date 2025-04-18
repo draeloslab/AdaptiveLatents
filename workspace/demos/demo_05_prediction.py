@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 
 import adaptive_latents as al
 from adaptive_latents import Bubblewrap, CenteringTransformer, Concatenator, KernelSmoother, Pipeline, Tee, proSVD, sjPCA
+from adaptive_latents.plotting_functions import MultiRowRunComparison
 
 """
 Demo: Prediction
@@ -20,14 +21,14 @@ def main(show_plots=True):
         proSVD(k=6),
         sjPCA(),
         tea := Tee(input_streams={0: 0}),
-        bw := Bubblewrap(log_level=2, input_streams={0: 'X', 2: 'dt'})
+        bw := Bubblewrap(input_streams={0: 'X', 2: 'dt'}, log_level=2, check_dt=True)
     ])
 
     prediction_query_times = bw.make_prediction_times(neural_data)
 
     p.offline_run_on([neural_data, behavioral_data, prediction_query_times], show_tqdm=True, exit_time=60)
 
-    Bubblewrap.compare_runs([bw])
+    MultiRowRunComparison.compare_bw_runs([bw])
     if show_plots:
         plt.show()
 

@@ -850,59 +850,6 @@ class Bubblewrap(Predictor, BaseBubblewrap):
     def _ellipse_r(a, b, theta):
         return a * b / numpy.sqrt((numpy.cos(theta) * b)**2 + (numpy.sin(theta) * a)**2)
 
-    @staticmethod
-    def compare_runs(bws, behavior_dicts=None, t_in_samples=False):
-        from adaptive_latents.plotting_functions import MultiRowRunComparison
-        from adaptive_latents.utils import resample_matched_timeseries
-
-        bws: list[Bubblewrap]
-        for bw in bws:
-            assert bw.log_level >= 2
-            assert bw.check_dt
-
-        has_behavior = behavior_dicts is not None
-        if not has_behavior:
-            behavior_dicts = [{} for _ in range(len(bws))]
-
-        plot = MultiRowRunComparison(n_rows=3+has_behavior, time_in_samples=t_in_samples)
-
-        for bw, behavior_dict  in zip(bws, behavior_dicts):
-            to_plot = ArrayWithTime.from_list(bw.log['log_pred_p'])
-            plot.register_entry(row_n=0, to_plot=to_plot, ylabel='log_pred_p', plot_type='line')
-
-            to_plot = ArrayWithTime.from_list(bw.log['entropy'])
-            plot.register_entry(row_n=1, to_plot=to_plot, ylabel='entropy', plot_type='line')
-
-            to_plot = ArrayWithTime.from_list(bw.log['pred_error'], squeeze_type='to_2d')
-            to_plot = (to_plot**2).mean(axis=1)
-            plot.register_entry(row_n=2, to_plot=to_plot, ylabel='pred_error (mse)', plot_type='line')
-
-            if has_behavior:
-                true_values = resample_matched_timeseries(
-                    behavior_dict['true_behavior'],
-                    behavior_dict['true_behavior'].t,
-                    behavior_dict['predicted_behavior'].t
-                )
-                predicted_values = behavior_dict['predicted_behavior']
-
-                plot.register_entry(
-                    row_n=3,
-                    plot_type='error',
-                    to_plot = predicted_values,
-                    true_values = true_values,
-                    ylabel = 'behavior',
-                )
-
-            plot.new_set()
-
-        plot.plot_entries()
-
-        max_entropy = numpy.log2(bw.N)
-        plot.axs[1, 0].axhline(max_entropy, color='k', linestyle='--')
-
-        plot.write_transformer_comparison(bws)
-
-        return plot.fig, plot.axs
 
     def expected_data_streams(self, rng, DIM):
         # TODO: make sure this works with Predictor's; it mixes a return with a yeild

@@ -293,7 +293,7 @@ def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, 
 
 
 class MultiRowRunComparison:
-    def __init__(self, n_rows, time_in_samples=False, error_plot_multi_color=False):
+    def __init__(self, n_rows, time_in_samples=False, error_plot_multi_color=False, color_sequence='first_special'):
         self.n_rows = n_rows
         self.time_in_samples = time_in_samples
         self.error_plot_multi_color = error_plot_multi_color  # controls if error plots color by component
@@ -314,7 +314,13 @@ class MultiRowRunComparison:
 
 
         self.to_write = [[] for _ in range(n_rows)]
-        self.color_sequence = itertools.chain(['C0'], itertools.repeat('k'))
+        match color_sequence:
+            case 'first_special':
+                self.color_sequence = itertools.chain(['C0'], itertools.repeat('k'))
+            case 'default_cycle':
+                self.color_sequence = (f'C{n}' for n in itertools.cycle(list(range(9))))
+            case _:
+                raise ValueError()
         self.current_color = next(self.color_sequence)
 
     def new_set(self):
@@ -423,16 +429,20 @@ class MultiRowRunComparison:
 
     @staticmethod
     def transformer_comparison(transformers, ignore_keys=('input_streams', 'output_streams', 'log_level')):
-        params_per_transformer_list = [t.get_params() for t in transformers]
-        super_param_dict = {}
-        for key in params_per_transformer_list[0].keys():
-            values = [p[key] for p in params_per_transformer_list]
-            if len(set(values)) == 1:
-                values = values[0]
-                if key in ignore_keys:
-                    continue
-            super_param_dict[key] = values
-        to_write = "\n".join(f"{k}: {v}" for k, v in super_param_dict.items())
+        types = [type(t) for t in transformers]
+        if len(set(types)) == 1:
+            params_per_transformer_list = [t.get_params() for t in transformers]
+            super_param_dict = {}
+            for key in params_per_transformer_list[0].keys():
+                values = [p[key] for p in params_per_transformer_list]
+                if len(set(values)) == 1:
+                    values = values[0]
+                    if key in ignore_keys:
+                        continue
+                super_param_dict[key] = values
+            to_write = "\n".join(f"{k}: {v}" for k, v in super_param_dict.items())
+        else:
+            to_write = "\n".join([str(t.__name__) for t in types])
         return to_write
 
 
@@ -447,3 +457,82 @@ class MultiRowRunComparison:
         ax.plot(times, data, alpha=.25, color=color)
         smoothed_data = cls._one_sided_ewma(data, com, )
         ax.plot(times, smoothed_data, color=color)
+
+
+    @staticmethod
+    def compare_bw_runs(bws, behavior_dicts=None, t_in_samples=False):
+        from adaptive_latents.utils import resample_matched_timeseries
+
+        bws: list[adaptive_latents.Bubblewrap]
+        for bw in bws:
+            assert bw.log_level >= 2
+            assert bw.check_dt
+
+        has_behavior = behavior_dicts is not None
+        if not has_behavior:
+            behavior_dicts = [{} for _ in range(len(bws))]
+
+        plot = MultiRowRunComparison(n_rows=3+has_behavior, time_in_samples=t_in_samples)
+
+        for bw, behavior_dict  in zip(bws, behavior_dicts):
+            to_plot = ArrayWithTime.from_list(bw.log['log_pred_p'])
+            plot.register_entry(row_n=0, to_plot=to_plot, ylabel='log_pred_p', plot_type='line')
+
+            to_plot = ArrayWithTime.from_list(bw.log['entropy'])
+            plot.register_entry(row_n=1, to_plot=to_plot, ylabel='entropy', plot_type='line')
+
+            to_plot = ArrayWithTime.from_list(bw.log['pred_error'], squeeze_type='to_2d')
+            to_plot = (to_plot**2).mean(axis=1)
+            plot.register_entry(row_n=2, to_plot=to_plot, ylabel='pred_error (mse)', plot_type='line')
+
+            if has_behavior:
+                true_values = resample_matched_timeseries(
+                    behavior_dict['true_behavior'],
+                    behavior_dict['true_behavior'].t,
+                    behavior_dict['predicted_behavior'].t
+                )
+                predicted_values = behavior_dict['predicted_behavior']
+
+                plot.register_entry(
+                    row_n=3,
+                    plot_type='error',
+                    to_plot = predicted_values,
+                    true_values = true_values,
+                    ylabel = 'behavior',
+                )
+
+            plot.new_set()
+
+        plot.plot_entries()
+
+        max_entropy = np.log2(bw.N)
+        plot.axs[1, 0].axhline(max_entropy, color='k', linestyle='--')
+
+        plot.write_transformer_comparison(bws)
+
+
+    @staticmethod
+    def compare_predictor_runs(predictors, t_in_samples=False, color_sequence='default_cycle'):
+        predictors: list[adaptive_latents.predictor.Predictor]
+        for predictor in predictors:
+            assert predictor.log_level >= 2
+            assert predictor.check_dt
+
+        plot = MultiRowRunComparison(n_rows=3, time_in_samples=t_in_samples, color_sequence=color_sequence)
+
+        for predictor in predictors:
+            to_plot = ArrayWithTime.from_list(predictor.log['log_pred_p'])
+            plot.register_entry(row_n=0, to_plot=to_plot, ylabel='log_pred_p', plot_type='line')
+
+            to_plot = ArrayWithTime.from_list(predictor.log['pred_error'], squeeze_type='to_2d')
+            to_plot = (to_plot**2).mean(axis=1)
+            plot.register_entry(row_n=1, to_plot=to_plot, ylabel='pred_error (mse)', plot_type='line')
+
+            to_plot = ArrayWithTime.from_list(predictor.log['step_time'], squeeze_type='squeeze')
+            plot.register_entry(row_n=2, to_plot=to_plot*1000, ylabel='step time (ms)', plot_type='line')
+
+            plot.new_set()
+
+        plot.plot_entries()
+
+        plot.write_transformer_comparison(predictors)

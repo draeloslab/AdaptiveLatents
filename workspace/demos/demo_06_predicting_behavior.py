@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 
 import adaptive_latents as al
 from adaptive_latents import ArrayWithTime, Bubblewrap, CenteringTransformer, Concatenator, KernelSmoother, Pipeline, VanillaOnlineRegressor, proSVD, sjPCA
+from adaptive_latents.plotting_functions import MultiRowRunComparison
 
 """
 Demo: Joint latent prediction and regression
@@ -18,7 +19,7 @@ def main(show_plots=True):
         Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 0, 1: 0}),
         proSVD(k=6),
         sjPCA(),
-        bw := Bubblewrap(log_level=2, input_streams={0: 'X', 2: 'dt'}),
+        bw := Bubblewrap(input_streams={0: 'X', 2: 'dt'}, log_level=2, check_dt=True),
         reg := VanillaOnlineRegressor(input_streams={0: 'X', 2: 'qX', 3: 'Y'}, log_level=2),
     ])
 
@@ -33,7 +34,7 @@ def main(show_plots=True):
     predictions = ArrayWithTime.from_list(result[0], drop_early_nans=True, squeeze_type='to_2d')
 
     # TODO: passing the regression results should be easier; maybe something like PredictionEvaluation?
-    Bubblewrap.compare_runs(bws=[bw], behavior_dicts=[{'predicted_behavior': predictions, 'true_behavior': behavioral_data}])
+    MultiRowRunComparison.compare_bw_runs(bws=[bw], behavior_dicts=[{'predicted_behavior': predictions, 'true_behavior': behavioral_data}])
     if show_plots:
         plt.show()
 
