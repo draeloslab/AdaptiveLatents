@@ -8,6 +8,7 @@ import adaptive_latents
 from adaptive_latents import VJF, ArrayWithTime, Bubblewrap
 from adaptive_latents.input_sources import AR_K, LDS, KalmanFilter
 from adaptive_latents.input_sources.kalman_filter import StreamingKalmanFilter
+from adaptive_latents.stim_regressor import StimRegressor
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
 
@@ -92,6 +93,7 @@ def test_ar_k(rng, rank_limit, show_plots):
 
 @pytest.fixture(params=[
     pytest.param('kalman_filter', marks=()),
+    # pytest.param('stim_regressor', marks=()),
     pytest.param('bubblewrap', marks=longrun),
     pytest.param('VJF', marks=longrun),
 ])
@@ -100,6 +102,9 @@ def fitted_predictor_tuple(request, rng):
     match request.param:
         case 'kalman_filter':
             predictor = StreamingKalmanFilter()
+            n_rotations = 10
+        case 'stim_regressor':
+            predictor = StimRegressor(autoreg=StreamingKalmanFilter())
             n_rotations = 10
         case 'bubblewrap':
             predictor = Bubblewrap()

@@ -546,7 +546,7 @@ class Bubblewrap(Predictor, BaseBubblewrap):
                  n_steps_to_predict=1, check_dt=False,
                  **kwargs,  # see BaseBubblewrap parameters, there are too many
              ):
-        input_streams = input_streams or {0: 'X', 'dt': 'dt', 'dt_X':'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}
+        input_streams = input_streams or {0: 'X', 'dt_X':'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}
         Predictor.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level, check_dt=check_dt)
         BaseBubblewrap.__init__(self, **kwargs)
         self.unevaluated_predictions = {}
@@ -565,11 +565,20 @@ class Bubblewrap(Predictor, BaseBubblewrap):
             if self.parameter_fitting:
                 self.grad_Q()
 
-    def predict(self, n_steps):
-        if not self.is_initialized:
-            return numpy.array([[numpy.nan]])
-        method = 'mean'
-        alpha = self.get_alpha_at_n_steps(n_steps)
+    def get_prediction_state(self, for_export=False):
+        return self.alpha
+
+    def play_prediction_ahead(self, state):
+        # state is alpha
+        return state @ self.A
+
+    def predict_from_state(self, state):
+        return self.alpha_to_location(state)
+
+    def get_state_for_downstream(self):
+        return numpy.array(self.alpha) if self.alpha is not None else numpy.array([numpy.nan])
+
+    def alpha_to_location(self, alpha, method = 'mean'):
         match method:
             case 'argmax':
                 location = self.mu[numpy.argmax(alpha)]
@@ -577,13 +586,7 @@ class Bubblewrap(Predictor, BaseBubblewrap):
                 location = (alpha @ self.mu)
             case _:
                 raise ValueError(f'Unknown method {method}')
-        return numpy.array(location)
-
-    def get_state(self):
-        if not self.is_initialized:
-            return numpy.array([numpy.nan])
-        else:
-            return numpy.array(self.alpha)
+        return location
 
     def get_arbitrary_dynamics_parameter(self):
         return self.A
@@ -593,10 +596,14 @@ class Bubblewrap(Predictor, BaseBubblewrap):
 
     def _partial_fit_transform(self, data, stream=0, return_output_stream=False):
         if self.input_streams[stream] == 'dt':
+            # TODO: make this part of Predictors?
             assert data.size == 1
             if self.is_initialized:
                 steps = self.data_to_n_steps(data)
-                alpha_pred = self.get_alpha_at_n_steps(steps)
+                alpha = self.get_prediction_state()
+                for _ in range(steps):
+                    alpha = self.play_prediction_ahead(alpha)
+                alpha_pred = alpha
                 pred = alpha_pred.reshape([1,-1])
             else:
                 pred = numpy.nan * numpy.zeros([1, self.N])
@@ -649,19 +656,6 @@ class Bubblewrap(Predictor, BaseBubblewrap):
             self.log['entropy'].append(ArrayWithTime(self.entropy(n_steps=self.n_steps_to_predict), current_t))
 
 
-    def get_alpha_at_n_steps(self, n_steps, alpha=None, method='power'):
-        alpha = alpha if alpha is not None else self.alpha
-
-        if method == 'power':
-            alpha = numpy.real(alpha @ jnp.linalg.matrix_power(self.A, n_steps))
-        elif method == 'power-argmax':
-            for _ in range(n_steps):
-                alpha = numpy.array(alpha @ self.A)
-                alpha[numpy.argmax(alpha)] = 1  # maybe a softmax would be better?
-        else:
-            raise ValueError(f'Unknown method {method}')
-
-        return alpha
 
 
 
@@ -849,12 +843,3 @@ class Bubblewrap(Predictor, BaseBubblewrap):
     @staticmethod
     def _ellipse_r(a, b, theta):
         return a * b / numpy.sqrt((numpy.cos(theta) * b)**2 + (numpy.sin(theta) * a)**2)
-
-
-    def expected_data_streams(self, rng, DIM):
-        # TODO: make sure this works with Predictor's; it mixes a return with a yeild
-        for s in self.input_streams:
-            if s == 'dt':
-                yield ArrayWithTime([[1]], 1), s
-            else:
-                super().expected_data_streams(rng, DIM)

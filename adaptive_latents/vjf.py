@@ -142,9 +142,7 @@ class BaseVJF:
             logprobs.append(-0.5 * ((x - m) ** 2 / v + np.log(2 * np.pi * v)))
         return sum(logprobs)
 
-    def predict(self, n_steps, n_points=None, method='mean'):
-        cloud = self.get_cloud_at_time_t(n_steps, n_points=n_points)
-
+    def cloud_to_location(self, cloud, method='mean'):
         if method == 'mean':
             return self._vjf.decoder(cloud).detach().numpy().mean(axis=0)
         elif method == 'most_likely':
@@ -238,16 +236,22 @@ class VJF(Predictor, BaseVJF):
                 grad_kwargs = {m:self.parameter_fitting for m in ['decoder', 'encoder', 'dynamics', 'noise']}
                 BaseVJF.observe(self, y, u, grad_kwargs=grad_kwargs)
 
-    def predict(self, n_steps):
-        if self.q is None:
-            return np.nan
-        return BaseVJF.predict(self, n_steps, n_points=self.n_particles_for_prediction, method='mean')
+    def predict_from_state(self, state):
+        return self.cloud_to_location(state)
 
-    def get_state(self):
-        if self.q is None:
-            return np.array([[np.nan]])
+    def play_prediction_ahead(self, state):
+        return self.step_for_cloud(state)
 
-        return self.q[0].detach().numpy()
+    def get_prediction_state(self, for_export=False):
+        cloud = BaseVJF.generate_cloud(self, n_points=self.n_particles_for_prediction)
+        return cloud
+
+    def get_state_for_downstream(self):
+        if self.q is None:
+            return np.array([np.nan])
+        else:
+            return self.q[0].detach().numpy()
+
 
     def get_arbitrary_dynamics_parameter(self):
         if self.q is None:

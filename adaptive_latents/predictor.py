@@ -1,6 +1,7 @@
 import copy
 from abc import abstractmethod
 import time
+import warnings
 
 import numpy as np
 import pytest
@@ -23,16 +24,23 @@ class Predictor(StreamingTransformer):
         self.predictions = {}
 
     @abstractmethod
-    def predict(self, n_steps):
+    def play_prediction_ahead(self, state):
+        pass
+
+    @abstractmethod
+    def get_prediction_state(self):
+        pass
+
+    @abstractmethod
+    def predict_from_state(self, state):
         pass
 
     @abstractmethod
     def observe(self, X, stream=None):
         pass
 
-    @abstractmethod
-    def get_state(self):
-        pass
+    def get_state_for_downstream(self):
+        return self.get_prediction_state()
 
     @abstractmethod
     def get_arbitrary_dynamics_parameter(self):
@@ -42,6 +50,19 @@ class Predictor(StreamingTransformer):
     def unevaluated_log_pred_p(self, n_steps):
         pass
 
+    def predict(self, n_steps):
+        assert n_steps >= 0
+        state = self.get_prediction_state()
+        if state is None:
+            return np.array([[np.nan]])
+
+        for _ in range(n_steps):
+            state = self.play_prediction_ahead(state)
+
+        prediction = self.predict_from_state(state)
+        if prediction is None or not np.isfinite(prediction).all():
+            return np.array([[np.nan]])
+        return prediction
 
     def partial_fit_transform(self, data, stream=0, return_output_stream=False):
         original_data = None
@@ -123,12 +144,21 @@ class Predictor(StreamingTransformer):
 
             if np.isfinite(data).all():
                 self.observe(data, stream=stream)
-            data = ArrayWithTime.from_transformed_data(self.get_state().reshape(data_depth,-1), data)
+            else:
+                warnings.warn('there should probably be an autonomous dynamics call here')
+
+            data = ArrayWithTime.from_transformed_data(self.get_state_for_downstream().reshape(data_depth, -1), data)
 
         elif self.input_streams[stream] == 'dt_X':
+            data_depth = 1
+            assert data.shape[0] == data_depth
+
             steps = self.data_to_n_steps(data)
-            pred = self.predict(n_steps=steps)
-            data = ArrayWithTime.from_transformed_data(pred, data)
+            if np.isnan(steps):
+                pred = np.array([[np.nan]])
+            else:
+                pred = self.predict(n_steps=steps)
+            data = ArrayWithTime.from_transformed_data(pred.reshape(data_depth, -1), data)
         elif self.input_streams[stream] == 'toggle_parameter_fitting':
             self.toggle_parameter_fitting(data)
 
@@ -137,8 +167,11 @@ class Predictor(StreamingTransformer):
     def data_to_n_steps(self, data):
         assert data.size == 1
         q_dt = data[0, 0]
-        if self.check_dt and self.dt is not None:
-            steps = q_dt / self.dt
+        if self.check_dt :
+            if self.dt is not None:
+                steps = q_dt / self.dt
+            else:
+                return np.nan
         else:
             steps = q_dt
 

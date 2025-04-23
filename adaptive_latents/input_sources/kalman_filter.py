@@ -121,9 +121,9 @@ class KalmanFilter:
 
 class StreamingKalmanFilter(Predictor, KalmanFilter):
     base_algorithm = KalmanFilter
-    def __init__(self, *, steps_between_refits = 25, use_steady_state_k=False, subtract_means=True, no_hidden_state=True, input_streams=None, output_streams=None, log_level=None, check_dt=False):
+    def __init__(self, *, steps_between_refits = 25, use_steady_state_k=False, subtract_means=True, no_hidden_state=True, n_steps_to_predict=1, input_streams=None, output_streams=None, log_level=None, check_dt=False):
         input_streams = input_streams or {0: 'X', 1: 'Y', 2: 'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}
-        Predictor.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level, check_dt=check_dt)
+        Predictor.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level, check_dt=check_dt, n_steps_to_predict=n_steps_to_predict)
         KalmanFilter.__init__(self, use_steady_state_k=use_steady_state_k, subtract_means=subtract_means)
         self.no_hidden_state = no_hidden_state
         self.steps_between_refits = steps_between_refits
@@ -132,13 +132,24 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
         self.latent_state_history = [[]]
         self.observation_history = [[]]
 
-    def predict(self, n_steps):
-        if self.A is not None:
-            predicted_latent_state = KalmanFilter.predict(self, n_steps)[-1]
-            predicted_observation = (predicted_latent_state @ self.C)
-        else:
-            predicted_observation = np.array([[np.nan]])
-        return predicted_observation
+    def get_prediction_state(self):
+        if self.state is None:
+            return None
+        return self.state, self.state_var
+
+    def play_prediction_ahead(self, state):
+        state, state_var = state
+        state, state_var = self.inference_step(state, state_var, Y=None, A=self.A, C=self.C, W=self.W, Q=self.Q,
+                                               Y_mean=self.Y_mean, X_mean=self.X_mean,
+                                               kalman_gain=None if not self.use_steady_state_K else self.steady_state_K)
+        return state, state_var
+
+    def predict_from_state(self, state):
+        state, state_var = state
+        return state
+
+    def get_state_for_downstream(self):
+        return self.state if self.state is not None else np.array([np.nan])
 
     def observe(self, X, stream=None):
         semantic_stream = self.input_streams[stream]
@@ -181,9 +192,6 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
             else:
                 self.observation_history[-1] = []
 
-    def get_state(self):
-        state = self.state if self.state is not None else np.array([np.nan])
-        return state
 
     def get_params(self, deep=True):
         return super().get_params(deep) | dict(use_steady_state_k=self.use_steady_state_K, subtract_means=self.subtract_means, steps_between_refits=self.steps_between_refits)
