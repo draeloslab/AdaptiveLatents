@@ -14,6 +14,9 @@ class KalmanFilter:
         self.W = None  # state noise
         self.Q = None  # observation noise
 
+        self.X_mean = None
+        self.Y_mean = None
+
         self.steady_state_K = None
 
         self.state_var = None
