@@ -3,6 +3,7 @@ import scipy.linalg
 
 from .transformer import TypicalTransformer
 from .utils import principle_angles, save_to_cache
+from .timed_data_source import ArrayWithTime
 
 
 class BaseProSVD:
@@ -141,8 +142,7 @@ class proSVD(TypicalTransformer, BaseProSVD):
     def log_for_partial_fit(self, data, stream=0):
         if self.is_initialized:
             if self.log_level >= 2:
-                self.log['Q'].append(self.Q)
-                self.log['t'].append(data.t)
+                self.log['Q'].append(ArrayWithTime(self.Q, data.t))
 
     def get_distance_from_subspace_over_time(self, subspace):
         assert self.log_level >= 2
@@ -152,20 +152,17 @@ class proSVD(TypicalTransformer, BaseProSVD):
             if np.any(np.isnan(Q)):
                 distances[j] = np.nan
                 continue
-            distances[j] = np.abs(principle_angles(Q, subspace)).sum()
-        return distances, np.array(self.log['t'])
+            distances[j] = ArrayWithTime(np.abs(principle_angles(Q, subspace)).sum(), Q.t)
+        distances = ArrayWithTime.from_list(distances)
+        return distances
 
     def get_Q_stability(self):
         assert self.log_level >= 2
-        Qs = np.array(self.log['Q'])
+        Qs = ArrayWithTime.from_list(self.log['Q'])
 
-        t = np.arange(Qs.shape[0])
-        if 't' in self.log:
-            t = np.array(self.log['t'])
-
-        assert len(Qs)
         dQ = np.linalg.norm(np.diff(Qs, axis=0), axis=1)
-        return dQ, t[1:]
+        dQ = ArrayWithTime(dQ, Qs.t[1:])
+        return dQ
 
     def plot_Q_stability(self, ax):
         """
@@ -174,8 +171,8 @@ class proSVD(TypicalTransformer, BaseProSVD):
         ax: matplotlib.axes.Axes
             the axes on which to plot the history
         """
-        dQ, t = self.get_Q_stability()
-        ax.plot(t, dQ)
+        dQ = self.get_Q_stability()
+        ax.plot(dQ.t, dQ)
         ax.set_xlabel('time (s)')
         ax.set_ylabel(r'$\Vert dQ_i\Vert$')
         ax.set_title(f'Change in the columns of proSVD Q over time ({self.Q.shape[0]} -> {self.Q.shape[1]})')

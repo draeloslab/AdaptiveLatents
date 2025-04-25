@@ -2,6 +2,7 @@ import numpy as np
 from mmica.solvers import Huber, Sigmoid, compute_A, compute_A_idx, gen_idx, min_W
 
 from .transformer import TypicalTransformer
+from .timed_data_source import ArrayWithTime
 
 
 class BaseMMICA:
@@ -69,7 +70,7 @@ class BaseMMICA:
         return self.W @ x
 
     def remix(self, x):
-        return np.linalg.inv(self.W) @ x
+        return np.linalg.inv(self.W) @ x  # TODO: should use lstsq here instead
 
 
 class mmICA(TypicalTransformer, BaseMMICA):
@@ -83,7 +84,7 @@ class mmICA(TypicalTransformer, BaseMMICA):
         BaseMMICA.__init__(self, density_name=density_name, maxiter_cg=maxiter_cg, greedy=greedy, alpha=alpha, track_extra_info=track_extra_info, tol=tol)
         self.processing_queue = []
         self.init_size = init_size
-        self.log |= {'W': [], 't': []}
+        self.log |= {'W': []}
 
     def instance_get_params(self, deep=True):
         return dict(
@@ -113,8 +114,7 @@ class mmICA(TypicalTransformer, BaseMMICA):
 
     def log_for_partial_fit(self, data, stream=0):
         if self.is_initialized and self.input_streams[stream] == 'X' and self.log_level >= 2:
-            self.log['W'].append(self.W.copy())
-            self.log['t'].append(data.t)
+            self.log['W'].append(ArrayWithTime(self.W.copy(), data.t))
 
     def transform_for_X(self, X):
         return self.unmix(X.T).T

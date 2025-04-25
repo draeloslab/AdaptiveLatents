@@ -1,10 +1,10 @@
 import numpy as np
 from scipy.linalg import block_diag
-from scipy.stats import special_ortho_group
 
 from adaptive_latents.regressions import BaseVanillaOnlineRegressor
 
 from .input_sources.lds_simulation import LDS
+from .timed_data_source import ArrayWithTime
 from .transformer import TypicalTransformer
 from .utils import align_column_spaces, principle_angles
 
@@ -136,8 +136,7 @@ class sjPCA(TypicalTransformer, BaseSJPCA):
 
     def log_for_partial_fit(self, data, stream=0):
         if self.is_initialized and self.input_streams[stream] == 'X' and self.log_level >= 2:
-            self.log['U'].append(self.get_U())
-            self.log['t'].append(data.t)
+            self.log['U'].append(ArrayWithTime(self.get_U(), data.t))
 
     def get_distance_from_subspace_over_time(self, subspace):
         assert self.log_level >= 2
@@ -146,13 +145,13 @@ class sjPCA(TypicalTransformer, BaseSJPCA):
         distances = np.empty((m, n//2))
         for j, U in enumerate(self.log['U']):
             if U is None or np.any(np.isnan(U)):
-                distances[j,:] = np.nan
+                distances[j,:] = ArrayWithTime(np.nan, U.t)
                 continue
             for plane_idx in range(n//2):
                 sub_U = U[:, plane_idx*2: (plane_idx + 1)*2]
                 distances[j, plane_idx] = np.abs(principle_angles(sub_U, subspace)).sum()
         # todo: divide by pi to normalize to 1?
-        return distances, np.array(self.log['t'])
+        return ArrayWithTime(distances, ArrayWithTime.from_list(self.log['U']).t)
 
     def get_U_stability(self):
         assert self.log_level >= 2
