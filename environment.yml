@@ -33,6 +33,7 @@ dependencies:
   - av
   - nbstripout
   - pytorch
+  - ipdb
   - pip
   - pip:
      - jax[cuda12]

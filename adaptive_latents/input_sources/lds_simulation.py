@@ -129,7 +129,7 @@ class LDS:
         return LDS(A, C, W, Q, B=B)
 
     @classmethod
-    def run_nest_dynamical_system(cls, rotations, transitions_per_rotation=30 + 1 / np.pi, stims_per_rotation=1, radius=5, u_function=None, rng=None, early_shift=1e-12, noise=0.05):
+    def run_nest_dynamical_system(cls, rotations, transitions_per_rotation=30 + 1 / np.pi, stim_magnitude=1, stims_per_rotation=1, radius=5, u_function=None, rng=None, early_shift=1e-12, noise=0.05):
         rng = rng if rng is not None else np.random.default_rng()
         lds = cls.nest_lds(transitions_per_rotation=transitions_per_rotation, rng=rng, noise=noise)
         N = int(rotations * transitions_per_rotation)
@@ -141,12 +141,12 @@ class LDS:
         if u_function == 'curvy':
             def u_function(lds, state, i, rng):
                 u = np.zeros(lds.B.shape[0])
-                u[2] = stim[i] * state[0] / np.linalg.norm(state[:2])
+                u[2] = stim_magnitude * stim[i] * state[0] / np.linalg.norm(state[:2])
                 return u
         elif u_function == 'constant':
             def u_function(lds, state, i, rng):
                 u = np.zeros(lds.B.shape[0])
-                u[2] = stim[i] * 100
+                u[2] = stim_magnitude * stim[i] * 100
                 return u
         elif u_function is None:
             u_function = lambda **_: np.zeros(lds.B.shape[0])

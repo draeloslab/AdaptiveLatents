@@ -192,9 +192,12 @@ def is_orthonormal(Q, rows_too=False):
     return o
 
 
-def column_space_distance(Q1, Q2, method='angles'):
-    for Q in Q1, Q2:
-        assert is_orthonormal(Q)
+def column_space_distance(Q1, Q2, method='angles', override_ortho_check=False):
+    if not override_ortho_check:
+        for Q in Q1, Q2:
+            assert is_orthonormal(Q)
+    else:
+        warnings.warn('this method is intended to be used for only orthogonal matrices')
 
     if method == 'angles':
         return np.abs(principle_angles(Q1, Q2)).sum()

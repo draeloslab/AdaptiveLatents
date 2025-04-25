@@ -39,6 +39,8 @@ class ConfigObject:
             local_params = local_config.get(key, {})
             self.default_parameters[key] = params | local_params
 
+        # self.local_config = local_config  # TODO: I can't tell if this is hacky or not
+
     @staticmethod
     def resolve_path(base_config, local_config, key):
         if key in local_config:
