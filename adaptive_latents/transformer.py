@@ -230,9 +230,10 @@ class StreamingTransformer(ABC):
         return dict(input_streams=self.input_streams, output_streams=self.output_streams, log_level=self.log_level)
 
     # this is mostly for testing
-    def expected_data_streams(self, rng, DIM):
-        for s in self.input_streams:
-            yield rng.normal(size=(10, DIM)), s
+    def expected_data_streams(self, rng, DIM, cycles=1):
+        for _ in range(cycles):
+            for s in self.input_streams:
+                yield rng.normal(size=(10, DIM)), s
 
     @property
     def base_algorithm(self):
@@ -262,9 +263,8 @@ class StreamingTransformer(ABC):
     @staticmethod
     def _test_can_fit_transform(constructor, rng, DIM=6):
         transformer: StreamingTransformer = constructor()
-        for _ in range(5):
-            for data, s in transformer.expected_data_streams(rng, DIM):
-                transformer.partial_fit_transform(data, s)
+        for data, s in transformer.expected_data_streams(rng, DIM, cycles=5):
+            transformer.partial_fit_transform(data, s)
 
         # tests that the transformer can ignore data not in its input_sources
         # todo: make this Mock
@@ -274,9 +274,8 @@ class StreamingTransformer(ABC):
     def _test_can_save_and_rerun(constructor, rng, tmp_path, DIM=6):
         transformer: StreamingTransformer = constructor()
 
-        for _ in range(5):
-            for data, s in transformer.expected_data_streams(rng, DIM):
-                transformer.partial_fit_transform(data, s)
+        for data, s in transformer.expected_data_streams(rng, DIM, cycles=5):
+            transformer.partial_fit_transform(data, s)
         t2 = copy.deepcopy(transformer)
 
         temp_file = tmp_path / 'streaming_transformer.pkl'
@@ -289,8 +288,7 @@ class StreamingTransformer(ABC):
             transformer = pickle.load(f)
 
         for data, s in transformer.expected_data_streams(rng, DIM):
-            assert np.array_equal(transformer.partial_fit_transform(data, s), t2.partial_fit_transform(data, s),
-                                  equal_nan=True)
+            assert np.array_equal(transformer.partial_fit_transform(data, s), t2.partial_fit_transform(data, s), equal_nan=True)
 
     @staticmethod
     def _test_get_params_works(constructor):

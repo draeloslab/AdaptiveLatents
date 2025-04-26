@@ -177,37 +177,18 @@ def test_predictor_pdf(fitted_predictor_tuple, show_plots):
     pdf_b_to_b = predictor.unevaluated_log_pred_p(0)
     pdf_b_to_a = predictor.unevaluated_log_pred_p(transitions_per_rotation//2)
 
+
     if show_plots:
         import matplotlib.pyplot as plt
         fig, axs = plt.subplots(nrows=2, ncols=2)
-        titles = []
-        pdfs = []
-        for title, pdf_f in zip(['a to a', 'a to b', 'b to a', 'b to b'], [pdf_a_to_a, pdf_a_to_b, pdf_b_to_a, pdf_b_to_b]):
-            density = 100
-            xlim = [Y_train[:,0].min(), Y_train[:,0].max()]
-            ylim = [Y_train[:,1].min(), Y_train[:,1].max()]
-            x_bins = np.linspace(*xlim, density + 1)
-            y_bins = np.linspace(*ylim, density + 1)
-            pdf_values = np.zeros(shape=(density, density))
-            for i in range(density):
-                for j in range(density):
-                    x = np.array([x_bins[i] + x_bins[i + 1], y_bins[j] + y_bins[j + 1], 0]) / 2
-                    pdf_values[i, j] = pdf_f(x)
-            pdfs.append(pdf_values)
-            titles.append(title)
-        pdfs = np.array(pdfs)
+        for ax, title, pdf_f in zip(axs.flatten(), ['a to a', 'a to b', 'b to a', 'b to b'], [pdf_a_to_a, pdf_a_to_b, pdf_b_to_a, pdf_b_to_b]):
+            xlim = [Y_train[:, 0].min(), Y_train[:, 0].max()]
+            ylim = [Y_train[:, 1].min(), Y_train[:, 1].max()]
+            predictor.plot_pdf(fig, ax, pdf_f, xlim, ylim)
 
-        from mpl_toolkits.axes_grid1 import make_axes_locatable
-        for ax, title, pdf_values in zip(axs.flatten(), titles, pdfs):
-            divider = make_axes_locatable(ax)
-            cax = divider.append_axes('right', size='5%', pad=0.05)
-            im = ax.pcolormesh(x_bins, y_bins, pdf_values.T, cmap='plasma')
-            fig.colorbar(im, cax=cax, orientation='vertical')
+            ax.scatter(a[0], a[1], color='red')
+            ax.scatter(b[0], b[1], color='blue')
 
-            ax.scatter(a[0], a[1], s=50, color='r')
-            ax.scatter(b[0], b[1], s=50, color='b')
-
-            ax.axis('equal')
             ax.set_xticks([])
             ax.set_yticks([])
             ax.set_title(title)

@@ -155,7 +155,7 @@ class ArrayWithTime(np.ndarray):
         return np.searchsorted(self.t, time)
 
     @staticmethod
-    def align_indices(a, b):
+    def align_indices(a, b, complement=False):
         # there's a faster way to do this with np.searchsorted
         a_t = np.array(a.t)
         b_t = np.array(b.t)
@@ -180,6 +180,9 @@ class ArrayWithTime(np.ndarray):
                 idx_a += 1
         a_indices = np.array(a_indices)
         b_indices = np.array(b_indices)
+        if complement:
+            a_indices = np.setdiff1d(np.arange(len(a)), a_indices)
+            b_indices = np.setdiff1d(np.arange(len(b)), b_indices)
         return ArrayWithTime(a[a_indices], a_t[a_indices]), ArrayWithTime(b[b_indices], b_t[b_indices])
 
     @staticmethod

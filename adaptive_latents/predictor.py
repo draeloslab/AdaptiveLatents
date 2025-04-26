@@ -1,6 +1,7 @@
 import copy
 from abc import abstractmethod
 import time
+import warnings
 
 import numpy as np
 import pytest
@@ -10,12 +11,13 @@ from .transformer import StreamingTransformer
 
 
 class Predictor(StreamingTransformer):
+    stream_to_log_on = 'X'
     def __init__(self, input_streams=None, output_streams=None, log_level=None, check_dt=False, n_steps_to_predict=1):
         input_streams = input_streams or {0: 'X', 1: 'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}
         super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
         self.check_dt = check_dt
         self.dt = None
-        self._last_t = None
+        self._last_X_t = None
         self.parameter_fitting = True
 
         self.n_steps_to_predict = n_steps_to_predict
@@ -66,36 +68,38 @@ class Predictor(StreamingTransformer):
     def log_for_partial_fit(self, data, stream, original_data=None):
         if self.log_level >= 2:
             assert self.check_dt
-
             if 'pred_error' not in self.log:
-                for k in ['pred_error', 'log_pred_p', 'log_pred_p_target_t', 'pred_target_t']:
+                for k in ['pred_error', 'log_pred_p', 'log_pred_p_origin_t', 'pred_origin_t']:
                     self.log[k] = []
 
             if self.dt is not None:
-                current_t = data.t
+                current_t = self._last_X_t  # TODO: this is unintuitive and a little hacky
                 real_time_offset = self.dt * self.n_steps_to_predict
 
-                # normal prediction error
-                self.predictions[current_t + real_time_offset] = (current_t, self.predict(self.n_steps_to_predict))
-                for t_to_eval in list(self.predictions.keys()):
-                    if np.isclose(current_t, t_to_eval):
-                        origin_t, prediction = self.predictions[t_to_eval]
-                        self.log['pred_error'].append(ArrayWithTime(prediction - original_data, origin_t))
-                        self.log['pred_target_t'].append(current_t)
-                        del self.predictions[t_to_eval]
-                    elif t_to_eval < current_t:
-                        del self.predictions[t_to_eval]
+                if self.input_streams[stream] == 'X':
+                    # normal error calculation
+                    for t_to_eval in list(self.predictions.keys()):
+                        if np.isclose(current_t, t_to_eval):
+                            origin_t, prediction = self.predictions[t_to_eval]
+                            self.log['pred_error'].append(ArrayWithTime(prediction - original_data, current_t))
+                            self.log['pred_origin_t'].append(origin_t)
+                            del self.predictions[t_to_eval]
+                        elif t_to_eval < current_t:
+                            del self.predictions[t_to_eval]
 
-                # log pred p calculation
-                self.unevaluated_log_pred_ps[current_t + real_time_offset] = (current_t, self.unevaluated_log_pred_p(self.n_steps_to_predict))
-                for t_to_eval in list(self.unevaluated_log_pred_ps.keys()):
-                    if np.isclose(current_t, t_to_eval):
-                        origin_t, pdf = self.unevaluated_log_pred_ps[t_to_eval]
-                        self.log['log_pred_p'].append(ArrayWithTime(pdf(original_data), origin_t))
-                        self.log['log_pred_p_target_t'].append(current_t)
-                        del self.unevaluated_log_pred_ps[t_to_eval]
-                    elif t_to_eval < current_t:
-                        del self.unevaluated_log_pred_ps[t_to_eval]
+                    # log pred p calculation
+                    for t_to_eval in list(self.unevaluated_log_pred_ps.keys()):
+                        if np.isclose(current_t, t_to_eval):
+                            origin_t, pdf = self.unevaluated_log_pred_ps[t_to_eval]
+                            self.log['log_pred_p'].append(ArrayWithTime(pdf(original_data), current_t))
+                            self.log['log_pred_p_origin_t'].append(origin_t)
+                            del self.unevaluated_log_pred_ps[t_to_eval]
+                        elif t_to_eval < current_t:
+                            del self.unevaluated_log_pred_ps[t_to_eval]
+
+                if self.input_streams[stream] == self.stream_to_log_on:
+                    self.predictions[current_t + real_time_offset] = (current_t, self.predict(self.n_steps_to_predict))
+                    self.unevaluated_log_pred_ps[current_t + real_time_offset] = (current_t, self.unevaluated_log_pred_p(self.n_steps_to_predict))
 
 
     def toggle_parameter_fitting(self, value=None):
@@ -108,21 +112,24 @@ class Predictor(StreamingTransformer):
         if self.input_streams[stream] == 'X':
             if self.check_dt:
                 assert hasattr(data, 't')
-                if self._last_t is not None:
-                    dt = data.t - self._last_t
+                if self._last_X_t is not None:
+                    dt = data.t - self._last_X_t
                     assert dt > 0
                     if self.dt is not None:
-                        assert np.isclose(data.t - self._last_t, self.dt), 'time steps for training are not consistent'
+                        assert np.isclose(data.t - self._last_X_t, self.dt), 'time steps for training are not consistent'
                         self.dt = (self.dt + dt)/2
                     else:
                         self.dt = dt
-                self._last_t = data.t
+                self._last_X_t = data.t
 
             data_depth = 1
             assert data.shape[0] == data_depth
 
             if np.isfinite(data).all():
                 self.observe(data, stream=stream)
+            else:
+                warnings.warn('there should probably be an autonomous dynamics call here')
+
             data = ArrayWithTime.from_transformed_data(self.get_state().reshape(data_depth,-1), data)
 
         elif self.input_streams[stream] == 'dt_X':
@@ -150,18 +157,41 @@ class Predictor(StreamingTransformer):
         dt = (source.dt if self.check_dt else 1) * n_steps
         return ArrayWithTime(np.ones_like(source.t).reshape(-1,1) * dt, source.t)
 
-    def get_params(self, deep=True):
-        return super().get_params(deep) | dict(check_dt=self.check_dt)
+    @staticmethod
+    def plot_pdf(fig, ax, pdf_f, xlim, ylim, e1=None, e2=None, density=100):
+        if e1 is None or e2 is None:
+            assert e1 is None and e2 is None
+            e1 = np.array([1, 0, 0])
+            e2 = np.array([0, 1, 0])
 
-    # this is mostly for testing
-    def expected_data_streams(self, rng, DIM):
-        # TODO: do this better
-        # TODO: this should be a yield statement, maybe
-        return [
-            (rng.normal(size=(1, DIM)), 'X'),
-            (np.ones((1,1)), 'dt_X'),
-            (np.zeros((1,1)) * (rng.random() > .9), 'toggle_parameter_fitting'),
-        ]
+        x_bins = np.linspace(*xlim, density + 1)
+        y_bins = np.linspace(*ylim, density + 1)
+        pdf_values = np.zeros(shape=(density, density))
+        for i in range(density):
+            for j in range(density):
+                x = (x_bins[i] + x_bins[i + 1]) / 2
+                y = (y_bins[j] + y_bins[j + 1]) / 2
+                pdf_values[i, j] = pdf_f(x * e1 + y * e2)
+        pdf_values = np.array(pdf_values)
+
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes('right', size='5%', pad=0.05)
+        im = ax.pcolormesh(x_bins, y_bins, pdf_values.T, cmap='plasma')
+        fig.colorbar(im, cax=cax, orientation='vertical')
+        ax.axis('equal')
+
+    def get_params(self, deep=True):
+        return super().get_params(deep) | dict(check_dt=self.check_dt, n_steps_to_predict=self.n_steps_to_predict)
+
+
+    def expected_data_streams(self, rng, DIM, cycles=1):
+        dt = 1  # TODO: do this better
+        start_t = self._last_X_t or -1
+        for i in range(1, cycles+1):
+            yield ArrayWithTime(rng.normal(size=(1, DIM)), t=i*dt + start_t), 'X'
+            yield ArrayWithTime(np.ones((1, 1)) * dt, t=i*dt+ start_t), 'dt_X'
+            yield ArrayWithTime(np.ones((1, 1)) * (rng.random() > .9), t=i*dt+ start_t), 'toggle_parameter_fitting'
 
     @classmethod
     def test_if_api_compatible(cls, constructor=None, rng=None, DIM=None):

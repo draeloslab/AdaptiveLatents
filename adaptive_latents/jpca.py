@@ -155,12 +155,11 @@ class sjPCA(TypicalTransformer, BaseSJPCA):
 
     def get_U_stability(self):
         assert self.log_level >= 2
-        Us = np.array(self.log['U'])
-        t = np.array(self.log['t'])
+        Us = ArrayWithTime.from_list(self.log['U'])
 
         assert len(Us)
         dU = np.linalg.norm(np.diff(Us, axis=0), axis=1)[:,::2]
-        return dU, t[1:]
+        return ArrayWithTime(dU, Us.t[1:])
 
     def plot_U_stability(self, ax):
         """
@@ -169,8 +168,8 @@ class sjPCA(TypicalTransformer, BaseSJPCA):
         ax: matplotlib.axes.Axes
             the axes on which to plot the history
         """
-        dU, t = self.get_U_stability()
-        ax.plot(t, dU)
+        dU = self.get_U_stability()
+        ax.plot(dU.t, dU)
         ax.set_xlabel('time (s)')
         ax.set_ylabel(r'$\Vert dU_{2i}\Vert$')
         ax.set_title(f"Numerical change in the bases of the planes of sjPCA")

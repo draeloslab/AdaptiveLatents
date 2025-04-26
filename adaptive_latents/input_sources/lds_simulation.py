@@ -146,7 +146,7 @@ class LDS:
         elif u_function == 'constant':
             def u_function(lds, state, i, rng):
                 u = np.zeros(lds.B.shape[0])
-                u[2] = stim_magnitude * stim[i] * 100
+                u[2] = stim_magnitude * stim[i]
                 return u
         elif u_function is None:
             u_function = lambda **_: np.zeros(lds.B.shape[0])
