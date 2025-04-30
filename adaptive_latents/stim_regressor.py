@@ -5,6 +5,7 @@ import numpy as np
 from . import StreamingKalmanFilter
 from .predictor import Predictor
 from .regressions import BaseKNearestNeighborRegressor, OnlineRegressor
+from .timed_data_source import ArrayWithTime
 
 
 class StimRegressor(Predictor):
@@ -23,6 +24,7 @@ class StimRegressor(Predictor):
             stim_reg = BaseKNearestNeighborRegressor(k=2)
         self.stim_reg: OnlineRegressor = stim_reg
         self.last_seen_stims = deque(maxlen=1)
+        self.s_hat_error_function = None # TODO: delete this, it's a hack
 
     def _partial_fit_transform(self, data, stream, return_output_stream):
         if self.input_streams[stream] == 'stim':
@@ -33,6 +35,14 @@ class StimRegressor(Predictor):
 
         return ret
 
+    def log_for_partial_fit(self, data, stream, original_data=None):
+        super().log_for_partial_fit(data, stream, original_data=original_data)
+        if self.s_hat_error_function is not None and self.input_streams[stream] == 'X' and self.last_seen_stims and np.any(self.last_seen_stims[-1]):
+            key = 's_hat_error'
+            if key not in self.log:
+                self.log[key] = []
+            self.log[key].append(ArrayWithTime.from_transformed_data(self.s_hat_error_function(self), data))
+
 
     def predict(self, n_steps):
         assert n_steps in {0,1}
@@ -40,10 +50,13 @@ class StimRegressor(Predictor):
 
         if np.isfinite(pred).all():
             if self.last_seen_stims and np.any(self.last_seen_stims[-1]) and self.attempt_correction:
-                stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), self.last_seen_stims[-1].flatten()])
-                pred = pred + self.stim_reg.predict(stim_reg_input)
+                pred = pred + self.predict_stim_response()
 
         return pred
+
+    def predict_stim_response(self):
+        stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), self.last_seen_stims[-1].flatten()])
+        return self.stim_reg.predict(stim_reg_input)
 
     def observe(self, X, stream=None):
         if self.last_seen_stims and np.any(self.last_seen_stims[-1]) and self.heed_stimuli:
@@ -70,8 +83,7 @@ class StimRegressor(Predictor):
         f = self.autoreg.unevaluated_log_pred_p(n_steps=n_steps)
 
         if self.last_seen_stims and np.any(self.last_seen_stims[-1]) and self.attempt_correction:
-            stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), self.last_seen_stims[-1].flatten()])
-            correction = self.stim_reg.predict(stim_reg_input)
+            correction = self.predict_stim_response()
             def corrected_f(future_point):
                 return f(future_point - correction)
         else:

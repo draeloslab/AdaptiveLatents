@@ -131,12 +131,13 @@ class LDS:
     @classmethod
     def run_nest_dynamical_system(cls, rotations, transitions_per_rotation=30 + 1 / np.pi, stim_magnitude=1, stims_per_rotation=1, radius=5, u_function=None, rng=None, early_shift=1e-12, noise=0.05):
         rng = rng if rng is not None else np.random.default_rng()
-        lds = cls.nest_lds(transitions_per_rotation=transitions_per_rotation, rng=rng, noise=noise)
+        dynamics_rng, stim_rng = rng.spawn(2)
+        lds = cls.nest_lds(transitions_per_rotation=transitions_per_rotation, rng=dynamics_rng, noise=noise)
         N = int(rotations * transitions_per_rotation)
         t = np.linspace(0, N / transitions_per_rotation, N)
 
         stim = t * 0
-        stim[rng.choice(stim.shape[0], size=int(stims_per_rotation * N / transitions_per_rotation), replace=False)] = 1
+        stim[stim_rng.choice(stim.shape[0], size=int(stims_per_rotation * N / transitions_per_rotation), replace=False)] = 1
 
         if u_function == 'curvy':
             def u_function(lds, state, i, rng):
@@ -151,7 +152,7 @@ class LDS:
         elif u_function is None:
             u_function = lambda **_: np.zeros(lds.B.shape[0])
 
-        states, observations, received_stim = lds.simulate(N, initial_state=[radius, 0, 0], U=u_function, rng=rng)
+        states, observations, received_stim = lds.simulate(N, initial_state=[radius, 0, 0], U=u_function, rng=dynamics_rng)
 
         assert early_shift == 0 or np.diff(t).mean() / early_shift > 100
 

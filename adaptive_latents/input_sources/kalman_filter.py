@@ -5,6 +5,7 @@ from adaptive_latents.predictor import Predictor
 
 
 class KalmanFilter:
+    # TODO: make this a transformer once fit
     def __init__(self, use_steady_state_k=False, subtract_means=True):
         self.use_steady_state_K = use_steady_state_k
         self.subtract_means = subtract_means
