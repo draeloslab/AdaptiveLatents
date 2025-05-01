@@ -22,6 +22,7 @@ class ConfigObject:
 
         self.jax_enable_x64 = simple_combination["jax_enable_x64"]
         self.jax_platform_name = simple_combination["jax_platform_name"]
+        self.jax_supress_xla_bridge_warnings = simple_combination["jax_supress_xla_bridge_warnings"]
 
         self.supress_dandi_warnings = simple_combination["supress_dandi_warnings"]
 

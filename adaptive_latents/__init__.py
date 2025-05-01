@@ -2,6 +2,10 @@ import jax
 
 from .config import CONFIG
 
+if CONFIG.jax_supress_xla_bridge_warnings:
+    import logging
+    logging.getLogger('jax._src.lib.xla_bridge').addFilter(lambda _: False)
+
 jax.config.update('jax_enable_x64', CONFIG.jax_enable_x64)
 jax.config.update('jax_platform_name', CONFIG.jax_platform_name)
 

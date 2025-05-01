@@ -2,6 +2,7 @@
 
 jax_enable_x64: True # this should basically never be false
 jax_platform_name: 'cpu'
+jax_supress_xla_bridge_warnings: False
 
 attempt_to_cache: False
 verbose: True
