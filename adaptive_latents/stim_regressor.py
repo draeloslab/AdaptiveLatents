@@ -6,17 +6,21 @@ from . import StreamingKalmanFilter
 from .predictor import Predictor
 from .regressions import BaseKNearestNeighborRegressor, OnlineRegressor
 from .timed_data_source import ArrayWithTime
+from .stim_optimization import StimDesigner
 
 
 class StimRegressor(Predictor):
     stream_to_log_on = 'stim'
-    def __init__(self, autoreg=None, stim_reg=None, heed_stimuli=True, attempt_correction=True, input_streams=None, output_streams=None, log_level=None, check_dt=True, n_steps_to_predict=1):
+    def __init__(self, autoreg=None, stim_reg=None, stim_designer=None, heed_stimuli=True, attempt_correction=True, input_streams=None, output_streams=None, log_level=None, check_dt=True, n_steps_to_predict=1):
         input_streams = input_streams or {0: 'stim', 1: 'X', 2: 'dt_X'}
         assert n_steps_to_predict == 1
         assert heed_stimuli or not attempt_correction  # correcting without learning doesn't make sense
         super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level, check_dt=check_dt, n_steps_to_predict=n_steps_to_predict)
         if autoreg is None:
             autoreg = StreamingKalmanFilter()
+        if stim_designer is None:
+            stim_designer = StimDesigner()
+        self.stim_designer = stim_designer
         self.autoreg: Predictor = autoreg
         self.attempt_correction = attempt_correction
         self.heed_stimuli = heed_stimuli
