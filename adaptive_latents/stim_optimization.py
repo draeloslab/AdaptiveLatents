@@ -7,16 +7,18 @@ import warnings
 
 def loss(s, v, lam_1=1e-3):
     u = s
-    return (
-            - jnp.sqrt(jnp.linalg.norm(v.T @ s))**2  # maximize dot product with the target vector
-            + jnp.linalg.norm(s - v @ v.T @ s)**2  # minimize orthogonal component
+    loss = (
+            - jnp.sqrt(jnp.linalg.norm(v.T @ s)) ** 2  # maximize dot product with the target vector
+            + jnp.linalg.norm(s - v @ v.T @ s) ** 2  # minimize orthogonal component
             + jnp.linalg.norm(u, ord=1) * lam_1  # L1 penalty
     )
+    ratio = (jnp.sqrt(jnp.linalg.norm(v.T @ s)) ** 2) / (jnp.linalg.norm(s - v @ v.T @ s) ** 2)
+    return loss, ratio
 
 
 class StimDesigner:
     def __init__(self, max_l0_norm=30, l0_norm_margin=5):
-        self.grad_loss = jax.jit(jax.value_and_grad(loss))
+        self.grad_loss = jax.jit(jax.value_and_grad(loss, has_aux=True))
         self.max_l0_norm = max_l0_norm
         self.convergence_threshold = 1e-3
         self.adam_learning_rate = 0.005
@@ -39,6 +41,8 @@ class StimDesigner:
 
         lam_1 = self.starter_lam_1_guess
 
+        best_so_far = (None, -np.inf)
+
         for _ in range(max_outer_iters):
             loss_history.append([])
             s_history.append([])
@@ -48,18 +52,18 @@ class StimDesigner:
             s_optimizer = AdamOptimizer(lr=self.adam_learning_rate)
 
             for i in range(max_inner_iters):
-                val, grad = self.grad_loss(s, v, lam_1=lam_1)
+                (loss, aux), grad = self.grad_loss(s, v, lam_1=lam_1)
                 s = s_optimizer.update(s,grad)
                 s = relu(s)
 
                 s_history[-1].append(s)
-                loss_history[-1].append(val)
+                loss_history[-1].append(loss)
+
+                if np.isfinite(s).all() and  np.linalg.norm(s, ord=0) <= self.max_l0_norm and aux > best_so_far[1]:
+                    best_so_far = (np.array(s), aux)
 
                 if (~np.isfinite(s)).any() or (len(s_history[-1]) > 10 and jnp.linalg.norm(s_history[-1][-2] - s_history[-1][-1]) < self.convergence_threshold):
                     break
-
-            s = np.array(s)
-            s[(~np.isfinite(s))] = 0
 
             l0 = np.linalg.norm(s,ord=0)
             l0_history.append(l0)
@@ -68,19 +72,10 @@ class StimDesigner:
 
             lam_1 = self.generate_next_lam_1(lam_1_history, l0_history)
 
-        l0s = np.array(l0_history)
-        l0s[l0s > self.max_l0_norm] = -np.inf
-        best_s_idx = np.array(np.argmax(l0s))
-        s[(~np.isfinite(s))] = 0
-        s = s_history[best_s_idx][-1]
-
+        s = best_so_far[0]
 
         if s.max() > 0:
             s = np.array(s / s.max())
-
-        if (~np.isfinite(s)).any():
-            warnings.warn('NaN almost returned')
-            s = rng.uniform(size=(max(v.shape),))
 
         self.log.append({'v':v, 's':s, 'loss_history':loss_history, 'lam_1_history':lam_1_history, 'l0_history':l0_history, 's_history':s_history})
 
