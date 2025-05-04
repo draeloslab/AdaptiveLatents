@@ -851,10 +851,10 @@ class Bubblewrap(Predictor, BaseBubblewrap):
         return a * b / numpy.sqrt((numpy.cos(theta) * b)**2 + (numpy.sin(theta) * a)**2)
 
 
-    def expected_data_streams(self, rng, DIM):
+    def expected_data_streams(self, rng, DIM, cycles=1):
         # TODO: make sure this works with Predictor's; it mixes a return with a yeild
         for s in self.input_streams:
             if s == 'dt':
                 yield ArrayWithTime([[1]], 1), s
             else:
-                super().expected_data_streams(rng, DIM)
+                super().expected_data_streams(rng, DIM, cycles)

@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 from scipy.stats import multivariate_normal
 
@@ -38,6 +40,9 @@ class KalmanFilter:
         origin = X[:-1]
         destination = X[1:]
         if _X is not None:
+            if max([len(x) for x in _X]) == 1:
+                warnings.warn("not fitting because there isn't enough data")
+                return
             origin = np.vstack([np.vstack(x[:-1]) for x in _X])
             destination = np.vstack([np.vstack(x[1:]) for x in _X])
         A, _, _, _ = np.linalg.lstsq(origin, destination)
@@ -122,9 +127,9 @@ class KalmanFilter:
 
 class StreamingKalmanFilter(Predictor, KalmanFilter):
     base_algorithm = KalmanFilter
-    def __init__(self, *, steps_between_refits = 25, use_steady_state_k=False, subtract_means=True, no_hidden_state=True, input_streams=None, output_streams=None, log_level=None, check_dt=False):
+    def __init__(self, *, steps_between_refits = 25, use_steady_state_k=False, subtract_means=True, no_hidden_state=True, input_streams=None, output_streams=None, log_level=None, check_dt=False, n_steps_to_predict=1):
         input_streams = input_streams or {0: 'X', 1: 'Y', 2: 'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}
-        Predictor.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level, check_dt=check_dt)
+        Predictor.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level, check_dt=check_dt, n_steps_to_predict=n_steps_to_predict)
         KalmanFilter.__init__(self, use_steady_state_k=use_steady_state_k, subtract_means=subtract_means)
         self.no_hidden_state = no_hidden_state
         self.steps_between_refits = steps_between_refits
@@ -163,9 +168,11 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
                 self.fit(X=self.latent_state_history, Y=self.observation_history)
                 latent = np.squeeze(self.latent_state_history[-1])
                 obs = np.squeeze(self.observation_history[-1])
-                self.state = latent[obs.shape[0]-20]
-                for i in range(20):
-                    self.step(Y=obs[obs.shape[0]-20+i])
+
+                constant = self.steps_between_refits # todo: set this more rigorously
+                self.state = latent[obs.shape[0]-constant]
+                for i in range(constant):
+                    self.step(Y=obs[obs.shape[0]-constant+i])
 
     def toggle_parameter_fitting(self, value=None):
         before = self.parameter_fitting

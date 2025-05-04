@@ -765,9 +765,15 @@ class Naumann24uDataset(Dataset):
         def get_params(self, deep=True):
             return dict(threshold=self.threshold) | super().get_params(deep=deep)
 
-        def expected_data_streams(self, rng, DIM):
-            for s in self.input_streams:
-                yield ArrayWithTime.from_notime(rng.normal(size=(10, DIM))), s
+        # def expected_data_streams(self, rng, DIM, cycles=1):
+        #     for _ in range(cycles):
+        #         for s in self.input_streams:
+        #             yield rng.normal(size=(10, DIM)), s
+
+        def expected_data_streams(self, rng, DIM, cycles=1):
+                for i in range(cycles):
+                    for s in self.input_streams:
+                        yield ArrayWithTime(rng.normal(size=(10, DIM)),i), s
 
     def __init__(self, sub_dataset_identifier=sub_datasets[0], beh_type='angle'):
         if isinstance(sub_dataset_identifier, int):

@@ -67,6 +67,7 @@ class LDS:
             control[i] = u
 
         return states + self.state_center, observations + self.observation_center, control
+        # return ArrayWithTime.from_notime(states + self.state_center), ArrayWithTime.from_notime(observations + self.observation_center), ArrayWithTime.from_notime(control)
 
     def simulate_step(self, state, rng, u_function=None, i=None, use_state_dynamics=True, add_centers=True):
         if add_centers:
@@ -102,7 +103,7 @@ class LDS:
         return cls(kf.A, kf.C, kf.W, kf.Q, state_center=kf.X_mean, observation_center=kf.Y_mean)
 
     @classmethod
-    def circular_lds(cls, transitions_per_rotation=12., obs_d=10, process_noise=0.01, obs_noise=0.02, obs_center=0, rng=None):
+    def circular_lds(cls, transitions_per_rotation=30 + 1 / np.pi, obs_d=10, process_noise=0.01, obs_noise=0.02, obs_center=0, rng=None):
         if rng is None:
             rng = np.random.default_rng()
 

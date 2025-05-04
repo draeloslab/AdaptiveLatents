@@ -18,14 +18,17 @@ def loss(s, v, lam_1=1e-3):
 
 class StimDesigner:
     def __init__(self, max_l0_norm=30, l0_norm_margin=5):
-        self.grad_loss = jax.jit(jax.value_and_grad(loss, has_aux=True))
+        self.grad_loss = None
         self.max_l0_norm = max_l0_norm
         self.convergence_threshold = 1e-3
         self.adam_learning_rate = 0.005
         self.starter_lam_1_guess = 10**-.5
         self.l0_norm_margin = l0_norm_margin
         self.log = []
+        self._add_jited_functions()
 
+    def _add_jited_functions(self):
+        self.grad_loss = jax.jit(jax.value_and_grad(loss, has_aux=True))
 
     def design_stim(self, v, max_outer_iters=10, max_inner_iters=250, rng=None):
         assert len(v.shape) == 2
@@ -96,3 +99,23 @@ class StimDesigner:
 
         # return geometric uniform between (too_lenient.max(), too_strict.min())
         return np.exp(np.mean(np.log((too_lenient.max(), too_strict.min()))))
+
+    def __getstate__(self):
+        return _unjax_state(self)
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._add_jited_functions()
+
+def _unjax_state(self):
+    to_save = {}
+    _pickle_changes = []
+    for key, value in self.__dict__.items():
+        if callable(value) and "jit" in str(value):
+            _pickle_changes.append((key, "callable"))
+            continue
+        else:
+            to_save[key] = value
+
+    to_save["_pickle_changes"] = _pickle_changes
+    return to_save

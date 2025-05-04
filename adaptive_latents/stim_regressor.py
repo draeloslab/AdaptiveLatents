@@ -10,7 +10,7 @@ from .stim_optimization import StimDesigner
 
 
 class StimRegressor(Predictor):
-    stream_to_log_on = 'stim'
+    stream_to_update_log_on = 'stim'
     def __init__(self, autoreg=None, stim_reg=None, stim_designer=None, heed_stimuli=True, attempt_correction=True, input_streams=None, output_streams=None, log_level=None, check_dt=True, n_steps_to_predict=1):
         input_streams = input_streams or {0: 'stim', 1: 'X', 2: 'dt_X'}
         assert n_steps_to_predict == 1
@@ -39,9 +39,15 @@ class StimRegressor(Predictor):
 
         return ret
 
+    def should_correct(self):
+        return self.last_seen_stims and np.any(self.last_seen_stims[-1]) and self.attempt_correction
+
+    def should_log_s_hat_error(self):
+        return self.s_hat_error_function is not None and self.last_seen_stims and np.any(self.last_seen_stims[-1])
+
     def log_for_partial_fit(self, data, stream, original_data=None):
         super().log_for_partial_fit(data, stream, original_data=original_data)
-        if self.s_hat_error_function is not None and self.input_streams[stream] == 'X' and self.last_seen_stims and np.any(self.last_seen_stims[-1]):
+        if self.input_streams[stream] == 'X' and self.should_log_s_hat_error():
             key = 's_hat_error'
             if key not in self.log:
                 self.log[key] = []
@@ -53,7 +59,7 @@ class StimRegressor(Predictor):
         pred = self.autoreg.predict(n_steps=n_steps)
 
         if np.isfinite(pred).all():
-            if self.last_seen_stims and np.any(self.last_seen_stims[-1]) and self.attempt_correction:
+            if self.should_correct():
                 pred = pred + self.predict_stim_response()
 
         return pred
@@ -86,7 +92,7 @@ class StimRegressor(Predictor):
         assert n_steps in {0,1}
         f = self.autoreg.unevaluated_log_pred_p(n_steps=n_steps)
 
-        if self.last_seen_stims and np.any(self.last_seen_stims[-1]) and self.attempt_correction:
+        if self.should_correct():
             correction = self.predict_stim_response()
             def corrected_f(future_point):
                 return f(future_point - correction)
@@ -95,5 +101,5 @@ class StimRegressor(Predictor):
         return corrected_f
 
     def get_params(self, deep=True):
-        return super().get_params(deep) | dict(autoreg=self.autoreg, stim_reg=self.stim_reg, attempt_correction=self.attempt_correction, heed_stimuli=self.heed_stimuli)
+        return super().get_params(deep) | dict(autoreg=self.autoreg, stim_reg=self.stim_reg, attempt_correction=self.attempt_correction, heed_stimuli=self.heed_stimuli, stim_designer=self.stim_designer)
 

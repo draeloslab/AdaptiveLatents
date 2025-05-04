@@ -15,6 +15,7 @@ def base_reg_maker(request):
         return NoRegularizationTempVersion
     elif request.param == "vanilla_regularized":
         return BaseVanillaOnlineRegressor
+    raise NotImplementedError()
 
 
 @pytest.fixture(params=["no autoregression", "autoregression 0", "autoregression 2"])
@@ -25,6 +26,7 @@ def reg_maker(request, base_reg_maker):
         return auto_regression_decorator(base_reg_maker, n_steps=0)
     elif request.param == "autoregression 2":
         return auto_regression_decorator(base_reg_maker, n_steps=2)
+    raise NotImplementedError()
 
 
 def test_can_run_nd(reg_maker, rng):

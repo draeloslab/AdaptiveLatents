@@ -11,7 +11,7 @@ from .transformer import StreamingTransformer
 
 
 class Predictor(StreamingTransformer):
-    stream_to_log_on = 'X'
+    stream_to_update_log_on = None
     def __init__(self, input_streams=None, output_streams=None, log_level=None, check_dt=False, n_steps_to_predict=1):
         input_streams = input_streams or {0: 'X', 1: 'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}
         super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
@@ -73,7 +73,7 @@ class Predictor(StreamingTransformer):
                     self.log[k] = []
 
             if self.dt is not None:
-                current_t = self._last_X_t  # TODO: this is unintuitive and a little hacky
+                current_t = data.t
                 real_time_offset = self.dt * self.n_steps_to_predict
 
                 if self.input_streams[stream] == 'X':
@@ -89,7 +89,7 @@ class Predictor(StreamingTransformer):
 
                     # log pred p calculation
                     for t_to_eval in list(self.unevaluated_log_pred_ps.keys()):
-                        if np.isclose(current_t, t_to_eval):
+                        if np.isclose(current_t - t_to_eval, self.dt, rtol=.05):
                             origin_t, pdf = self.unevaluated_log_pred_ps[t_to_eval]
                             self.log['log_pred_p'].append(ArrayWithTime(pdf(original_data), current_t))
                             self.log['log_pred_p_origin_t'].append(origin_t)
@@ -97,9 +97,20 @@ class Predictor(StreamingTransformer):
                         elif t_to_eval < current_t:
                             del self.unevaluated_log_pred_ps[t_to_eval]
 
-                if self.input_streams[stream] == self.stream_to_log_on:
                     self.predictions[current_t + real_time_offset] = (current_t, self.predict(self.n_steps_to_predict))
                     self.unevaluated_log_pred_ps[current_t + real_time_offset] = (current_t, self.unevaluated_log_pred_p(self.n_steps_to_predict))
+
+                if self.input_streams[stream] == self.stream_to_update_log_on and (data != 0).any():
+                    # TODO: this is pretty much stim-specific code
+                    assert self.n_steps_to_predict == 1
+                    current_t_as_of_last_x = self._last_X_t
+                    prediction_time = current_t_as_of_last_x + real_time_offset
+                    for saved_prediction_time in self.predictions.keys():
+                        if np.isclose(current_t_as_of_last_x - saved_prediction_time, current_t_as_of_last_x - prediction_time, rtol=.05):
+                            prediction_time = saved_prediction_time
+
+                    self.predictions[prediction_time] = (current_t_as_of_last_x, self.predict(self.n_steps_to_predict))
+                    self.unevaluated_log_pred_ps[prediction_time] = (current_t_as_of_last_x, self.unevaluated_log_pred_p(self.n_steps_to_predict))
 
 
     def toggle_parameter_fitting(self, value=None):
@@ -116,7 +127,10 @@ class Predictor(StreamingTransformer):
                     dt = data.t - self._last_X_t
                     assert dt > 0
                     if self.dt is not None:
-                        assert np.isclose(data.t - self._last_X_t, self.dt), 'time steps for training are not consistent'
+                        consistent_dt = np.isclose(data.t - self._last_X_t, self.dt)
+                        # assert consistent_dt, 'time steps for training are not consistent'
+                        if not consistent_dt:
+                            warnings.warn('time steps for training are not consistent')
                         self.dt = (self.dt + dt)/2
                     else:
                         self.dt = dt
@@ -220,12 +234,19 @@ class Predictor(StreamingTransformer):
 
         predictor_backup = copy.deepcopy(predictor)
 
+        # pytest_condition = pytest.raises(AssertionError)
+        pytest_condition = pytest.warns(UserWarning, match='time steps for training are not consistent')
+
+        with pytest_condition:
+            warnings.warn('time steps for training are not consistent')
+
+
         predictor = copy.deepcopy(predictor_backup)
         with pytest.raises(AssertionError):
             predictor.partial_fit_transform(ArrayWithTime(rng.normal(size=(1, DIM)), 1 * dt), stream='X')
 
         predictor = copy.deepcopy(predictor_backup)
-        with pytest.raises(AssertionError):
+        with pytest_condition:
             predictor.partial_fit_transform(ArrayWithTime(rng.normal(size=(1, DIM)), 3 * dt), stream='X')
 
         predictor = copy.deepcopy(predictor_backup)
