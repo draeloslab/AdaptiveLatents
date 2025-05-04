@@ -42,8 +42,8 @@ def test_logs(sr_s, show_plots):
         mses.append([[np.mean(a[start:,2]**2), np.mean(a[start:,:2]**2)] for a in errors[-1]])
         # the `1:` is to avoid nans in one of the matrices
 
-    with np.printoptions(precision=3, suppress=True):
-        print(np.array(mses))
+    # with np.printoptions(precision=3, suppress=True):
+    #     print(np.array(mses))
 
     assert mses[0][0][0] <  mses[2][0][0]  #  stim-sample stim dimension errors
     assert mses[0][1][0] == mses[1][1][0]  #  dynamics-sample stim dimension errors

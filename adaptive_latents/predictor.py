@@ -73,13 +73,13 @@ class Predictor(StreamingTransformer):
                     self.log[k] = []
 
             if self.dt is not None:
-                current_t = data.t
+                current_t = data.t  # TODO: this is unintuitive and a little hacky
                 real_time_offset = self.dt * self.n_steps_to_predict
 
                 if self.input_streams[stream] == 'X':
                     # normal error calculation
                     for t_to_eval in list(self.predictions.keys()):
-                        if np.isclose(current_t, t_to_eval):
+                        if np.isclose(t_to_eval - current_t, 0, atol=self.dt/10):
                             origin_t, prediction = self.predictions[t_to_eval]
                             self.log['pred_error'].append(ArrayWithTime(prediction - original_data, current_t))
                             self.log['pred_origin_t'].append(origin_t)
@@ -89,7 +89,7 @@ class Predictor(StreamingTransformer):
 
                     # log pred p calculation
                     for t_to_eval in list(self.unevaluated_log_pred_ps.keys()):
-                        if np.isclose(current_t - t_to_eval, self.dt, rtol=.05):
+                        if np.isclose(t_to_eval - current_t, 0, atol=self.dt/10):
                             origin_t, pdf = self.unevaluated_log_pred_ps[t_to_eval]
                             self.log['log_pred_p'].append(ArrayWithTime(pdf(original_data), current_t))
                             self.log['log_pred_p_origin_t'].append(origin_t)
@@ -99,18 +99,6 @@ class Predictor(StreamingTransformer):
 
                     self.predictions[current_t + real_time_offset] = (current_t, self.predict(self.n_steps_to_predict))
                     self.unevaluated_log_pred_ps[current_t + real_time_offset] = (current_t, self.unevaluated_log_pred_p(self.n_steps_to_predict))
-
-                if self.input_streams[stream] == self.stream_to_update_log_on and (data != 0).any():
-                    # TODO: this is pretty much stim-specific code
-                    assert self.n_steps_to_predict == 1
-                    current_t_as_of_last_x = self._last_X_t
-                    prediction_time = current_t_as_of_last_x + real_time_offset
-                    for saved_prediction_time in self.predictions.keys():
-                        if np.isclose(current_t_as_of_last_x - saved_prediction_time, current_t_as_of_last_x - prediction_time, rtol=.05):
-                            prediction_time = saved_prediction_time
-
-                    self.predictions[prediction_time] = (current_t_as_of_last_x, self.predict(self.n_steps_to_predict))
-                    self.unevaluated_log_pred_ps[prediction_time] = (current_t_as_of_last_x, self.unevaluated_log_pred_p(self.n_steps_to_predict))
 
 
     def toggle_parameter_fitting(self, value=None):

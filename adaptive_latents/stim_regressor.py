@@ -47,12 +47,26 @@ class StimRegressor(Predictor):
 
     def log_for_partial_fit(self, data, stream, original_data=None):
         super().log_for_partial_fit(data, stream, original_data=original_data)
-        if self.input_streams[stream] == 'X' and self.should_log_s_hat_error():
-            key = 's_hat_error'
-            if key not in self.log:
-                self.log[key] = []
-            self.log[key].append(ArrayWithTime.from_transformed_data(self.s_hat_error_function(self), data))
 
+        if self.log_level >= 2 and self.dt is not None:
+            if self.input_streams[stream] == 'X' and self.should_log_s_hat_error():
+                key = 's_hat_error'
+                if key not in self.log:
+                    self.log[key] = []
+                self.log[key].append(ArrayWithTime.from_transformed_data(self.s_hat_error_function(self), data))
+
+            if self.input_streams[stream] == 'stim':
+                real_time_offset = self.dt * self.n_steps_to_predict
+                assert self.n_steps_to_predict == 1
+                current_t_as_of_last_x = self._last_X_t
+                prediction_time = current_t_as_of_last_x + real_time_offset
+                for saved_prediction_time in self.predictions.keys():
+                    if np.isclose(current_t_as_of_last_x - saved_prediction_time, current_t_as_of_last_x - prediction_time, rtol=.05):
+                        prediction_time = saved_prediction_time
+
+                self.predictions[prediction_time] = (current_t_as_of_last_x, self.predict(self.n_steps_to_predict))
+                self.unevaluated_log_pred_ps[prediction_time] = (
+                current_t_as_of_last_x, self.unevaluated_log_pred_p(self.n_steps_to_predict))
 
     def predict(self, n_steps):
         assert n_steps in {0,1}
