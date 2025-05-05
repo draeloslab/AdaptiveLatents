@@ -103,6 +103,40 @@ def test_accepts_sparse_stimuli(rng):
     assert np.array_equal(np.array(sr1.log['pred_error']), np.array(sr2.log['pred_error']), equal_nan=True)
 
 
+def test_sub_dt_delay_works(rng):
+    stim_magnitude = 20
+    _, Y, stim = LDS.run_nest_dynamical_system(1, stims_per_rotation=5, stim_magnitude=stim_magnitude, u_function='constant', rng=rng, radius=20)
+
+    sr1 = StimRegressor(autoreg=StreamingKalmanFilter(steps_between_refits=3), log_level=3)
+    sr1.offline_run_on(sources=[(stim, 'stim'), (Y, 'X')])
+    e_utilized = ArrayWithTime.from_list(sr1.log['pred_error'], squeeze_type='to_2d')
+
+    sr3 = StimRegressor(autoreg=StreamingKalmanFilter(steps_between_refits=3), log_level=3, heed_stimuli=False, attempt_correction=False)
+    sr3.offline_run_on(sources=[(stim, 'stim'), (Y, 'X')])
+    e_unaware_of_stim = ArrayWithTime.from_list(sr3.log['pred_error'], squeeze_type='to_2d')
+
+
+    for (dt, unaware_of_delay_should_match_utilized) in [
+        (0, True),
+        (stim.dt/(20 + 1), True),
+        (stim.dt/2, False),
+    ]:
+        stim_offset = ArrayWithTime(stim, stim.t - dt)
+
+        sr4 = StimRegressor(autoreg=StreamingKalmanFilter(steps_between_refits=3), log_level=3)
+        sr4.offline_run_on(sources=[(stim_offset, 'stim'), (Y, 'X')])
+        e4 = ArrayWithTime.from_list(sr4.log['pred_error'], squeeze_type='to_2d')
+
+        sr5 = StimRegressor(autoreg=StreamingKalmanFilter(steps_between_refits=3), log_level=3, stim_delay=dt)
+        sr5.offline_run_on(sources=[(stim_offset, 'stim'), (Y, 'X')])
+        e5 = ArrayWithTime.from_list(sr5.log['pred_error'], squeeze_type='to_2d')
+
+        assert np.array_equal(e_utilized, e5, equal_nan=True)
+        assert np.array_equal(e_utilized, e4, equal_nan=True) == unaware_of_delay_should_match_utilized
+        assert np.array_equal(e_unaware_of_stim, e4, equal_nan=True) != unaware_of_delay_should_match_utilized
+
+
+
 
 # def test_skips_steps(rng):
 #     _, Y, _ = LDS.circular_lds().simulate(20)

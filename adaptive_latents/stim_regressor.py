@@ -11,7 +11,7 @@ from .stim_optimization import StimDesigner
 
 class StimRegressor(Predictor):
     stream_to_update_log_on = 'stim'
-    def __init__(self, autoreg=None, stim_reg=None, stim_designer=None, heed_stimuli=True, attempt_correction=True, input_streams=None, output_streams=None, log_level=None, check_dt=True, n_steps_to_predict=1):
+    def __init__(self, autoreg=None, stim_reg=None, stim_designer=None, heed_stimuli=True, attempt_correction=True, input_streams=None, output_streams=None, log_level=None, check_dt=True, n_steps_to_predict=1, stim_delay=0):
         input_streams = input_streams or {0: 'stim', 1: 'X', 2: 'dt_X'}
         assert n_steps_to_predict == 1
         assert heed_stimuli or not attempt_correction  # correcting without learning doesn't make sense
@@ -28,7 +28,7 @@ class StimRegressor(Predictor):
             stim_reg = BaseKNearestNeighborRegressor(k=2)
         self.stim_reg: OnlineRegressor = stim_reg
         self.last_seen_stims = deque()
-        self.stim_delay = 0  # in units of time (wrt the data)
+        self.stim_delay = stim_delay  # in units of time (wrt the data)
         self.s_hat_error_function = None # TODO: delete this, it's a hack
 
     def _partial_fit_transform(self, data, stream, return_output_stream):
@@ -65,7 +65,7 @@ class StimRegressor(Predictor):
     def get_stim_to_correct_for(self, current_t):
         to_return = []
         for stim in self.last_seen_stims:
-            if np.isclose(stim.t + self.stim_delay, current_t, atol=self.dt/10):
+            if np.isclose(stim.t + self.stim_delay, current_t, atol=self.dt/20):
                 to_return.append(stim)
 
         assert len(to_return) < 2
@@ -156,5 +156,5 @@ class StimRegressor(Predictor):
         return corrected_f
 
     def get_params(self, deep=True):
-        return super().get_params(deep) | dict(autoreg=self.autoreg, stim_reg=self.stim_reg, attempt_correction=self.attempt_correction, heed_stimuli=self.heed_stimuli, stim_designer=self.stim_designer)
+        return super().get_params(deep) | dict(autoreg=self.autoreg, stim_reg=self.stim_reg, attempt_correction=self.attempt_correction, heed_stimuli=self.heed_stimuli, stim_designer=self.stim_designer, stim_delay=self.stim_delay)
 
