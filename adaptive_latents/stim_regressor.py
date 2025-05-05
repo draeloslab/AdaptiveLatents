@@ -28,6 +28,7 @@ class StimRegressor(Predictor):
             stim_reg = BaseKNearestNeighborRegressor(k=2)
         self.stim_reg: OnlineRegressor = stim_reg
         self.last_seen_stims = deque()
+        assert stim_delay >= 0
         self.stim_delay = stim_delay  # in units of time (wrt the data)
         self.s_hat_error_function = None # TODO: delete this, it's a hack
 
@@ -72,7 +73,7 @@ class StimRegressor(Predictor):
         if len(to_return) == 0:
             return []
         elif len(to_return) == 1:
-            return np.squeeze(to_return[0])
+            return to_return[0].flatten()
 
 
 
@@ -80,7 +81,7 @@ class StimRegressor(Predictor):
         super().log_for_partial_fit(data, stream, original_data=original_data)
 
         if self.log_level >= 2 and self.dt is not None:
-            if self.input_streams[stream] == 'X' and self.get_stim_to_correct_for(data.t) and self.s_hat_error_function is not None:
+            if self.input_streams[stream] == 'X' and len(self.get_stim_to_correct_for(data.t)) and self.s_hat_error_function is not None:
                 key = 's_hat_error'
                 if key not in self.log:
                     self.log[key] = []
@@ -108,7 +109,8 @@ class StimRegressor(Predictor):
             self.autoreg.toggle_parameter_fitting(False)
 
             stim_to_correct_for = self.get_stim_to_correct_for(current_t=X.t)
-            if stim_to_correct_for:
+            if len(stim_to_correct_for):
+                self.autoreg.toggle_parameter_fitting(False)
                 pred = self.autoreg.predict(n_steps=1)
                 residual = X - pred
                 stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for])
@@ -133,7 +135,7 @@ class StimRegressor(Predictor):
 
         if self.attempt_correction and np.isfinite(pred).all():
             stim_to_correct_for = self.get_stim_to_correct_for(current_t=current_t + self.dt * n_steps)
-            if stim_to_correct_for:
+            if len(stim_to_correct_for):
                 pred = pred + self.predict_stim_response(stim_to_correct_for)
         return pred
 
@@ -145,7 +147,7 @@ class StimRegressor(Predictor):
 
         if self.attempt_correction:
             stim_to_correct_for = self.get_stim_to_correct_for(current_t=self.dt * n_steps+current_t)
-            if stim_to_correct_for:
+            if len(stim_to_correct_for):
                 correction = self.predict_stim_response(stim_to_correct_for)
             else:
                 correction = 0

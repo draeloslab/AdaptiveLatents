@@ -135,24 +135,28 @@ def test_sub_dt_delay_works(rng):
         assert np.array_equal(e_utilized, e5, equal_nan=True)
 
 
-def test_super_dt_delay_works():
-    rng = np.random.default_rng(1)
+def test_super_dt_delay_works(show_plots):
+    rng = np.random.default_rng(10)
     N = 200
     _, Y_pure, _ = LDS.circular_lds(obs_d=5, rng=rng).simulate(n_steps=N, rng=rng)
     stim = rng.random(size=N) < .1
+    stim[0:30] = 0
+    stim[-10:] = 0
     Y = np.array(Y_pure)
     Y[stim, -1] += 100
 
-    Ys = [
-        Y_pure,
-        np.roll(Y, shift=0, axis=0),
-        np.roll(Y, shift=1, axis=0),
-        np.roll(Y, shift=2, axis=0),
-    ]
+    roll_amounts = [0, 1, 2, 5]
+
+    Ys = [Y_pure] + [np.roll(Y, shift=roll_amount, axis=0) for roll_amount in roll_amounts]
     Ys = [ArrayWithTime.from_notime(Y) for Y in Ys]
+    stim = stim.reshape(-1,1)
 
     errors = []
-    for delay_group in [(0,1/210), (.990,1,1.001), (2,)]:
+    delay_groups = [[roll_amount] for roll_amount in roll_amounts]
+    delay_groups[0].append(1/21)
+    delay_groups[1].append(delay_groups[1][0] + 0.01)
+    delay_groups[1].append(delay_groups[1][0] - 0.01)
+    for delay_group in delay_groups:
         errors.append([])
         for delay in delay_group:
             errors[-1].append([])
@@ -167,12 +171,19 @@ def test_super_dt_delay_works():
 
     errors = np.sqrt(errors)
 
-    # import matplotlib.pyplot as plt
-    # plt.matshow(errors)
-    # plt.show(block=True)
+    if show_plots:
+        import matplotlib.pyplot as plt
+        plt.matshow(errors)
+        plt.xticks(ticks=np.arange(len(roll_amounts)+1), labels=['no stim'] + [f'dataset delay={d}' for d in roll_amounts])
+        plt.yticks(ticks=np.arange(len(roll_amounts)), labels= [f'estimator delay={d}' for d in roll_amounts])
+        plt.colorbar()
+        plt.xlabel('dataset condition')
+        plt.ylabel('estimator delay')
+        plt.title('last-half RMSE')
+        plt.show(block=True)
 
-    assert (np.argmin(errors, axis=1) == np.array([0,0,0])).all()
-    assert (np.argmin(errors[:,1:], axis=1) == np.array([0,1,2])).all()
+    assert np.array_equal(np.argmin(errors, axis=1), [0 for _ in roll_amounts])
+    assert np.array_equal(np.argmin(errors[:,1:], axis=0), np.arange(len(roll_amounts)))
 
 
 
