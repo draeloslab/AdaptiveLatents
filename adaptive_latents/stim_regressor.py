@@ -27,29 +27,60 @@ class StimRegressor(Predictor):
         if stim_reg is None:
             stim_reg = BaseKNearestNeighborRegressor(k=2)
         self.stim_reg: OnlineRegressor = stim_reg
-        self.last_seen_stims = deque(maxlen=1)
+        self.last_seen_stims = deque()
+        self.stim_delay = 0  # in units of time (wrt the data)
         self.s_hat_error_function = None # TODO: delete this, it's a hack
 
     def _partial_fit_transform(self, data, stream, return_output_stream):
         if self.input_streams[stream] == 'stim':
-            self.last_seen_stims.append(data)
+            if self.is_notable_stim(data):
+                self.last_seen_stims.append(data)
             ret =  (data, stream) if return_output_stream else data
         else:
             ret = super()._partial_fit_transform(data, stream, return_output_stream)
 
+        if hasattr(data, 't'):
+            self.trim_last_seen_stims(current_t=data.t)
+
         return ret
 
-    def should_correct(self):
-        return self.last_seen_stims and np.any(self.last_seen_stims[-1]) and self.attempt_correction
+    @staticmethod
+    def is_notable_stim(stim):
+        return (stim!=0).any()
 
-    def should_log_s_hat_error(self):
-        return self.s_hat_error_function is not None and self.last_seen_stims and np.any(self.last_seen_stims[-1])
+    def in_stim_lag(self, current_t):
+        for stim in self.last_seen_stims:
+            dt = self.dt
+            if dt is None:
+                dt = self.stim_delay # TODO: is this a good idea?
+            if stim.t + self.stim_delay + dt/10 >= current_t and self.is_notable_stim(stim):
+                return True
+        return False
+
+    def trim_last_seen_stims(self, current_t):
+        saftey_margin = self.dt if self.dt else self.stim_delay
+        while self.last_seen_stims and (current_t - self.last_seen_stims[0].t) > (self.stim_delay + saftey_margin):
+            self.last_seen_stims.popleft()
+
+    def get_stim_to_correct_for(self, current_t):
+        to_return = []
+        for stim in self.last_seen_stims:
+            if np.isclose(stim.t + self.stim_delay, current_t, atol=self.dt/10):
+                to_return.append(stim)
+
+        assert len(to_return) < 2
+        if len(to_return) == 0:
+            return []
+        elif len(to_return) == 1:
+            return np.squeeze(to_return[0])
+
+
 
     def log_for_partial_fit(self, data, stream, original_data=None):
         super().log_for_partial_fit(data, stream, original_data=original_data)
 
         if self.log_level >= 2 and self.dt is not None:
-            if self.input_streams[stream] == 'X' and self.should_log_s_hat_error():
+            if self.input_streams[stream] == 'X' and self.get_stim_to_correct_for(data.t) and self.s_hat_error_function is not None:
                 key = 's_hat_error'
                 if key not in self.log:
                     self.log[key] = []
@@ -65,35 +96,27 @@ class StimRegressor(Predictor):
                         prediction_time = saved_prediction_time
 
                 self.predictions[prediction_time] = (current_t_as_of_last_x, self.predict(self.n_steps_to_predict))
-                self.unevaluated_log_pred_ps[prediction_time] = (
-                current_t_as_of_last_x, self.unevaluated_log_pred_p(self.n_steps_to_predict))
+                self.unevaluated_log_pred_ps[prediction_time] = (current_t_as_of_last_x, self.unevaluated_log_pred_p(self.n_steps_to_predict))
 
-    def predict(self, n_steps):
-        assert n_steps in {0,1}
-        pred = self.autoreg.predict(n_steps=n_steps)
 
-        if np.isfinite(pred).all():
-            if self.should_correct():
-                pred = pred + self.predict_stim_response()
-
-        return pred
-
-    def predict_stim_response(self):
-        stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), self.last_seen_stims[-1].flatten()])
+    def predict_stim_response(self, stim_to_correct_for):
+        stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for])
         return self.stim_reg.predict(stim_reg_input)
 
     def observe(self, X, stream=None):
-        if self.last_seen_stims and np.any(self.last_seen_stims[-1]) and self.heed_stimuli:
-            pred = self.autoreg.predict(n_steps=1)
-            residual = X - pred
-
-            stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), self.last_seen_stims[-1].flatten()])
-            self.stim_reg.observe(stim_reg_input, residual)
-
+        if  self.heed_stimuli and self.in_stim_lag(current_t=X.t):
             self.autoreg.toggle_parameter_fitting(False)
+
+            stim_to_correct_for = self.get_stim_to_correct_for(current_t=X.t)
+            if stim_to_correct_for:
+                pred = self.autoreg.predict(n_steps=1)
+                residual = X - pred
+                stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for])
+                self.stim_reg.observe(stim_reg_input, residual)
+
             self.autoreg.observe(X, stream=self.input_streams[stream])
-            self.autoreg.toggle_parameter_fitting(True)
         else:
+            self.autoreg.toggle_parameter_fitting(True)
             self.autoreg.observe(X, stream=self.input_streams[stream])
 
     def get_state(self):
@@ -102,12 +125,30 @@ class StimRegressor(Predictor):
     def get_arbitrary_dynamics_parameter(self):
         return self.autoreg.get_arbitrary_dynamics_parameter()
 
-    def unevaluated_log_pred_p(self, n_steps):
+    def predict(self, n_steps, current_t=None):
+        if current_t is None:
+            current_t = self._last_X_t
+        assert n_steps in {0,1}
+        pred = self.autoreg.predict(n_steps=n_steps)
+
+        if self.attempt_correction and np.isfinite(pred).all():
+            stim_to_correct_for = self.get_stim_to_correct_for(current_t=current_t + self.dt * n_steps)
+            if stim_to_correct_for:
+                pred = pred + self.predict_stim_response(stim_to_correct_for)
+        return pred
+
+    def unevaluated_log_pred_p(self, n_steps, current_t=None):
+        if current_t is None:
+            current_t = self._last_X_t
         assert n_steps in {0,1}
         f = self.autoreg.unevaluated_log_pred_p(n_steps=n_steps)
 
-        if self.should_correct():
-            correction = self.predict_stim_response()
+        if self.attempt_correction:
+            stim_to_correct_for = self.get_stim_to_correct_for(current_t=self.dt * n_steps+current_t)
+            if stim_to_correct_for:
+                correction = self.predict_stim_response(stim_to_correct_for)
+            else:
+                correction = 0
             def corrected_f(future_point):
                 return f(future_point - correction)
         else:

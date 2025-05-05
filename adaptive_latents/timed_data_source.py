@@ -156,6 +156,7 @@ class ArrayWithTime(np.ndarray):
 
     @staticmethod
     def align_indices(a, b, complement=False):
+        assert len(a.t) > 0 and len(b.t) > 0, 'neither of the arrays should be empty'
         # there's a faster way to do this with np.searchsorted
         a_t = np.array(a.t)
         b_t = np.array(b.t)

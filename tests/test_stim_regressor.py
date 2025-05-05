@@ -34,9 +34,9 @@ def test_logs(sr_s, show_plots):
     mses = []
     for error in [stim_utilized_error, stim_aware_error, stim_unaware_error]:
         real_stim_samples2, stim_errors = ArrayWithTime.align_indices(real_stim_samples, error)
-        # assert (real_stim_samples2 == real_stim_samples).all() # this is important for equality between the MSEs
+        # assert (real_stim_samples2 == real_stim_samples).all()
         _, dynamics_errors = ArrayWithTime.align_indices(real_stim_samples, error, complement=True)
-        errors.append([stim_errors, dynamics_errors])
+        errors.append([stim_errors, dynamics_errors, error])
 
         start = 5
         mses.append([[np.mean(a[start:,2]**2), np.mean(a[start:,:2]**2)] for a in errors[-1]])
@@ -45,17 +45,18 @@ def test_logs(sr_s, show_plots):
     # with np.printoptions(precision=3, suppress=True):
     #     print(np.array(mses))
 
-    assert mses[0][0][0] <  mses[2][0][0]  #  stim-sample stim dimension errors
-    assert mses[0][1][0] == mses[1][1][0]  #  dynamics-sample stim dimension errors
-    assert mses[0][1][1] == mses[1][1][1]  #  dynamics-sample non-stim dimension errors
-
     if show_plots:
         import matplotlib.pyplot as plt
         fig, axs = plt.subplots(nrows=3, ncols=1)
-        for ax, (stim_errors, dynamics_errors) in zip(axs, errors):
+        for ax, (stim_errors, dynamics_errors, full_errors) in zip(axs, errors):
             ax.plot(stim_errors.t, stim_errors, '.', ms=10)
-            ax.plot(dynamics_errors.t, dynamics_errors, '.', ms=5)
+            # ax.plot(dynamics_errors.t, dynamics_errors, '.', ms=5)
         plt.show(block=True)
+
+    assert mses[0][0][0] < mses[2][0][0] - 10  #  stim-sample stim dimension errors
+    assert mses[0][1][0] == mses[1][1][0]  #  dynamics-sample stim dimension errors
+    assert mses[0][1][1] == mses[1][1][1]  #  dynamics-sample non-stim dimension errors
+
 
 def test_log_pred_pdf(sr_s, show_plots):
     (sr1, sr2, sr3), stim_magnitude, stim = sr_s
@@ -93,15 +94,12 @@ def test_accepts_sparse_stimuli(rng):
     sr2.offline_run_on(sources=[(stim, 'stim'), (Y, 'X')])
 
 
-    assert np.array(sr1.log['pred_error']).shape == np.array(sr2.log['pred_error']).shape
-
-
-    import matplotlib.pyplot as plt
-    e1 = ArrayWithTime.from_list(sr1.log['pred_error'], drop_early_nans=False, squeeze_type='to_2d')
-    e2 = ArrayWithTime.from_list(sr2.log['pred_error'], drop_early_nans=False, squeeze_type='to_2d')
-    plt.plot(e1.t, e1-e2, '.-')
-    plt.plot(stim.t, stim.t * 0, '.')
-    plt.show(block=True)
+    # import matplotlib.pyplot as plt
+    # e1 = ArrayWithTime.from_list(sr1.log['pred_error'], drop_early_nans=False, squeeze_type='to_2d')
+    # e2 = ArrayWithTime.from_list(sr2.log['pred_error'], drop_early_nans=False, squeeze_type='to_2d')
+    # plt.plot(e1.t, e1-e2, '.-')
+    # plt.plot(stim.t, stim.t * 0, '.')
+    # plt.show(block=True)
     assert np.array_equal(np.array(sr1.log['pred_error']), np.array(sr2.log['pred_error']), equal_nan=True)
 
 
@@ -120,3 +118,19 @@ def test_accepts_sparse_stimuli(rng):
 #         sr.partial_fit_transform(Y2.slice(slice(i,i+1)), stream='X')
 #         assert not (sr.get_arbitrary_dynamics_parameter() == par).all()
 #         par = sr.get_arbitrary_dynamics_parameter()
+
+
+def test_not_heeding_works(rng):
+    stim_magnitude = 20
+    _, Y, stim = LDS.run_nest_dynamical_system(2, stim_magnitude=stim_magnitude, u_function='constant', rng=rng, radius=20) # early_shift
+
+    sr2 = StimRegressor(autoreg=StreamingKalmanFilter(), attempt_correction=False, heed_stimuli=True, log_level=3)
+    sr3 = StimRegressor(autoreg=StreamingKalmanFilter(), attempt_correction=False, heed_stimuli=False, log_level=3)
+    kf = StreamingKalmanFilter(log_level=3, check_dt=True)
+
+    for p in [sr2, sr3, kf]:
+        p.offline_run_on(sources=[(stim,'stim'), (Y,'X')], convinient_return=False)
+        p.partial_fit_transform(ArrayWithTime([[1]], stim.t[-1] + stim.dt), stream='stim')
+
+    assert np.array_equal(np.array(sr3.log['pred_error']), np.array(kf.log['pred_error']), equal_nan=True)
+    assert not np.array_equal(np.array(sr2.log['pred_error']), np.array(kf.log['pred_error']), equal_nan=True)
