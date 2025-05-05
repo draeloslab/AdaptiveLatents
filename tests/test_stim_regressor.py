@@ -123,36 +123,91 @@ def test_sub_dt_delay_works(rng):
     ]:
         stim_offset = ArrayWithTime(stim, stim.t - dt)
 
-        sr4 = StimRegressor(autoreg=StreamingKalmanFilter(steps_between_refits=3), log_level=3)
+        sr4 = StimRegressor(autoreg=StreamingKalmanFilter(steps_between_refits=3), log_level=3, stim_delay=0)
         sr4.offline_run_on(sources=[(stim_offset, 'stim'), (Y, 'X')])
         e4 = ArrayWithTime.from_list(sr4.log['pred_error'], squeeze_type='to_2d')
+        assert np.array_equal(e_utilized, e4, equal_nan=True) == unaware_of_delay_should_match_utilized
+        assert np.array_equal(e_unaware_of_stim, e4, equal_nan=True) != unaware_of_delay_should_match_utilized
 
         sr5 = StimRegressor(autoreg=StreamingKalmanFilter(steps_between_refits=3), log_level=3, stim_delay=dt)
         sr5.offline_run_on(sources=[(stim_offset, 'stim'), (Y, 'X')])
         e5 = ArrayWithTime.from_list(sr5.log['pred_error'], squeeze_type='to_2d')
-
         assert np.array_equal(e_utilized, e5, equal_nan=True)
-        assert np.array_equal(e_utilized, e4, equal_nan=True) == unaware_of_delay_should_match_utilized
-        assert np.array_equal(e_unaware_of_stim, e4, equal_nan=True) != unaware_of_delay_should_match_utilized
+
+
+def test_super_dt_delay_works():
+    rng = np.random.default_rng(1)
+    N = 200
+    _, Y_pure, _ = LDS.circular_lds(obs_d=5, rng=rng).simulate(n_steps=N, rng=rng)
+    stim = rng.random(size=N) < .1
+    Y = np.array(Y_pure)
+    Y[stim, -1] += 100
+
+    Ys = [
+        Y_pure,
+        np.roll(Y, shift=0, axis=0),
+        np.roll(Y, shift=1, axis=0),
+        np.roll(Y, shift=2, axis=0),
+    ]
+    Ys = [ArrayWithTime.from_notime(Y) for Y in Ys]
+
+    errors = []
+    for delay_group in [(0,1/210), (.990,1,1.001), (2,)]:
+        errors.append([])
+        for delay in delay_group:
+            errors[-1].append([])
+            for Y in Ys:
+                sr = StimRegressor(autoreg=StreamingKalmanFilter(), log_level=3, stim_delay=delay*Y.dt)
+                sr.offline_run_on(sources=[(stim, 'stim'), (Y, 'X')])
+                e = ArrayWithTime.from_list(sr.log['pred_error'], squeeze_type='to_2d', drop_early_nans=True)
+                errors[-1][-1].append(np.nanmean((e.slice(slice(N//2,None))**2), axis=0)[-1])
+        assert np.allclose(np.std(errors[-1], axis=0), 0)
+        # assert (np.std(errors[-1], axis=0) == 0).all()  # TODO: why does this fail sometimes?
+        errors[-1] = np.mean(errors[-1], axis=0)
+
+    errors = np.sqrt(errors)
+
+    # import matplotlib.pyplot as plt
+    # plt.matshow(errors)
+    # plt.show(block=True)
+
+    assert (np.argmin(errors, axis=1) == np.array([0,0,0])).all()
+    assert (np.argmin(errors[:,1:], axis=1) == np.array([0,1,2])).all()
 
 
 
+def test_skips_steps(rng):
+    _, Y, _ = LDS.circular_lds().simulate(20)
+    Y = ArrayWithTime.from_notime(Y)
+    Y1 = Y.slice(slice(None, 10))
+    Y2 = Y.slice(slice(10, None))
 
-# def test_skips_steps(rng):
-#     _, Y, _ = LDS.circular_lds().simulate(20)
-#     Y1 = Y.slice(slice(None, 10))
-#     Y2 = Y.slice(slice(10, None))
-#
-#
-#     sr = StimRegressor(autoreg=Bubblewrap(num=10, M=5))
-#     sr.offline_run_on([(Y1, 'X')])
-#
-#     par = sr.get_arbitrary_dynamics_parameter()
-#     for i in range(10):
-#         sr.partial_fit_transform(Y2.slice(slice(i,i+1)), stream='X')
-#         assert not (sr.get_arbitrary_dynamics_parameter() == par).all()
-#         par = sr.get_arbitrary_dynamics_parameter()
+    for stim_delay in np.array([0,1,2]):
 
+        bw = Bubblewrap(num=10, M=5)
+        sr = StimRegressor(autoreg=bw, log_level=3, stim_delay=stim_delay* Y.dt)
+        sr.offline_run_on([(Y1, 'X')])
+
+        par = sr.get_arbitrary_dynamics_parameter()
+
+        i = 0
+        s = None
+        def step(should_be_same=False):
+            nonlocal i, par, s, sr
+            i += 1
+            s = Y2.slice(slice(i,i+1))
+            s.t = s.t[0]
+            sr.partial_fit_transform(s, stream='X')
+            assert (sr.get_arbitrary_dynamics_parameter() == par).all() == should_be_same
+            par = sr.get_arbitrary_dynamics_parameter()
+
+
+        step()
+        step()
+        sr.partial_fit_transform(ArrayWithTime([1], s.t+1), stream='stim')
+        for _ in range(stim_delay+1):
+            step(True)
+        step()
 
 def test_not_heeding_works(rng):
     stim_magnitude = 20
