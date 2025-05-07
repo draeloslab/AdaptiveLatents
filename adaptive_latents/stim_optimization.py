@@ -1,9 +1,12 @@
+import time
+
 from adaptive_latents.input_sources.autoregressor import AdamOptimizer
 import jax
 import numpy as np
 import jax.numpy as jnp
 from jax.nn import relu
 import warnings
+from collections import deque
 
 def loss(s, v, lam_1=1e-3):
     u = s
@@ -17,24 +20,29 @@ def loss(s, v, lam_1=1e-3):
 
 
 class StimDesigner:
-    def __init__(self, max_l0_norm=30, l0_norm_margin=5):
+    def __init__(self, max_l0_norm=30, l0_norm_margin=5, adaptive_starter_lam_1=True, max_outer_loop_time_ms=10, max_inner_iters=50, rng_seed=0, should_log=False):
+        self.rng_seed = rng_seed
+        self.rng = np.random.default_rng(rng_seed)
         self.grad_loss = None
         self.max_l0_norm = max_l0_norm
-        self.convergence_threshold = 1e-3
-        self.adam_learning_rate = 0.005
+        self.convergence_threshold = 10**-.944
+        self.adam_learning_rate = 10**-.889
         self.starter_lam_1_guess = 10**-.5
+        self.max_outer_loop_time_ms = max_outer_loop_time_ms
+        self.max_inner_iters = max_inner_iters
+        self.adaptive_starter_lam_1 = adaptive_starter_lam_1
         self.l0_norm_margin = l0_norm_margin
+        self.should_log = should_log
         self.log = []
         self._add_jited_functions()
 
     def _add_jited_functions(self):
         self.grad_loss = jax.jit(jax.value_and_grad(loss, has_aux=True))
 
-    def design_stim(self, v, max_outer_iters=10, max_inner_iters=250, rng=None):
+    def design_stim(self, v):
+        start_time = time.time()
         assert len(v.shape) == 2
         assert self.max_l0_norm > 0
-        if rng is None:
-            rng = np.random.default_rng()
 
 
         lam_1_history = []
@@ -44,17 +52,17 @@ class StimDesigner:
 
         lam_1 = self.starter_lam_1_guess
 
-        best_so_far = (None, -np.inf)
+        best_so_far = (np.zeros(shape=(max(v.shape),)), -np.inf, dict(lam_1=lam_1))
 
-        for _ in range(max_outer_iters):
+        while (time.time() - start_time) * 1000 < self.max_outer_loop_time_ms:
             loss_history.append([])
             s_history.append([])
             lam_1_history.append(lam_1)
 
-            s = rng.uniform(size=(max(v.shape),)) * .1
+            s = self.rng.uniform(size=(max(v.shape),)) * .1
             s_optimizer = AdamOptimizer(lr=self.adam_learning_rate)
 
-            for i in range(max_inner_iters):
+            for i in range(self.max_inner_iters):
                 (loss, aux), grad = self.grad_loss(s, v, lam_1=lam_1)
                 s = s_optimizer.update(s,grad)
                 s = relu(s)
@@ -63,7 +71,7 @@ class StimDesigner:
                 loss_history[-1].append(loss)
 
                 if np.isfinite(s).all() and  np.linalg.norm(s, ord=0) <= self.max_l0_norm and aux > best_so_far[1]:
-                    best_so_far = (np.array(s), aux)
+                    best_so_far = (np.array(s), aux, dict(lam_1=lam_1))
 
                 if (~np.isfinite(s)).any() or (len(s_history[-1]) > 10 and jnp.linalg.norm(s_history[-1][-2] - s_history[-1][-1]) < self.convergence_threshold):
                     break
@@ -80,8 +88,12 @@ class StimDesigner:
         if s.max() > 0:
             s = np.array(s / s.max())
 
-        self.log.append({'v':v, 's':s, 'loss_history':loss_history, 'lam_1_history':lam_1_history, 'l0_history':l0_history, 's_history':s_history})
 
+        if self.adaptive_starter_lam_1:
+            self.starter_lam_1_guess = best_so_far[2]['lam_1']
+
+        if self.should_log:
+            self.log.append({'time': time.time() - start_time, 'v':v, 's':s, 'loss_history':loss_history, 'lam_1_history':lam_1_history, 'l0_history':l0_history, 's_history':s_history})
         return s
 
     def generate_next_lam_1(self, lam_1_history, l0_history):

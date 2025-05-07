@@ -105,7 +105,7 @@ class StimRegressor(Predictor):
         return self.stim_reg.predict(stim_reg_input)
 
     def observe(self, X, stream=None):
-        if  self.heed_stimuli and self.in_stim_lag(current_t=X.t):
+        if self.heed_stimuli and self.in_stim_lag(current_t=X.t):
             self.autoreg.toggle_parameter_fitting(False)
 
             stim_to_correct_for = self.get_stim_to_correct_for(current_t=X.t)
