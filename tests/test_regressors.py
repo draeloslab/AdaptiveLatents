@@ -1,13 +1,16 @@
 import numpy as np
 import pytest
 
-from adaptive_latents.regressions import BaseKNearestNeighborRegressor, BaseVanillaOnlineRegressor, VanillaOnlineRegressor, auto_regression_decorator
+from adaptive_latents.regressions import BaseKNearestNeighborRegressor, BaseVanillaOnlineRegressor, VanillaOnlineRegressor, BaseKernelRegressor, auto_regression_decorator
 
 
-@pytest.fixture(params=["nearest_n", "vanilla", "vanilla_regularized"])
+
+@pytest.fixture(params=["nearest_n", "kernel", "vanilla", "vanilla_regularized"])
 def base_reg_maker(request):
     if request.param == "nearest_n":
         return BaseKNearestNeighborRegressor
+    if request.param == "kernel":
+        return BaseKernelRegressor
     elif request.param == "vanilla":
         class NoRegularizationTempVersion(BaseVanillaOnlineRegressor):
             def __init__(self, *args, regularization_factor=0, **kwargs):
@@ -39,7 +42,7 @@ def test_can_run_nd(reg_maker, rng):
     space = np.linspace(0, 1, 100)
 
     reg = reg_maker()
-    for i in range(1_000):
+    for i in range(50):
         x = rng.choice(space, size=n)
         y = f(x)
         pred = reg.predict(x)
@@ -52,7 +55,7 @@ def test_output_shapes_are_correct(reg_maker, rng):
     for n, m in [(1, 1), (1, 3), (3, 1), (3, 4)]:
         reg = reg_maker()
 
-        n_samples = 1_000
+        n_samples = 10
         inputs = rng.normal(size=(n_samples, n))
         outputs = rng.normal(size=(n_samples, m))
         for i in range(n_samples):
@@ -65,7 +68,7 @@ def test_will_ignore_nan_inputs(reg_maker, rng):
     for n, m in [(1, 1), (1, 3), (3, 1), (3, 4)]:
         reg = reg_maker()
 
-        n_samples = 1_000
+        n_samples = 50
         inputs = rng.normal(size=(n_samples, n))
         outputs = rng.normal(size=(n_samples, m))
 

@@ -1,4 +1,5 @@
 import time
+import functools
 
 from adaptive_latents.input_sources.autoregressor import AdamOptimizer
 import jax
@@ -8,8 +9,12 @@ from jax.nn import relu
 import warnings
 from collections import deque
 
-def loss(s, v, lam_1=1e-3):
-    u = s
+def loss(u, v, lam_1=1e-3, u_to_s_function=lambda x: x):
+    """
+     | ||
+    || |_
+    """
+    s = u_to_s_function(u)
     loss = (
             - jnp.sqrt(jnp.linalg.norm(v.T @ s)) ** 2  # maximize dot product with the target vector
             + jnp.linalg.norm(s - v @ v.T @ s) ** 2  # minimize orthogonal component
@@ -39,10 +44,16 @@ class StimDesigner:
     def _add_jited_functions(self):
         self.grad_loss = jax.jit(jax.value_and_grad(loss, has_aux=True))
 
-    def design_stim(self, v):
+    def design_stim(self, v, u_to_s_function=None):
         start_time = time.time()
         assert len(v.shape) == 2
         assert self.max_l0_norm > 0
+
+        if u_to_s_function is None:
+            grad_loss = self.grad_loss
+        else:
+            inner_loss = functools.partial(loss, u_to_s_function=u_to_s_function)
+            grad_loss = jax.jit(jax.value_and_grad(inner_loss, has_aux=True))
 
 
         lam_1_history = []
@@ -63,12 +74,12 @@ class StimDesigner:
             s_optimizer = AdamOptimizer(lr=self.adam_learning_rate)
 
             for i in range(self.max_inner_iters):
-                (loss, aux), grad = self.grad_loss(s, v, lam_1=lam_1)
+                (loss_value, aux), grad = grad_loss(s, v, lam_1=lam_1)
                 s = s_optimizer.update(s,grad)
                 s = relu(s)
 
                 s_history[-1].append(s)
-                loss_history[-1].append(loss)
+                loss_history[-1].append(loss_value)
 
                 if np.isfinite(s).all() and  np.linalg.norm(s, ord=0) <= self.max_l0_norm and aux > best_so_far[1]:
                     best_so_far = (np.array(s), aux, dict(lam_1=lam_1))

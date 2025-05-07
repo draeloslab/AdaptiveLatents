@@ -4,9 +4,9 @@ import numpy as np
 
 from . import StreamingKalmanFilter
 from .predictor import Predictor
-from .regressions import BaseKNearestNeighborRegressor, OnlineRegressor
+from .regressions import BaseKNearestNeighborRegressor, OnlineRegressor, BaseKernelRegressor
 from .timed_data_source import ArrayWithTime
-from .stim_optimization import StimDesigner
+from .stim_designer import StimDesigner
 
 
 class StimRegressor(Predictor):
@@ -25,7 +25,8 @@ class StimRegressor(Predictor):
         self.attempt_correction = attempt_correction
         self.heed_stimuli = heed_stimuli
         if stim_reg is None:
-            stim_reg = BaseKNearestNeighborRegressor(k=2)
+            # stim_reg = BaseKNearestNeighborRegressor(k=2)
+            stim_reg = BaseKernelRegressor()
         self.stim_reg: OnlineRegressor = stim_reg
         self.last_seen_stims = deque()
         assert stim_delay >= 0
