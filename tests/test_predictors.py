@@ -113,7 +113,7 @@ def fitted_predictor_tuple(request, rng):
                 raise ValueError()
 
 
-    transitions_per_rotation = 30
+    transitions_per_rotation = 30  # add a 1/np.pi factor?
     radius = 10
     n_test_rotations = 5
     _, Y, _ = LDS.run_nest_dynamical_system(rotations=n_rotations+n_test_rotations, transitions_per_rotation=transitions_per_rotation, radius=radius, u_function=lambda **_: np.zeros(3), rng=rng, noise=0.05**2)
@@ -215,3 +215,12 @@ def test_can_turn_off_parameter_learning(fitted_predictor_tuple, rng):
     predictor.toggle_parameter_fitting(True)
     predictor.offline_run_on([(Y3, 'X')], convinient_return=False)
     assert not np.isclose(dynamics_param, predictor.get_arbitrary_dynamics_parameter()).all()
+
+def test_kf_refit_every_step(rng):
+    transitions_per_rotation = 30 + 1/np.pi
+    radius = 10
+    _, Y, _ = LDS.run_nest_dynamical_system(rotations=3, transitions_per_rotation=transitions_per_rotation, radius=radius, u_function=lambda **_: np.zeros(3), rng=rng, noise=0.05**2)
+
+    kf = StreamingKalmanFilter(steps_between_refits=1)
+
+    kf.offline_run_on(Y)

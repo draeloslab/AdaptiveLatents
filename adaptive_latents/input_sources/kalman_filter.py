@@ -161,7 +161,7 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
 
             if (
                     len(self.latent_state_history[-1]) == len(self.observation_history[-1])
-                    and len(self.observation_history[-1])
+                    and len(self.observation_history[-1]) > 1
                     and len(self.observation_history[-1]) % self.steps_between_refits == 0
                     and self.parameter_fitting
             ):
@@ -169,7 +169,7 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
                 latent = np.squeeze(self.latent_state_history[-1])
                 obs = np.squeeze(self.observation_history[-1])
 
-                constant = self.steps_between_refits # todo: set this more rigorously
+                constant = min(self.steps_between_refits, len(obs)) # todo: set this more rigorously
                 self.state = latent[obs.shape[0]-constant]
                 for i in range(constant):
                     self.step(Y=obs[obs.shape[0]-constant+i])
@@ -179,12 +179,12 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
         super().toggle_parameter_fitting(value)
         if before and not self.parameter_fitting:
             self.last_seen = {}
-            if len(self.latent_state_history[-1]) > 2:
+            if len(self.latent_state_history[-1]) > 1:
                 self.latent_state_history.append([])
             else:
                 self.latent_state_history[-1] = []
 
-            if len(self.observation_history[-1]) > 2:
+            if len(self.observation_history[-1]) > 1:
                 self.observation_history.append([])
             else:
                 self.observation_history[-1] = []
@@ -220,6 +220,10 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
         inner_state_var = state_var
         for i in range(n_steps):
             inner_state, inner_state_var = KalmanFilter.inference_step(inner_state, inner_state_var, A=A, C=C, W=W, Q=Q, X_mean=X_mean, Y_mean=Y_mean)
-        rv = multivariate_normal(mean=inner_state.flatten(), cov=inner_state_var)
+        try:
+            rv = multivariate_normal(mean=inner_state.flatten(), cov=inner_state_var)
+        except np.linalg.LinAlgError:
+            warnings.warn("covariance matrix is not positive definite")
+            return lambda x: np.nan
 
         return rv.logpdf

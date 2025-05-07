@@ -73,10 +73,10 @@ class Predictor(StreamingTransformer):
                     self.log[k] = []
 
             if self.dt is not None:
-                current_t = data.t  # TODO: this is unintuitive and a little hacky
-                real_time_offset = self.dt * self.n_steps_to_predict
-
                 if self.input_streams[stream] == 'X':
+                    current_t = data.t
+                    real_time_offset = self.dt * self.n_steps_to_predict
+
                     # normal error calculation
                     for t_to_eval in list(self.predictions.keys()):
                         if np.isclose(t_to_eval - current_t, 0, atol=self.dt/10):
