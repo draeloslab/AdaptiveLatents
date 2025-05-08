@@ -11,8 +11,8 @@ from collections import deque
 
 def loss(u, v, lam_1=1e-3, u_to_s_function=lambda x: x):
     """
-     | ||
-    || |_
+     |  ||
+    ||  |_
     """
     s = u_to_s_function(u)
     loss = (
@@ -25,14 +25,26 @@ def loss(u, v, lam_1=1e-3, u_to_s_function=lambda x: x):
 
 
 class StimDesigner:
-    def __init__(self, max_l0_norm=30, l0_norm_margin=5, adaptive_starter_lam_1=True, max_outer_loop_time_ms=10, max_inner_iters=50, rng_seed=0, should_log=False):
+    def __init__(
+            self,
+            max_l0_norm=30,
+            l0_norm_margin=5,
+            adaptive_starter_lam_1=True,
+            max_outer_loop_time_ms=10,
+            max_inner_iters=50,
+            rng_seed=0,
+            should_log=False,
+            convergence_threshold=10**-.944,
+            adam_learning_rate=10**-.889,
+            starter_lam_1_guess=10**-.5,
+    ):
         self.rng_seed = rng_seed
         self.rng = np.random.default_rng(rng_seed)
         self.grad_loss = None
         self.max_l0_norm = max_l0_norm
-        self.convergence_threshold = 10**-.944
-        self.adam_learning_rate = 10**-.889
-        self.starter_lam_1_guess = 10**-.5
+        self.convergence_threshold = convergence_threshold
+        self.adam_learning_rate = adam_learning_rate
+        self.starter_lam_1_guess = starter_lam_1_guess
         self.max_outer_loop_time_ms = max_outer_loop_time_ms
         self.max_inner_iters = max_inner_iters
         self.adaptive_starter_lam_1 = adaptive_starter_lam_1

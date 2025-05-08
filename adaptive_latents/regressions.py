@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import deque
+import copy
 
 import jax
 from jax import numpy as jnp
@@ -165,25 +166,59 @@ class BaseKernelRegressor(NonParametricRegressor):
     def __init__(self, length_scale=1, maxlen=1_000):
         super().__init__(maxlen=maxlen)
         self.length_scale = length_scale
-        self._last_pred_f = (None, None)
 
     def make_jax_pred_f(self):
-        if self._last_pred_f[0] == self.n_observed:
-            return self._last_pred_f[1]
-
         if self.history is None:
             def f(x):
                 return numpy.array([[numpy.nan]])
         else:
             def f(x):
                 distances = jnp.linalg.norm(self.history[:self.n_observed, :self.input_d] - jnp.squeeze(x), axis=1)
-                distances = jnp.exp(-self.length_scale * distances ** 2 / 2)
-                distances = distances/distances.sum()
-                return distances @ self.history[:self.n_observed, self.input_d:]
+                log_weights = -self.length_scale * distances ** 2
+                log_sum = jax.scipy.special.logsumexp(log_weights)
+                log_weights = log_weights - log_sum
+                return jnp.exp(log_weights) @ self.history[:self.n_observed, self.input_d:]
         return f
 
     def predict(self, x):
         return numpy.array(self.make_jax_pred_f()(x))
+
+    def cross_validate_length_scale(self, length_scales, depth=100, ratio=.9, rng=None):
+        if rng is None:
+            rng = numpy.random.default_rng()
+
+        if self.n_observed < 10:
+            raise Exception("not enough data")
+
+        history = self.history[:self.n_observed]
+        history = history[~numpy.isnan(history).any(axis=1)]
+
+        n_total = history.shape[0]
+        n_train = int(ratio * n_total)
+
+        test_reg: BaseKernelRegressor = copy.deepcopy(self)
+        test_reg.n_observed = n_train
+
+        errors = []
+        error_stds = []
+        for length_scale in length_scales:
+            error = []
+            for _ in range(depth):
+                idx = rng.permutation(n_total)
+
+                test_reg.length_scale = length_scale
+                test_reg.history = history[idx[:n_train]]
+                x = history[idx[n_train:], :self.input_d]
+                y = history[idx[n_train:], self.input_d:]
+
+                for inner_x, inner_y in zip(x, y):
+                    error.append((inner_y - test_reg.predict(inner_x))**2)
+            errors.append(numpy.mean(error))
+            error_stds.append(numpy.std(error, ddof=1))
+        errors = numpy.array(errors)
+        error_stds = numpy.array(error_stds)
+        return length_scales[numpy.argmin(errors + error_stds)], (length_scales, errors, error_stds)
+
 
 
 

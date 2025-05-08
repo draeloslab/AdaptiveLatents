@@ -1,7 +1,13 @@
 import numpy as np
 import pytest
 
+import matplotlib.pyplot as plt
+import copy
+
 from adaptive_latents.regressions import BaseKNearestNeighborRegressor, BaseVanillaOnlineRegressor, VanillaOnlineRegressor, BaseKernelRegressor, auto_regression_decorator
+
+
+longrun = pytest.mark.skipif("not config.getoption('longrun')")
 
 
 
@@ -87,6 +93,43 @@ def test_will_ignore_nan_inputs(reg_maker, rng):
                 reg.observe(rng.normal(size=n), rng.normal(size=m))
 
         assert np.all(np.isfinite(reg.predict(np.zeros(n))))
+
+@longrun
+def test_cross_validate_length_scale(rng, show_plots):
+    rng = np.random.default_rng(3)
+    def f(x, space_constant=1):
+        return np.cos(x*space_constant).mean()
+
+    outputs = []
+
+    x = rng.uniform(-2 * np.pi, 2 * np.pi, size=(500,2))
+    noise = rng.normal(size=x.shape[0], scale=.5)
+
+    space_constants = np.logspace(-1,1,5)
+    for space_constant in space_constants:
+        reg = BaseKernelRegressor()
+        for x_sample, noise_sample in zip(x, noise):
+            x_sample = x_sample / space_constant
+            y = f(x_sample, space_constant=space_constant) + noise_sample
+            reg.observe(x_sample, y)
+
+        length_scales = np.logspace(-4, 4, 17)
+        output = reg.cross_validate_length_scale(length_scales, depth=50, ratio=.9, rng=copy.deepcopy(rng))
+        outputs.append(output)
+
+    if show_plots:
+        fig, ax = plt.subplots()
+        for output in outputs:
+            length_scales, errors, error_stds = output[1]
+            ax.plot(length_scales, errors + error_stds)
+        ax.semilogx()
+        plt.show(block=True)
+
+    found_constants = np.log([o[0] for o in outputs])
+    diffs = np.diff(found_constants)
+    assert np.allclose(diffs, diffs[0], atol=.001)
+
+
 
 
 # todo:
