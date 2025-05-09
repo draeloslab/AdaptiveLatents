@@ -18,10 +18,11 @@ output_filetype := pdf
 python_command := python
 #python_command := python -m ipdb -c "c"
 
-generated_path := /tmp/
-script_path := .
+script_path :=.
+generated_path :=./generated
+pdf_path:=./generated
 
-include $(script_path)/*.mk
+-include local.mk
 
 half_turn_prefix := $(generated_path)/hturn_log_pred_p_
 half_turn_plots := $(foreach method, bw vjf kf, $(half_turn_prefix)$(method).$(output_filetype))
@@ -112,7 +113,7 @@ generated_yamls = $(shell find $(generated_path) -name '*.yaml')
 $(generated_yamls): $(generated_path)/generated_by_%.yaml: $(script_path)/%.py $(script_path)/common.py ;
 
 #constant_input_files = adaptive_latents_config.yaml $(generated_yamls)
-constants.tex: FORCE # $(script_path)/make_constants_file.py $(constant_input_files)
+$(pdf_path)/constants.tex: FORCE # $(script_path)/make_constants_file.py $(constant_input_files)
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(script_path)/make_constants_file.py \
 		--output $@ \
@@ -125,11 +126,12 @@ nearness_to_offline_by_step_plots: $(nearness_to_offline_by_step_plots)
 toy_dataset: $(generated_path)/show_toy_dataset.pdf
 learn_s_hat_toy: $(generated_path)/learn_s_hat_toy_1step.pdf $(generated_path)/learn_s_hat_toy_manifold_error.pdf $(generated_path)/learn_s_hat_table_toy.tex
 learn_s_hat_ss: $(generated_path)/learn_s_hat_ss_1step.pdf  $(generated_path)/delay_table_ss.tex
-constants: constants.tex
+constants: $(pdf_path)/constants.tex
 
 all_generated: half_turn_plots profile_by_step_plots stability_by_step_plots nearness_to_offline_by_step_plots toy_dataset learn_s_hat_toy learn_s_hat_ss constants
 
 pdf: all_generated FORCE
+	cd $(pdf_path)
 	latexmk -pdf -shell-escape neurips_2025.tex
 
 all: pdf
@@ -141,7 +143,8 @@ clean:
 	trash $(generated_path)/*.$(output_filetype)
 	trash $(generated_path)/*.yaml
 	trash $(generated_path)/*.tex
-	trash constants.tex
-	trash aux_dir/*
+	trash $(pdf_path)/constants.tex
+	trash $(pdf_path)/aux_dir/*
 	trash makefile_graph.png
+	cd $(pdf_path)
 	latexmk -C
