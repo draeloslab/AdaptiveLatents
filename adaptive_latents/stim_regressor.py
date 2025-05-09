@@ -16,18 +16,19 @@ class StimRegressor(Predictor):
         assert n_steps_to_predict == 1
         assert heed_stimuli or not attempt_correction  # correcting without learning doesn't make sense
         super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level, check_dt=check_dt, n_steps_to_predict=n_steps_to_predict)
+
         if autoreg is None:
             autoreg = StreamingKalmanFilter()
+        self.autoreg: Predictor = autoreg
         if stim_designer is None:
             stim_designer = StimDesigner()
         self.stim_designer = stim_designer
-        self.autoreg: Predictor = autoreg
-        self.attempt_correction = attempt_correction
-        self.heed_stimuli = heed_stimuli
         if stim_reg is None:
             # stim_reg = BaseKNearestNeighborRegressor(k=2)
             stim_reg = BaseKernelRegressor()
-        self.stim_reg: OnlineRegressor = stim_reg
+        self.stim_reg: BaseKernelRegressor = stim_reg
+        self.attempt_correction = attempt_correction
+        self.heed_stimuli = heed_stimuli
         self.last_seen_stims = deque()
         assert stim_delay >= 0
         self.stim_delay = stim_delay  # in units of time (wrt the data)

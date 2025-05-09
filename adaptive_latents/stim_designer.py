@@ -116,7 +116,7 @@ class StimDesigner:
             self.starter_lam_1_guess = best_so_far[2]['lam_1']
 
         if self.should_log:
-            self.log.append({'time': time.time() - start_time, 'v':v, 's':s, 'loss_history':loss_history, 'lam_1_history':lam_1_history, 'l0_history':l0_history, 's_history':s_history})
+            self.log.append({'time': time.time() - start_time, 'v':v, 's':s, 'u_to_s_function_is_none':u_to_s_function is None, 'loss_history':loss_history, 'lam_1_history':lam_1_history, 'l0_history':l0_history, 's_history':s_history})
         return s
 
     def generate_next_lam_1(self, lam_1_history, l0_history):

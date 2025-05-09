@@ -139,6 +139,8 @@ class NonParametricRegressor(OnlineRegressor):
         self._observe(x, y)
 
     def _observe(self, x, y):
+        if self.n_observed >= self.maxlen:
+            warnings.warn("history is full, overwriting old observations")
         index = self.n_observed % self.maxlen
         self.history[index, :self.input_d] = x
         self.history[index, self.input_d:] = y
@@ -163,7 +165,8 @@ class BaseKNearestNeighborRegressor(NonParametricRegressor):
 
 
 class BaseKernelRegressor(NonParametricRegressor):
-    def __init__(self, length_scale=1, maxlen=1_000):
+    def __init__(self, length_scale=1, maxlen=100):
+        # TODO: use the inverse of length_scale, it's unintuitive
         super().__init__(maxlen=maxlen)
         self.length_scale = length_scale
 
