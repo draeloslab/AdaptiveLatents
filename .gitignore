@@ -5,6 +5,7 @@ workspace/**/*.ipynb
 scripts/*
 *.sh
 workspace/neurips_2025/local.mk
+*.pkl
 
 *.mp4
 *.db
