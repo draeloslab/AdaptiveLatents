@@ -4,6 +4,7 @@ workspace/datasets/*
 workspace/**/*.ipynb
 scripts/*
 *.sh
+workspace/neurips_2025/local.mk
 
 *.mp4
 *.db
