@@ -160,11 +160,14 @@ class Predictor(StreamingTransformer):
         return ArrayWithTime(np.ones_like(source.t).reshape(-1,1) * dt, source.t)
 
     @staticmethod
-    def plot_pdf(fig, ax, pdf_f, xlim, ylim, e1=None, e2=None, density=100):
+    def plot_pdf(fig, ax, pdf_f, xlim, ylim, native_d=3, e1=None, e2=None, density=100):
+        # TODO: move this to be a standalone in plotting_functions
         if e1 is None or e2 is None:
             assert e1 is None and e2 is None
-            e1 = np.array([1, 0, 0])
-            e2 = np.array([0, 1, 0])
+            e1 = np.zeros(native_d)
+            e2 = np.zeros(native_d)
+            e1[0] = 1
+            e2[1] = 1
 
         x_bins = np.linspace(*xlim, density + 1)
         y_bins = np.linspace(*ylim, density + 1)
