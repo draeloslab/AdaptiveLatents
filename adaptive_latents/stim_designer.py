@@ -10,16 +10,25 @@ import warnings
 from collections import deque
 
 def loss(u, v, lam_1=1e-3, u_to_s_function=lambda x: x):
-    """
-     |  ||
-    ||  |_
-    """
     s = u_to_s_function(u)
     loss = (
             - jnp.sqrt(jnp.linalg.norm(v.T @ s)) ** 2  # maximize dot product with the target vector
             + jnp.linalg.norm(s - v @ v.T @ s) ** 2  # minimize orthogonal component
             + jnp.linalg.norm(u, ord=1) * lam_1  # L1 penalty
     )
+
+    # new options:
+    # loss = (
+    #         - jnp.linalg.norm(v.T @ s) ** 2  # maximize dot product with the target vector
+    #         + jnp.linalg.norm(s - v @ v.T @ s) ** 2  # minimize orthogonal component
+    #         + jnp.linalg.norm(u, ord=1) * lam_1  # L1 penalty
+    # )
+    # loss = (
+    #         - 2*s.T@v@v.T@s
+    #         + s.T@s
+    #         + jnp.linalg.norm(u, ord=1)* lam_1  # L1 penalty
+    # )
+
     ratio = (jnp.sqrt(jnp.linalg.norm(v.T @ s)) ** 2) / (jnp.linalg.norm(s - v @ v.T @ s) ** 2)
     return loss, ratio
 
