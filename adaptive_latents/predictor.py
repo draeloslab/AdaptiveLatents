@@ -160,7 +160,7 @@ class Predictor(StreamingTransformer):
         return ArrayWithTime(np.ones_like(source.t).reshape(-1,1) * dt, source.t)
 
     @staticmethod
-    def plot_pdf(fig, ax, pdf_f, xlim, ylim, native_d=3, e1=None, e2=None, density=100):
+    def plot_pdf(fig, ax, pdf_f, xlim, ylim, native_d=3, e1=None, e2=None, density=100, add_colorbar=True):
         # TODO: move this to be a standalone in plotting_functions
         if e1 is None or e2 is None:
             assert e1 is None and e2 is None
@@ -168,6 +168,13 @@ class Predictor(StreamingTransformer):
             e2 = np.zeros(native_d)
             e1[0] = 1
             e2[1] = 1
+        elif isinstance(e1,int):
+            assert isinstance(e2,int)
+            pre_e1 = np.zeros(native_d)
+            pre_e2 = np.zeros(native_d)
+            pre_e1[e1] = 1
+            pre_e2[e2] = 1
+            e1, e2 = pre_e1, pre_e2
 
         x_bins = np.linspace(*xlim, density + 1)
         y_bins = np.linspace(*ylim, density + 1)
@@ -179,12 +186,12 @@ class Predictor(StreamingTransformer):
                 pdf_values[i, j] = pdf_f(x * e1 + y * e2)
         pdf_values = np.array(pdf_values)
 
-        from mpl_toolkits.axes_grid1 import make_axes_locatable
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes('right', size='5%', pad=0.05)
         im = ax.pcolormesh(x_bins, y_bins, pdf_values.T, cmap='plasma')
-        fig.colorbar(im, cax=cax, orientation='vertical')
-        ax.axis('equal')
+        if add_colorbar:
+            from mpl_toolkits.axes_grid1 import make_axes_locatable
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes('right', size='5%', pad=0.05)
+            fig.colorbar(im, cax=cax, orientation='vertical')
 
     def get_params(self, deep=True):
         return super().get_params(deep) | dict(check_dt=self.check_dt, n_steps_to_predict=self.n_steps_to_predict)

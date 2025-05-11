@@ -37,7 +37,7 @@ def make_sr(
     sr = StimRegressor(
         autoreg=autoreg(),
         stim_reg=BaseKernelRegressor(length_scale=0.06),
-        stim_designer=StimDesigner(max_l0_norm=max_l0_norm, max_inner_iters=50, max_outer_loop_time_ms=5, rng_seed=other_rng.integers(2 ** 32), should_log=True),
+        stim_designer=StimDesigner(max_l0_norm=max_l0_norm, starter_lam_1_guess=1.2,max_outer_loop_time_ms=500, rng_seed=other_rng.integers(2 ** 32), should_log=True),
         # stim_designer=StimDesigner(max_l0_norm=max_l0_norm, max_inner_iters=500, max_outer_loop_time_ms=5000, convergence_threshold=10**-2, adam_learning_rate=10**-2, rng_seed=other_rng.integers(2 ** 32), should_log=True),
         log_level=2,
         check_dt=True,
