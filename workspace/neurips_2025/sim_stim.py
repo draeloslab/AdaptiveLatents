@@ -65,12 +65,18 @@ def make_sr(
                 if sr.stim_reg.n_observed > 10 and False:
                     f = sr.stim_reg.make_jax_pred_f()
                     def u_to_s_function(u):
-                        return pro.Q @ f(jax.numpy.hstack((sr.autoreg.predict(n_steps=0), u)))
+                        return f(jax.numpy.hstack((sr.autoreg.predict(n_steps=0), u)))
                     designed_stim = sr.stim_designer.design_stim(pro.Q[:, :stim_dim_slice], u_to_s_function=u_to_s_function)
                 else:
-                    designed_stim = sr.stim_designer.design_stim(pro.Q[:, :stim_dim_slice])
+                    def u_to_s_function(u):
+                        return pro.Q.T @ u
+
+                    desired_stim = np.zeros((pro.Q.shape[1], 1))
+                    desired_stim[0] = 1
+                    designed_stim = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=pro.Q.shape[0])
 
                 sr.stim_designer.log[-1]['stim_reg'] = copy.deepcopy(sr.stim_reg)
+                sr.stim_designer.log[-1]['pro'] = copy.deepcopy(pro)
                 print(f'{(time.time() - _time_start) * 1000:.1f}')
             elif design_method == 'direct cheating':
                 designed_stim = pro.Q[:,0]
