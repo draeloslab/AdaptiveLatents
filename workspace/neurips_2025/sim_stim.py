@@ -25,19 +25,20 @@ def make_sr(
         prosvd_k=10,
         stim_magnitude=10,
         max_l0_norm=30,
-        exit_time=30,
+        exit_time=60,
         attempt_correction=True,
         heed_stimuli=True,
         stim_time_delay=0,
         regressor_stim_delay=0,
         design_method='optimized',
+        # design_method = 'direct cheating',
         initial_nostim_period=5,
 ):
     dynamics_rng, other_rng = rng.spawn(2)
     sr = StimRegressor(
         autoreg=autoreg(),
         stim_reg=BaseKernelRegressor(length_scale=0.06),
-        stim_designer=StimDesigner(max_l0_norm=max_l0_norm, starter_lam_1_guess=1.2,max_outer_loop_time_ms=500, rng_seed=other_rng.integers(2 ** 32), should_log=True),
+        stim_designer=StimDesigner(max_l0_norm=max_l0_norm, rng_seed=other_rng.integers(2 ** 32), should_log=True),
         # stim_designer=StimDesigner(max_l0_norm=max_l0_norm, max_inner_iters=500, max_outer_loop_time_ms=5000, convergence_threshold=10**-2, adam_learning_rate=10**-2, rng_seed=other_rng.integers(2 ** 32), should_log=True),
         log_level=2,
         check_dt=True,
@@ -55,31 +56,35 @@ def make_sr(
     decided_stims = []
     latents = []
     for data in Pipeline().streaming_run_on(input_array):
+        log_stim_reg_after_stim = False
 
         stim_decision = data.t > initial_nostim_period and dynamics_rng.random() < stim_rate
 
         decided_stims.append(ArrayWithTime(stim_decision, data.t))
         if stim_decision and pro.Q is not None:
+            latent_to_stim = dynamics_rng.choice(10)
+
             if design_method == 'optimized':
                 _time_start = time.time()
                 if sr.stim_reg.n_observed > 10 and False:
                     f = sr.stim_reg.make_jax_pred_f()
                     def u_to_s_function(u):
                         return f(jax.numpy.hstack((sr.autoreg.predict(n_steps=0), u)))
-                    designed_stim = sr.stim_designer.design_stim(pro.Q[:, :stim_dim_slice], u_to_s_function=u_to_s_function)
+                    designed_stim, _ = sr.stim_designer.design_stim(pro.Q[:, :stim_dim_slice], u_to_s_function=u_to_s_function)
                 else:
                     def u_to_s_function(u):
-                        return pro.Q.T @ u
+                        return stim_magnitude * pro.Q.T @ u
 
                     desired_stim = np.zeros((pro.Q.shape[1], 1))
-                    desired_stim[0] = 1
-                    designed_stim = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=pro.Q.shape[0])
+                    desired_stim[latent_to_stim] = 1
+                    designed_stim, _ = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=pro.Q.shape[0])
 
                 sr.stim_designer.log[-1]['stim_reg'] = copy.deepcopy(sr.stim_reg)
                 sr.stim_designer.log[-1]['pro'] = copy.deepcopy(pro)
+                log_stim_reg_after_stim = True
                 print(f'{(time.time() - _time_start) * 1000:.1f}')
             elif design_method == 'direct cheating':
-                designed_stim = pro.Q[:,0]
+                designed_stim = pro.Q[:,latent_to_stim]
             else:
                 raise NotImplementedError()
             instantaneous_stim = designed_stim * stim_magnitude
@@ -100,6 +105,11 @@ def make_sr(
 
         sr.partial_fit_transform(ArrayWithTime(instantaneous_stim, data.t), stream= 'stim')
         data = sr.partial_fit_transform(data, stream= 'X')
+
+        if log_stim_reg_after_stim and heed_stimuli:
+            newest_row = sr.stim_reg.history[sr.stim_reg.n_observed-1]
+            assert np.isnan(sr.stim_reg.history[sr.stim_reg.n_observed]).all()
+            sr.stim_designer.log[-1]['observed_s_hat'] = newest_row[-sr.stim_reg.output_d:]
 
         if data.t > exit_time:
             break
