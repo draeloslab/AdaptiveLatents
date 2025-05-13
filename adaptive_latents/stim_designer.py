@@ -3,7 +3,7 @@ import functools
 
 from adaptive_latents.input_sources.autoregressor import AdamOptimizer
 import jax
-import numpy as np
+import numpy
 import jax.numpy as jnp
 from jax.nn import relu
 import warnings
@@ -21,7 +21,7 @@ class StimDesigner:
             lam_1=0.001,
     ):
         self.rng_seed = rng_seed
-        self.rng = np.random.default_rng(rng_seed)
+        self.rng = numpy.random.default_rng(rng_seed)
         self.max_l0_norm = max_l0_norm
         self.should_log = should_log
         self.lam_1 = lam_1
@@ -49,14 +49,14 @@ class StimDesigner:
 
         runner = ScipyBoundedMinimize(fun=objective, method='l-bfgs-b')
         result = runner.run(u, bounds=bounds)
-        u = result.params
+        u = numpy.array(result.params)
 
         if u.max() > 0:
-            u = np.array(u / u.max())
+            u = numpy.array(u / u.max())
 
-        unthresholded_u = np.array(u)
+        unthresholded_u = numpy.array(u)
         unthresholded_s = u_to_s_function(unthresholded_u)
-        idx = np.argsort(u)
+        idx = numpy.argsort(u)
         u[idx[:-self.max_l0_norm]] = 0
 
         if self.should_log:

@@ -30,15 +30,18 @@ def make_sr(
         heed_stimuli=True,
         stim_time_delay=0,
         regressor_stim_delay=0,
-        design_method='optimized',
+        design_method='optimized identity u_to_s',
+        true_S='identity',
         # design_method = 'direct cheating',
+        n_identity_prior=10,
         stim_direction_type='random',
         initial_nostim_period=5,
+        stim_reg_maxlen=500,
 ):
     stim_time_rng, other_rng = rng.spawn(2)
     sr = StimRegressor(
         autoreg=autoreg(),
-        stim_reg=BaseKernelRegressor(length_scale=0.06),
+        stim_reg=BaseKernelRegressor(length_scale=0.06, maxlen=stim_reg_maxlen),
         stim_designer=StimDesigner(max_l0_norm=max_l0_norm, rng_seed=other_rng.integers(2 ** 32), should_log=True),
         # stim_designer=StimDesigner(max_l0_norm=max_l0_norm, max_inner_iters=500, max_outer_loop_time_ms=5000, convergence_threshold=10**-2, adam_learning_rate=10**-2, rng_seed=other_rng.integers(2 ** 32), should_log=True),
         log_level=2,
@@ -47,6 +50,8 @@ def make_sr(
         heed_stimuli=heed_stimuli,
         stim_delay=regressor_stim_delay,
     )
+
+    static_S_seed = other_rng.integers(2 ** 32)
 
     centerer = CenteringTransformer()
     pro = proSVD(k=prosvd_k)
@@ -75,14 +80,20 @@ def make_sr(
             else:
                 raise ValueError()
 
-            if design_method == 'optimized':
-                if sr.stim_reg.n_observed > 20 and False:
-                    f = sr.stim_reg.make_jax_pred_f()
-                    def u_to_s_function(u):
-                        return f(jax.numpy.hstack((sr.autoreg.predict(n_steps=0), u)))
-                else:
+            if 'optimized' in design_method:
+                if design_method == 'optimized learned u_to_s':
+                    if sr.stim_reg.n_observed > n_identity_prior:
+                        f = sr.stim_reg.make_jax_pred_f()
+                        def u_to_s_function(u):
+                            return stim_magnitude * f(jax.numpy.hstack((sr.autoreg.predict(n_steps=0), u)))
+                    else:
+                        def u_to_s_function(u):
+                            return stim_magnitude * pro.Q.T @ u
+                elif design_method == 'optimized identity u_to_s':
                     def u_to_s_function(u):
                         return stim_magnitude * pro.Q.T @ u
+                else:
+                    raise ValueError()
 
                 designed_stim, _ = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=pro.Q.shape[0])
 
@@ -98,7 +109,24 @@ def make_sr(
         else:
             instantaneous_stim = np.zeros(input_array.shape[1])
 
-        stim_delay_queue.appendleft(instantaneous_stim)
+        latent_position = centerer.transform(data, stream= 'X')
+        latent_position = pro.transform(latent_position, stream='X')
+
+
+        if true_S == 'identity':
+            transformed_instantaneous_stim = instantaneous_stim
+        elif true_S == 'flip':
+            if pro.Q is not None:
+                in_space_comp = pro.Q.T @ instantaneous_stim
+                out_of_space_comp = instantaneous_stim - pro.Q @ in_space_comp
+                transformed_instantaneous_stim = pro.Q @ in_space_comp[::-1] + out_of_space_comp
+            else:
+                assert (instantaneous_stim == 0).all()
+                transformed_instantaneous_stim = instantaneous_stim
+        else:
+            raise ValueError(true_S)
+
+        stim_delay_queue.appendleft(transformed_instantaneous_stim)
         delayed_stim = stim_delay_queue.pop()
 
         to_add = to_add + delayed_stim
@@ -117,6 +145,7 @@ def make_sr(
             newest_row = sr.stim_reg.history[sr.stim_reg.n_observed-1]
             assert np.isnan(sr.stim_reg.history[sr.stim_reg.n_observed]).all()
             sr.stim_designer.log[-1]['observed_s_hat'] = newest_row[-sr.stim_reg.output_d:]
+            sr.stim_designer.log[-1]['observed_reg_inpt'] = newest_row[:-sr.stim_reg.output_d]
 
         if data.t > exit_time:
             break
@@ -152,13 +181,25 @@ def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False):
                 'vjf':dict(autoreg=VJF)
             }
         case 'optim_col_vs_rand':
-            design_method = 'optimized'
+            design_method = 'optimized identity u_to_s'
             stim_rate=1/2
             exit_time=130
             to_run = {
                 'first column of Q': dict(design_method=design_method, stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time,),
                 'random columns of Q': dict(design_method=design_method, stim_direction_type='col',stim_rate=stim_rate, exit_time=exit_time,),
                 'random unit vector': dict(design_method=design_method, stim_direction_type='random', stim_rate=stim_rate, exit_time=exit_time,),
+            }
+        case 'optim_open_vs_closed':
+            stim_rate=1
+            exit_time=100
+            prosvd_k = 10
+            prosvd_k = 2
+            assert data.shape[1] == 50, 'prosvd k should be 10 for odoherty'
+            to_run = {
+                'open id': dict(design_method='optimized identity u_to_s', true_S='identity', stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k,),
+                'closed id': dict(design_method='optimized learned u_to_s', true_S='identity', stim_direction_type='first',stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k,),
+                'open flip': dict(design_method='optimized identity u_to_s', true_S='flip', stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k, ),
+                'closed flip': dict(design_method='optimized learned u_to_s', true_S='flip', stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k, ),
             }
         case 'delay-table':
             to_run = {}

@@ -117,6 +117,12 @@ $(generated_path)/optim_col_vs_rand.pdf: $(script_path)/optimization_comparison.
 	    --type-of-plot optim_col_vs_rand
 
 
+$(generated_path)/optim_open_vs_closed.pdf: $(script_path)/optimization_comparison.py sim_stim.py
+	$(CONDA_ACTIVATE) adaptive_latents
+	$(python_command) $(script_path)/optimization_comparison.py \
+		--output $@ \
+	    --type-of-plot optim_open_vs_closed
+
 
 generated_yamls = $(shell find $(generated_path) -name '*.yaml')
 $(generated_yamls): $(generated_path)/generated_by_%.yaml: $(script_path)/%.py $(script_path)/common.py ;
@@ -135,7 +141,7 @@ nearness_to_offline_by_step_plots: $(nearness_to_offline_by_step_plots)
 toy_dataset: $(generated_path)/show_toy_dataset.pdf
 learn_s_hat_toy: $(generated_path)/learn_s_hat_toy_1step.pdf $(generated_path)/learn_s_hat_toy_manifold_error.pdf $(generated_path)/learn_s_hat_table_toy.tex
 learn_s_hat_ss: $(generated_path)/learn_s_hat_ss_1step.pdf  $(generated_path)/delay_table_ss.tex
-optim: $(generated_path)/optim_col_vs_rand.pdf
+optim: $(generated_path)/optim_col_vs_rand.pdf $(generated_path)/optim_open_vs_closed.pd
 constants: $(pdf_path)/constants.tex
 
 all_generated: half_turn_plots profile_by_step_plots stability_by_step_plots nearness_to_offline_by_step_plots toy_dataset learn_s_hat_toy learn_s_hat_ss constants optim
