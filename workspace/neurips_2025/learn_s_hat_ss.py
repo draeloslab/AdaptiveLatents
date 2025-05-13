@@ -53,6 +53,7 @@ if __name__ == '__main__':
             rng = np.random.default_rng(4)
             from adaptive_latents.input_sources.lds_simulation import LDS
             _, data, _ = LDS.circular_lds(rng=rng).simulate(100, rng=rng)
+            data = ArrayWithTime.from_notime(data)
 
             srs = make_srs(data, rng, comparison_preset='delay-table', n_runs=5, show_tqdm=True)
 

@@ -20,21 +20,22 @@ def make_sr(
         input_array,
         rng,
         autoreg=StreamingKalmanFilter,
-        stim_rate=1 / 25,
+        stim_rate=1,
+        exit_time=60,
         decay_rate=.8,
         prosvd_k=10,
         stim_magnitude=10,
         max_l0_norm=30,
-        exit_time=60,
         attempt_correction=True,
         heed_stimuli=True,
         stim_time_delay=0,
         regressor_stim_delay=0,
         design_method='optimized',
         # design_method = 'direct cheating',
+        stim_direction_type='random',
         initial_nostim_period=5,
 ):
-    dynamics_rng, other_rng = rng.spawn(2)
+    stim_time_rng, other_rng = rng.spawn(2)
     sr = StimRegressor(
         autoreg=autoreg(),
         stim_reg=BaseKernelRegressor(length_scale=0.06),
@@ -58,35 +59,41 @@ def make_sr(
     for data in Pipeline().streaming_run_on(input_array):
         log_stim_reg_after_stim = False
 
-        stim_decision = data.t > initial_nostim_period and dynamics_rng.random() < stim_rate
+        stim_decision = data.t > initial_nostim_period and stim_time_rng.random() < stim_rate * input_array.dt
 
         decided_stims.append(ArrayWithTime(stim_decision, data.t))
         if stim_decision and pro.Q is not None:
-            latent_to_stim = dynamics_rng.choice(10)
+            if stim_direction_type == 'first':
+                desired_stim = np.zeros((pro.Q.shape[1], 1))
+                desired_stim[0] = 1
+            elif stim_direction_type == 'col':
+                desired_stim = np.zeros((pro.Q.shape[1], 1))
+                desired_stim[other_rng.choice(pro.Q.shape[1]), 0] = 1
+            elif stim_direction_type == 'random':
+                desired_stim = other_rng.normal(size=(pro.Q.shape[1], 1))
+                desired_stim = desired_stim / np.linalg.norm(desired_stim)
+            else:
+                raise ValueError()
 
             if design_method == 'optimized':
-                _time_start = time.time()
-                if sr.stim_reg.n_observed > 10 and False:
+                if sr.stim_reg.n_observed > 20 and False:
                     f = sr.stim_reg.make_jax_pred_f()
                     def u_to_s_function(u):
                         return f(jax.numpy.hstack((sr.autoreg.predict(n_steps=0), u)))
-                    designed_stim, _ = sr.stim_designer.design_stim(pro.Q[:, :stim_dim_slice], u_to_s_function=u_to_s_function)
                 else:
                     def u_to_s_function(u):
                         return stim_magnitude * pro.Q.T @ u
 
-                    desired_stim = np.zeros((pro.Q.shape[1], 1))
-                    desired_stim[latent_to_stim] = 1
-                    designed_stim, _ = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=pro.Q.shape[0])
+                designed_stim, _ = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=pro.Q.shape[0])
 
                 sr.stim_designer.log[-1]['stim_reg'] = copy.deepcopy(sr.stim_reg)
                 sr.stim_designer.log[-1]['pro'] = copy.deepcopy(pro)
                 log_stim_reg_after_stim = True
-                print(f'{(time.time() - _time_start) * 1000:.1f}')
             elif design_method == 'direct cheating':
-                designed_stim = pro.Q[:,latent_to_stim]
+                designed_stim = (pro.Q @ desired_stim).flatten()
             else:
                 raise NotImplementedError()
+
             instantaneous_stim = designed_stim * stim_magnitude
         else:
             instantaneous_stim = np.zeros(input_array.shape[1])
@@ -144,12 +151,21 @@ def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False):
                 'bw':dict(autoreg=Bubblewrap),
                 'vjf':dict(autoreg=VJF)
             }
+        case 'optim_col_vs_rand':
+            design_method = 'optimized'
+            stim_rate=1/2
+            exit_time=130
+            to_run = {
+                'first column of Q': dict(design_method=design_method, stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time,),
+                'random columns of Q': dict(design_method=design_method, stim_direction_type='col',stim_rate=stim_rate, exit_time=exit_time,),
+                'random unit vector': dict(design_method=design_method, stim_direction_type='random', stim_rate=stim_rate, exit_time=exit_time,),
+            }
         case 'delay-table':
             to_run = {}
             for i in range(4):
                 for j in range(4):
                     # for LDS:
-                    to_run[f'({i}, {j})'] = dict(stim_time_delay=i, regressor_stim_delay=j, stim_magnitude=10, prosvd_k=4, exit_time=np.inf, initial_nostim_period=10, design_method='direct cheating')
+                    to_run[f'({i}, {j})'] = dict(stim_time_delay=i, regressor_stim_delay=j, stim_magnitude=10, prosvd_k=4, exit_time=np.inf, initial_nostim_period=10, design_method='direct cheating', stim_rate=1/20)
                     # for ODoherty
                     # to_run[f'({i}, {j})'] = dict(stim_time_delay=i, regressor_stim_delay=j, stim_magnitude=10, prosvd_k=8, exit_time=30, initial_nostim_period=5, design_method='direct cheating')
 
