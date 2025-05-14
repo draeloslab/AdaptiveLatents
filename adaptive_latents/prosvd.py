@@ -2,7 +2,7 @@ import numpy as np
 import scipy.linalg
 
 from .transformer import TypicalTransformer
-from .utils import principle_angles, save_to_cache
+from .utils import save_to_cache, column_space_distance
 from .timed_data_source import ArrayWithTime
 
 
@@ -152,7 +152,7 @@ class proSVD(TypicalTransformer, BaseProSVD):
             if np.any(np.isnan(Q)):
                 distances[j] = np.nan
                 continue
-            distances[j] = ArrayWithTime(np.abs(principle_angles(Q, subspace)).sum(), Q.t)
+            distances[j] = ArrayWithTime(column_space_distance(Q, subspace, method='angles'), Q.t)
         distances = ArrayWithTime.from_list(distances)
         return distances
 

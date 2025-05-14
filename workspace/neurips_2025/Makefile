@@ -13,7 +13,7 @@ CONDA_ACTIVATE := source $$(conda info --base)/etc/profile.d/conda.sh; conda act
 
 .PHONY: FORCE
 
-output_filetype := pdf
+output_filetype:=pdf
 
 python_command := python
 #python_command := python -m ipdb -c "c"
@@ -63,7 +63,17 @@ $(nearness_to_offline_by_step_plots): $(nearness_to_offline_prefix)%.$(output_fi
 		--output $@ \
 		--transformer $*
 
-$(generated_path)/show_toy_dataset.pdf: $(script_path)/show_toy_dataset.py
+native_nearness_to_offline_prefix := $(generated_path)/native_nearness_to_offline_by_step_
+native_nearness_to_offline_by_step_plots := $(foreach method, $(dim_red_methods), $(native_nearness_to_offline_prefix)$(method).$(output_filetype))
+$(native_nearness_to_offline_by_step_plots): $(native_nearness_to_offline_prefix)%.$(output_filetype): $(script_path)/%_code.py $(script_path)/dimension_reduction_plots.py $(script_path)/make_native_nearness_to_offline_figure.py
+	$(CONDA_ACTIVATE) adaptive_latents
+	$(python_command) $(script_path)/dimension_reduction_plots.py \
+	    --type-of-plot native_nearness_to_offline \
+		--output $@ \
+		--transformer $*
+
+
+$(generated_path)/show_toy_dataset.$(output_filetype): $(script_path)/show_toy_dataset.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(script_path)/show_toy_dataset.py \
 		--output $@
@@ -75,7 +85,7 @@ $(script_path)/sim_stim.py $(script_path)/learn_s_hat_toy.py: $(script_path)/lea
 %.py::
 	touch $@
 
-$(generated_path)/learn_s_hat_toy_1step.pdf $(generated_path)/toy_curvy.pdf: $(script_path)/learn_s_hat_toy.py
+$(generated_path)/learn_s_hat_toy_1step.$(output_filetype) $(generated_path)/toy_curvy.$(output_filetype): $(script_path)/learn_s_hat_toy.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(script_path)/learn_s_hat_toy.py \
 		--output $@ \
@@ -87,14 +97,14 @@ $(generated_path)/learn_s_hat_table_toy.tex: $(script_path)/learn_s_hat_toy.py $
 		--output $@ \
 	    --type-of-plot 1-step-prediction-table
 
-$(generated_path)/learn_s_hat_toy_manifold_error.pdf: $(script_path)/learn_s_hat_toy.py
+$(generated_path)/learn_s_hat_toy_manifold_error.$(output_filetype): $(script_path)/learn_s_hat_toy.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(script_path)/learn_s_hat_toy.py \
 		--output $@ \
 	    --type-of-plot manifold-error
 
 
-$(generated_path)/learn_s_hat_ss_1step.pdf $(generated_path)/learn_s_hat_table_ss.tex  $(generated_path)/zhong_stim.pdf: $(script_path)/learn_s_hat_ss.py
+$(generated_path)/learn_s_hat_ss_1step.$(output_filetype) $(generated_path)/learn_s_hat_table_ss.tex  $(generated_path)/zhong_stim.$(output_filetype): $(script_path)/learn_s_hat_ss.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(script_path)/learn_s_hat_ss.py \
 		--output $@ \
@@ -110,14 +120,14 @@ $(generated_path)/delay_table_ss.tex: $(script_path)/learn_s_hat_ss.py
 
 
 
-$(generated_path)/optim_col_vs_rand.pdf: $(script_path)/optimization_comparison.py sim_stim.py
+$(generated_path)/optim_col_vs_rand.$(output_filetype): $(script_path)/optimization_comparison.py sim_stim.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(script_path)/optimization_comparison.py \
 		--output $@ \
 	    --type-of-plot optim_col_vs_rand
 
 
-$(generated_path)/optim_open_vs_closed.pdf: $(script_path)/optimization_comparison.py sim_stim.py
+$(generated_path)/optim_open_vs_closed.$(output_filetype): $(script_path)/optimization_comparison.py sim_stim.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(script_path)/optimization_comparison.py \
 		--output $@ \
@@ -138,13 +148,14 @@ half_turn_plots: $(half_turn_plots)
 profile_by_step_plots: $(profile_by_step_plots)
 stability_by_step_plots: $(stability_by_step_plots)
 nearness_to_offline_by_step_plots: $(nearness_to_offline_by_step_plots)
-toy_dataset: $(generated_path)/show_toy_dataset.pdf
-learn_s_hat_toy: $(generated_path)/learn_s_hat_toy_1step.pdf $(generated_path)/learn_s_hat_toy_manifold_error.pdf $(generated_path)/learn_s_hat_table_toy.tex
-learn_s_hat_ss: $(generated_path)/learn_s_hat_ss_1step.pdf  $(generated_path)/delay_table_ss.tex
-optim: $(generated_path)/optim_col_vs_rand.pdf $(generated_path)/optim_open_vs_closed.pdf
+native_nearness_to_offline_by_step_plots: $(native_nearness_to_offline_by_step_plots)
+toy_dataset: $(generated_path)/show_toy_dataset.$(output_filetype)
+learn_s_hat_toy: $(generated_path)/learn_s_hat_toy_1step.$(output_filetype) $(generated_path)/learn_s_hat_toy_manifold_error.$(output_filetype) $(generated_path)/learn_s_hat_table_toy.tex
+learn_s_hat_ss: $(generated_path)/learn_s_hat_ss_1step.$(output_filetype)  $(generated_path)/delay_table_ss.tex
+optim: $(generated_path)/optim_col_vs_rand.$(output_filetype) $(generated_path)/optim_open_vs_closed.$(output_filetype)
 constants: $(pdf_path)/constants.tex
 
-all_generated: half_turn_plots profile_by_step_plots stability_by_step_plots nearness_to_offline_by_step_plots toy_dataset learn_s_hat_toy learn_s_hat_ss constants optim
+all_generated: half_turn_plots profile_by_step_plots stability_by_step_plots nearness_to_offline_by_step_plots native_nearness_to_offline_by_step_plots toy_dataset learn_s_hat_toy learn_s_hat_ss constants optim
 
 pdf: all_generated FORCE
 	cd $(pdf_path)
