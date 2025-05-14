@@ -94,7 +94,7 @@ $(generated_path)/learn_s_hat_toy_manifold_error.pdf: $(script_path)/learn_s_hat
 	    --type-of-plot manifold-error
 
 
-$(generated_path)/learn_s_hat_ss_1step.pdf: $(script_path)/learn_s_hat_ss.py
+$(generated_path)/learn_s_hat_ss_1step.pdf $(generated_path)/learn_s_hat_table_ss.tex  $(generated_path)/zhong_stim.pdf: $(script_path)/learn_s_hat_ss.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(script_path)/learn_s_hat_ss.py \
 		--output $@ \

@@ -606,11 +606,12 @@ class TypicalTransformer(DecoupledTransformer):
 
 
 class CenteringTransformer(TypicalTransformer):
-    def __init__(self, *, init_size=0, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
+    def __init__(self, *, init_size=0, input_streams=None, output_streams=None, nan_when_uninitialized=False, on_nan_width=None, log_level=None):
         super().__init__(input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)
         self.init_size = init_size
         self.samples_seen = 0
         self.center = 0
+        self.nan_when_uninitialized = nan_when_uninitialized
 
     def pre_initialization_fit_for_X(self, X):
         self.partial_fit_for_X(X)
@@ -622,7 +623,10 @@ class CenteringTransformer(TypicalTransformer):
         self.center = self.center + (X.sum(axis=0) - X.shape[0] * self.center) / self.samples_seen
 
     def transform_for_X(self, X):
-        return X - self.center
+        if not self.is_initialized and self.nan_when_uninitialized:
+            return np.nan * X
+        else:
+            return X - self.center
 
     def inverse_transform_for_X(self, X):
         return X + self.center
@@ -703,7 +707,7 @@ class KernelSmoother(StreamingTransformer):
                     output.append(np.nan*row)
             data = ArrayWithTime.from_transformed_data(output, data)
         stream = self.output_streams[stream]
-        return data, stream if return_output_stream else data
+        return (data, stream) if return_output_stream else data
 
     def get_params(self, deep=True):
         return dict(tau=self.tau, kernel_length=self.kernel_length, custom_kernel=self.custom_kernel) | super().get_params()

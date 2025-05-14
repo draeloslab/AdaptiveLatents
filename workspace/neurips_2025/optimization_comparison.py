@@ -36,21 +36,23 @@ if __name__ == '__main__':
             data = d.neural_data
 
             preq_cutoff = 50
-            srs = make_srs(data=data, rng=rng, comparison_preset='optim_col_vs_rand', n_runs=10, show_tqdm=True)
+            srs = make_srs(data=data, rng=rng, comparison_preset='optim_col_vs_rand', n_runs=2, show_tqdm=True)
             proportions = []
             preq_errors = []
             for k, sr_list in srs.items():
                 preq_errors.append([])
                 proportions.append([])
+
                 for sr in sr_list:
                     preq_errors[-1].append([])
+                    proportions[-1].append([])
 
                     old_stim_reg = None
                     for l in sr.stim_designer.log:
                         s = l['s']
                         v = l['v']
                         proportion = proportion_in_space(v, s)
-                        proportions[-1].append(proportion)
+                        proportions[-1][-1].append(proportion)
 
                         stim_reg = l['stim_reg']
 
@@ -72,8 +74,9 @@ if __name__ == '__main__':
 
             fig, axs = plt.subplots(ncols=2, squeeze=False, layout='constrained')
 
-            to_plot = {k:v for k, v in zip(srs.keys(), proportions)}
+            to_plot = {k:v for k, v in zip(srs.keys(), [np.hstack(x) for x in proportions])}
             sns.violinplot(to_plot, orient='h', ax=axs[0,0])
+            to_plot = {k:v for k, v in zip(srs.keys(), [x[0] for x in proportions])}
             sns.swarmplot(to_plot, orient='h', ax=axs[0,0])
 
             for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors)):

@@ -19,13 +19,14 @@ if __name__ == '__main__':
     parser.add_argument( "--type-of-plot", type=str, required=True)
     args = parser.parse_args()
 
-    rng = np.random.default_rng(1)
-    d = datasets.Odoherty21Dataset()
-    data = d.neural_data
 
     fig = None
     match args.type_of_plot:
         case '1-step-prediction':
+            rng = np.random.default_rng(0)
+            d = datasets.Zong22Dataset()
+            data = d.neural_data
+
             srs = make_srs(data, rng, comparison_preset='default', n_runs=1, show_tqdm=False)
 
             row_info = [
@@ -40,6 +41,28 @@ if __name__ == '__main__':
             tex_text = to_tex_command(key='s_hat_ss_rmse_comparison_table', value=table_text)
             (pathlib.Path(args.output).parent / 'learn_s_hat_table_ss.tex').write_text(tex_text)
 
+            def f(i=5):
+                fig2, axs2 = plt.subplots(ncols=3, figsize=(12,4), sharex=False, sharey=False, layout='constrained')
+                latents = srs['learning from stim'][0].log['latents'].slice_by_time(slice(30,None))
+                axs2[0].plot(latents[:, 0], latents[:, 1])
+                stim_s = srs['learning from stim'][0].log['stim_intended_samples'].t
+                axs2[0].plot(latents.slice_by_time(stim_s)[:, 0], latents.slice_by_time(stim_s)[:, 1], '.')
+
+                r = 2
+                center_t = srs['learning from stim'][0].log['stim_intended_samples'].t[i]
+                latents = srs['learning from stim'][0].log['latents'].slice_by_time(slice(center_t-r,center_t+r))
+                axs2[1].plot(latents[:, 0], latents[:, 1])
+                stim_s = srs['learning from stim'][0].log['stim_intended_samples'].slice_by_time(slice(center_t-r,center_t+r))
+                latents_s = latents.slice_by_time(stim_s.t).reshape((-1, latents.shape[1]))
+                axs2[1].plot(latents_s[:, 0], latents_s[:, 1], '.')
+
+                axs2[2].plot(latents.t, latents)
+
+                return fig2
+
+            # breakpoint()
+            fig2 = f(5)
+            fig2.savefig(args.output.with_stem('zhong_stim'), bbox_inches="tight")
 
             with open(pathlib.Path(args.output).parent / 'optimization_history.pkl', 'wb') as fhan:
                 # TODO: add this to makefile
