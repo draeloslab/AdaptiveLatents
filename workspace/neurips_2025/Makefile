@@ -13,7 +13,8 @@ CONDA_ACTIVATE := source $$(conda info --base)/etc/profile.d/conda.sh; conda act
 
 .PHONY: FORCE
 
-output_filetype:=pdf
+#output_filetype:=pdf
+output_filetype:=svg
 
 python_command := python
 #python_command := python -m ipdb -c "c"

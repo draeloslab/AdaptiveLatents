@@ -68,6 +68,8 @@ def make_sr(
     to_add = np.zeros(input_array.shape[1])
     decided_stims = []
     latents = []
+    high_d_with_stim = []
+    high_d_without_stim = []
     for data in Pipeline().streaming_run_on(input_array):
         log_stim_reg_after_stim = False
 
@@ -104,13 +106,17 @@ def make_sr(
 
                 designed_stim, _ = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=pro.Q.shape[0])
 
-                sr.stim_designer.log[-1]['stim_reg'] = copy.deepcopy(sr.stim_reg)
-                sr.stim_designer.log[-1]['pro'] = copy.deepcopy(pro)
                 log_stim_reg_after_stim = True
             elif design_method == 'direct cheating':
                 designed_stim = (pro.Q @ desired_stim).flatten()
             else:
                 raise NotImplementedError()
+
+            if design_method == 'direct cheating':
+                sr.stim_designer.log.append({})
+
+            sr.stim_designer.log[-1]['stim_reg'] = copy.deepcopy(sr.stim_reg)
+            sr.stim_designer.log[-1]['pro'] = copy.deepcopy(pro)
 
             instantaneous_stim = designed_stim * stim_magnitude
         else:
@@ -136,12 +142,19 @@ def make_sr(
         stim_delay_queue.appendleft(transformed_instantaneous_stim)
         delayed_stim = stim_delay_queue.pop()
 
-        to_add = to_add + delayed_stim
+        # data_no_stim = data
+        # nostim_centerer = copy.deepcopy(centerer)
+        # nostim_smoother = copy.deepcopy(smoother)
+        # data_no_stim = nostim_centerer.partial_fit_transform(data_no_stim, stream= 'X')
+        # data_no_stim = nostim_smoother.partial_fit_transform(data_no_stim, stream= 'X')
+        # high_d_without_stim.append(nostim_centerer.inverse_transform(data_no_stim))
 
+        to_add = to_add + delayed_stim
         data = data + to_add
         to_add = decay_rate * to_add
         data = centerer.partial_fit_transform(data, stream= 'X')
         data = smoother.partial_fit_transform(data, stream= 'X')
+        high_d_with_stim.append(centerer.inverse_transform(data))
         data = pro.partial_fit_transform(data, stream='X')
         latents.append(data)
 
@@ -158,6 +171,8 @@ def make_sr(
         if data.t > exit_time:
             break
 
+    sr.log['high_d_with_stim'] = ArrayWithTime.from_list(high_d_with_stim, squeeze_type='to_2d', drop_early_nans=True)
+    sr.log['high_d_without_stim'] = ArrayWithTime.from_list(high_d_without_stim, squeeze_type='to_2d', drop_early_nans=True)
     sr.log['latents'] = ArrayWithTime.from_list(latents, squeeze_type='to_2d', drop_early_nans=True)
     finalize_log(sr, ArrayWithTime.from_list(decided_stims, squeeze_type='to_2d'))
 
@@ -181,7 +196,10 @@ def make_sr(
 
     return sr
 
-def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False):
+def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False, overrides=None):
+    if overrides is None:
+        overrides = {}
+
     match comparison_preset:
         case 'pred methods':
             to_run = {
@@ -231,12 +249,29 @@ def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False):
                 'ignoring stim samples':dict(attempt_correction=False, heed_stimuli=True, exit_time=exit_time,stim_magnitude=stim_magnitude, design_method=design_method,stim_rate=stim_rate, smoothing_tau=smoothing_tau,centerer_init_size=centerer_init_size,initial_nostim_period=initial_nostim_period,),
                 'unaware of stim':dict(attempt_correction=False, heed_stimuli=False, exit_time=exit_time, stim_magnitude=stim_magnitude,design_method=design_method,stim_rate=stim_rate, smoothing_tau=smoothing_tau,centerer_init_size=centerer_init_size,initial_nostim_period=initial_nostim_period,)
             }
+        case 'visualization':
+            stim_magnitude = 30000
+            design_method = 'optimized identity u_to_s'
+            exit_time = 300
+            stim_rate = 1 / 10
+            smoothing_tau = .7
+            centerer_init_size = 8 * 25
+            initial_nostim_period = 30
+            decay_rate = .8
+            to_run = {
+                'learning from stim': dict(attempt_correction=True, heed_stimuli=True, exit_time=exit_time,
+                                           stim_magnitude=stim_magnitude, design_method=design_method, stim_rate=stim_rate,
+                                           smoothing_tau=smoothing_tau, centerer_init_size=centerer_init_size,
+                                           initial_nostim_period=initial_nostim_period, decay_rate=decay_rate),
+            }
+
         case _:
             raise ValueError()
 
     srs = {}
     with tqdm.tqdm(total=len(to_run) * n_runs, disable=not show_tqdm) as pbar:
         for key, val in to_run.items():
+            val = val | overrides
             sub_rng = copy.deepcopy(rng)
             srs[key] = []
             for _ in range(n_runs):
