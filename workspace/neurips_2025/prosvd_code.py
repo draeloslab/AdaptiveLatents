@@ -1,7 +1,23 @@
 from adaptive_latents import ArrayWithTime, proSVD
 import numpy as np
-from adaptive_latents.jpca import generate_circle_embedded_in_high_d
 from adaptive_latents.utils import column_space_distance
+
+
+from scipy.stats import special_ortho_group
+def X_and_X_dot_from_data(X_all):
+    """note: this is technically off-by-one for the way I normally think about it, but it's causal"""
+    # todo: is this necessarily off-by-one?
+    X_dot = np.diff(X_all, axis=0)
+    X = X_all[1:]
+    return X, X_dot
+# from adaptive_latents.jpca import generate_circle_embedded_in_high_d
+def generate_circle_embedded_in_high_d(rng, m=1000, n=4, stddev=1, shape=(10, 10)):
+    t = np.linspace(0, (m / 10) * np.pi * 2, m + 1)
+    circle = np.column_stack([np.cos(t), np.sin(t)]) @ np.diag(shape)
+    C = special_ortho_group(dim=n, seed=rng).rvs()[:, :2]
+    X_all = (circle @ C.T) + rng.normal(size=(m + 1, n)) * stddev
+    X, X_dot = X_and_X_dot_from_data(X_all)
+    return X, X_dot, dict(C=C)
 
 
 def get_step_times(data, mid_d, low_d):
