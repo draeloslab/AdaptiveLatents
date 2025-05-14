@@ -26,7 +26,7 @@ if __name__ == '__main__':
                             for key, value in file_values.items():
                                 output_fhan.write(to_tex_command(key, value))
                 case ".tex":
-                    output_fhan.write(f'\\input{{{file}}} \n')
+                    output_fhan.write(f'\\input{{generated/{file.name}}} \n')
                 case _:
                     raise Exception(f'unsupported file type: {file}')
 

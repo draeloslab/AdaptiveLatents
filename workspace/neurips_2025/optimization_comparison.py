@@ -4,6 +4,7 @@ import adaptive_latents
 import seaborn as sns
 from sim_stim import make_srs, make_slices_tensor
 from adaptive_latents import datasets, ArrayWithTime
+from adaptive_latents.regressions import BaseKernelRegressor
 import matplotlib.pyplot as plt
 
 def proportion_in_space(desired, designed):
@@ -28,11 +29,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     rng = np.random.default_rng(0)
-    d = datasets.Odoherty21Dataset()
-    data = d.neural_data
 
     match args.type_of_plot:
         case 'optim_col_vs_rand':
+            d = datasets.Odoherty21Dataset()
+            data = d.neural_data
+
             preq_cutoff = 50
             srs = make_srs(data=data, rng=rng, comparison_preset='optim_col_vs_rand', n_runs=10, show_tqdm=True)
             proportions = []
@@ -83,14 +85,8 @@ if __name__ == '__main__':
                 axs[0,1].plot(trendline, color=f'C{i}', lw=1.5)
 
         case 'optim_open_vs_closed':
-            rng = np.random.default_rng(3)
-
-            from adaptive_latents.input_sources.lds_simulation import LDS
-            old_dt = data.dt
-            _, data, _ = LDS.circular_lds(rng=rng, obs_d=50).simulate(200*30, rng=rng, initial_state=np.array([10,0]))
-            data = ArrayWithTime.from_notime(data)
-            data.t = data.t * old_dt
-
+            d = datasets.Odoherty21Dataset()
+            data = d.neural_data
 
             preq_cutoff = None
             srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed', n_runs=2, show_tqdm=True)
@@ -115,7 +111,7 @@ if __name__ == '__main__':
                         proportion = proportion_in_space(v, s)
                         proportions[-1][-1].append(proportion)
 
-                        stim_reg = l['stim_reg']
+                        stim_reg: BaseKernelRegressor = l['stim_reg']
                         reg_i = l['observed_reg_inpt']
                         reg_o = l['observed_s_hat']
 
@@ -126,6 +122,9 @@ if __name__ == '__main__':
                         preq_errors[-1][-1].append(preq_error)
                         v_delta_errors[-1][-1].append(proportion_in_space(v, reg_o))
                         s_delta_errors[-1][-1].append(np.linalg.norm(s - reg_o))
+
+                    best_scale = stim_reg.cross_validate_length_scale(length_scales=np.logspace(-3,2, 20), depth=100)[0]
+                    print(f"{k=} {best_scale=}")
 
                     if preq_cutoff is not None:
                         assert len(preq_errors[-1][-1]) >= preq_cutoff, f"to make the array non-ragged, we need to have at least {preq_cutoff} preq errors (not {len(preq_errors[-1][-1])})"
@@ -159,9 +158,6 @@ if __name__ == '__main__':
                 ax.plot(trendline, color=f'C{i}', lw=1.5)
             ax.set_title('$s$ along $v$')
 
-            # to_plot = {k:v for k, v in zip(srs.keys(), proportions)}
-            # sns.violinplot(to_plot, orient='h', ax=ax)
-            # sns.swarmplot(to_plot, orient='h', ax=ax)
 
             ax: plt.Axes = axs[0,1]
             for i, (k, errors) in enumerate(zip(srs.keys(), v_delta_errors)):

@@ -1,3 +1,5 @@
+import itertools
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -157,6 +159,31 @@ if __name__ == '__main__':
             ]
             fig = plot_onestep_pred_error_decreasing(srs, row_info, make_slices_tensor)
 
+            h = srs['learning from stim'][0].stim_reg.history
+            h = h[~np.isnan(h).any(axis=1)]
+
+            def true_S(state):
+                u = np.zeros(3)
+                u[2] = stim_magnitude * state[0] / np.linalg.norm(state[:2])
+                return u
+
+
+            fig2, ax2 = plt.subplots(subplot_kw={'projection': '3d', 'computed_zorder':False}, layout='constrained')
+
+            extent = 20
+            depth = 14
+            X, Y = np.meshgrid(np.linspace(-extent, extent, depth), np.linspace(-extent, extent, depth))
+            Z = 0 * X
+            for i_x, i_y in itertools.product(range(depth), range(depth)):
+                Z[i_x, i_y] = true_S([X[i_x, i_y], Y[i_x, i_y], None])[2]
+            ax2.plot_surface(X, Y, Z)
+
+            errors = [np.linalg.norm(true_S(row[:3]) - row[-3:]) for row in h]
+            c = ax2.scatter(h[:,0], h[:,1], h[:,-1], c=errors, zorder=100)
+            fig2.colorbar(c)
+            ax2.view_init(elev=24, azim=147, roll=0)
+
+            fig2.savefig(args.output.with_stem('toy_curvy'), bbox_inches="tight")
 
 
         case '1-step-prediction-table':

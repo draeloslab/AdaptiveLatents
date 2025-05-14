@@ -41,7 +41,7 @@ def make_sr(
     stim_time_rng, other_rng = rng.spawn(2)
     sr = StimRegressor(
         autoreg=autoreg(),
-        stim_reg=BaseKernelRegressor(length_scale=0.06, maxlen=stim_reg_maxlen),
+        stim_reg=BaseKernelRegressor(length_scale=0.04, maxlen=stim_reg_maxlen),
         stim_designer=StimDesigner(max_l0_norm=max_l0_norm, rng_seed=other_rng.integers(2 ** 32), should_log=True),
         # stim_designer=StimDesigner(max_l0_norm=max_l0_norm, max_inner_iters=500, max_outer_loop_time_ms=5000, convergence_threshold=10**-2, adam_learning_rate=10**-2, rng_seed=other_rng.integers(2 ** 32), should_log=True),
         log_level=2,
@@ -190,11 +190,9 @@ def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False):
                 'random unit vector': dict(design_method=design_method, stim_direction_type='random', stim_rate=stim_rate, exit_time=exit_time,),
             }
         case 'optim_open_vs_closed':
-            stim_rate=1
-            exit_time=100
+            stim_rate = 1/2
+            exit_time = np.inf
             prosvd_k = 10
-            prosvd_k = 2
-            assert data.shape[1] == 50, 'prosvd k should be 10 for odoherty'
             to_run = {
                 'open id': dict(design_method='optimized identity u_to_s', true_S='identity', stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k,),
                 'closed id': dict(design_method='optimized learned u_to_s', true_S='identity', stim_direction_type='first',stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k,),
