@@ -36,7 +36,7 @@ if __name__ == '__main__':
             data = d.neural_data
 
             preq_cutoff = 50
-            srs = make_srs(data=data, rng=rng, comparison_preset='optim_col_vs_rand', n_runs=2, show_tqdm=True)
+            srs = make_srs(data=data, rng=rng, comparison_preset='optim_col_vs_rand', n_runs=10, show_tqdm=True)
             proportions = []
             preq_errors = []
             for k, sr_list in srs.items():
@@ -72,12 +72,12 @@ if __name__ == '__main__':
                     preq_errors[-1][-1] = np.array(preq_errors[-1][-1][:preq_cutoff])
 
 
-            fig, axs = plt.subplots(ncols=2, squeeze=False, layout='constrained')
+            fig, axs = plt.subplots(ncols=2, squeeze=False, figsize=(8,4), layout='constrained')
 
-            to_plot = {k:v for k, v in zip(srs.keys(), [np.hstack(x) for x in proportions])}
-            sns.violinplot(to_plot, orient='h', ax=axs[0,0])
+            # to_plot = {k:v for k, v in zip(srs.keys(), [np.hstack(x) for x in proportions])}
             to_plot = {k:v for k, v in zip(srs.keys(), [x[0] for x in proportions])}
-            sns.swarmplot(to_plot, orient='h', ax=axs[0,0])
+            sns.violinplot(to_plot, orient='v', ax=axs[0,0])
+            sns.swarmplot(to_plot, orient='v', ax=axs[0,0])
 
             for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors)):
                 for j, e in enumerate(errors):
@@ -87,6 +87,7 @@ if __name__ == '__main__':
                 trendline = np.mean(errors, axis=0)
                 axs[0,1].plot(trendline, color=f'C{i}', lw=1.5)
 
+            axs[0, 1].semilogy()
         case 'optim_open_vs_closed':
             d = datasets.Odoherty21Dataset()
             data = d.neural_data
@@ -127,7 +128,7 @@ if __name__ == '__main__':
                         s_delta_errors[-1][-1].append(np.linalg.norm(s - reg_o))
 
                     best_scale = stim_reg.cross_validate_length_scale(length_scales=np.logspace(-3,2, 20), depth=100)[0]
-                    print(f"{k=} {best_scale=}")
+                    # print(f"{k=} {best_scale=}")
 
                     if preq_cutoff is not None:
                         assert len(preq_errors[-1][-1]) >= preq_cutoff, f"to make the array non-ragged, we need to have at least {preq_cutoff} preq errors (not {len(preq_errors[-1][-1])})"
@@ -150,19 +151,19 @@ if __name__ == '__main__':
                         proportions[i][j] = proportions[i][j][:preq_cutoff]
 
 
-            fig, axs = plt.subplots(ncols=3, nrows=2, squeeze=False, layout='constrained', figsize=(3*4, 2*4))
+            fig, axs = plt.subplots(ncols=2, nrows=1, squeeze=False, layout='constrained', figsize=(2*4, 1*4))
+
+            # ax: plt.Axes = axs[0,0]
+            # for i, (k, errors) in enumerate(zip(srs.keys(), proportions)):
+            #     for j, e in enumerate(errors):
+            #         ax.plot(e, color=f'C{i}', alpha=0.1)
+            # for i, (k, errors) in enumerate(zip(srs.keys(), proportions)):
+            #     trendline = np.mean(errors, axis=0)
+            #     ax.plot(trendline, color=f'C{i}', lw=1.5)
+            # ax.set_title('$s$ along $v$')
+
 
             ax: plt.Axes = axs[0,0]
-            for i, (k, errors) in enumerate(zip(srs.keys(), proportions)):
-                for j, e in enumerate(errors):
-                    ax.plot(e, color=f'C{i}', alpha=0.1)
-            for i, (k, errors) in enumerate(zip(srs.keys(), proportions)):
-                trendline = np.mean(errors, axis=0)
-                ax.plot(trendline, color=f'C{i}', lw=1.5)
-            ax.set_title('$s$ along $v$')
-
-
-            ax: plt.Axes = axs[0,1]
             for i, (k, errors) in enumerate(zip(srs.keys(), v_delta_errors)):
                 for j, e in enumerate(errors):
                     ax.plot(e, color=f'C{i}', alpha=0.1)
@@ -171,17 +172,17 @@ if __name__ == '__main__':
                 ax.plot(trendline, color=f'C{i}', lw=1.5)
             ax.set_title('$\\hat s_n$ along $v$')
 
-            ax: plt.Axes = axs[1,1]
-            for i, (k, errors) in enumerate(zip(srs.keys(), s_delta_errors)):
-                for j, e in enumerate(errors):
-                    ax.plot(e, color=f'C{i}', alpha=0.1)
-            for i, (k, errors) in enumerate(zip(srs.keys(), s_delta_errors)):
-                trendline = np.mean(errors, axis=0)
-                ax.plot(trendline, color=f'C{i}', lw=1.5)
-            ax.set_title('$\\Vert s - \\hat s_n \\Vert$')
+            # ax: plt.Axes = axs[1,1]
+            # for i, (k, errors) in enumerate(zip(srs.keys(), s_delta_errors)):
+            #     for j, e in enumerate(errors):
+            #         ax.plot(e, color=f'C{i}', alpha=0.1)
+            # for i, (k, errors) in enumerate(zip(srs.keys(), s_delta_errors)):
+            #     trendline = np.mean(errors, axis=0)
+            #     ax.plot(trendline, color=f'C{i}', lw=1.5)
+            # ax.set_title('$\\Vert s - \\hat s_n \\Vert$')
 
 
-            ax: plt.Axes = axs[0,2]
+            ax: plt.Axes = axs[0,1]
             for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors)):
                 for j, e in enumerate(errors):
                     ax.plot(e, color=f'C{i}', alpha=0.1)
@@ -190,6 +191,7 @@ if __name__ == '__main__':
                 trendline = np.mean(errors, axis=0)
                 ax.plot(trendline, color=f'C{i}', lw=1.5)
             ax.set_title('$\\Vert \\hat s_n - \\hat S_{n-1}(x_n, u_n) \\Vert$')
+            ax.semilogy()
 
         case _:
             raise ValueError()
