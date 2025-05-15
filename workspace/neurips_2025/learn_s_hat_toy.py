@@ -150,14 +150,19 @@ if __name__ == '__main__':
     fig = None
     match args.type_of_plot:
         case '1-step-prediction':
-            srs = make_srs(rng, n_runs=1, show_tqdm=False)
+            srs = make_srs(rng, n_runs=1, show_tqdm=True)
 
             standard_kinds_of_sr = ['learning from stim', 'ignoring stim samples', 'unaware of stim']
             row_info = [
                 dict(time_slice_type='all', space_slice_type='stim-d', title='all-time stim-dimension prediction errors', sr_kind_keys=standard_kinds_of_sr),
-                dict(time_slice_type='post-stim', space_slice_type='stim-d', title='post-stim stim-dimension prediction errors', sr_kind_keys=standard_kinds_of_sr)
+                dict(time_slice_type='post-stim', space_slice_type='stim-d', title='post-stim stim-dimension prediction errors', sr_kind_keys=standard_kinds_of_sr, last_half_average=True)
             ]
             fig = plot_onestep_pred_error_decreasing(srs, row_info, make_slices_tensor)
+
+            for lines in fig.axes[1].get_lines():
+                ydata = lines.get_ydata()
+                if len(ydata) == 2:
+                    fig.axes[0].axhline(ydata[0], color=lines.get_color(), linestyle='--')
 
             h = srs['learning from stim'][0].stim_reg.history
             h = h[~np.isnan(h).any(axis=1)]

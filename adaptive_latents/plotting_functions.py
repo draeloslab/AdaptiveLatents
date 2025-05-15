@@ -232,7 +232,7 @@ class UpdatingOptimizationGraph:
         return (tried[idx] + tried[idx + 1]) / 2
 
 
-def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, scatter_alpha=0, normalize_method=None, fig=None, axs=None, method='quiver', format_axis=True, limits=None):
+def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, scatter_alpha=0, normalize_method=None, fig=None, axs=None, method='quiver', format_axis=True, limits=None, f_on_arrows=None):
     """
     Examples
     --------
@@ -295,6 +295,9 @@ def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, 
         arrows = np.array([arrows @ e1, arrows @ e2]).T
         if normalize_method == 'squares':
             arrows = arrows / np.linalg.norm(arrows, axis=1)[:, np.newaxis]
+
+        if f_on_arrows is not None:
+            arrows = f_on_arrows(arrows)
 
         if method == 'quiver':
             ax.quiver(origins[:, 0], origins[:, 1], arrows[:,0], arrows[:,1], scale=1 / 20, units='dots', color='red')
