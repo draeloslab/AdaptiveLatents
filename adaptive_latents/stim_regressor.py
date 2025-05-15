@@ -162,3 +162,7 @@ class StimRegressor(Predictor):
     def get_params(self, deep=True):
         return super().get_params(deep) | dict(autoreg=self.autoreg, stim_reg=self.stim_reg, attempt_correction=self.attempt_correction, heed_stimuli=self.heed_stimuli, stim_designer=self.stim_designer, stim_delay=self.stim_delay)
 
+    def __getstate__(self):
+        # TODO: check for jax?
+        self.unevaluated_log_pred_ps = {}
+        return super().__getstate__()
