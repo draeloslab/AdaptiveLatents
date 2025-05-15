@@ -31,13 +31,18 @@ if __name__ == '__main__':
 
             row_info = [
                 dict(time_slice_type='all', space_slice_type='stim-d', time_slice=slice(None, None)),
-                dict(time_slice_type='post-stim', space_slice_type='stim-d', time_slice=slice(None, None)),
+                dict(time_slice_type='post-stim', space_slice_type='stim-d', time_slice=slice(None, None), last_half_average=True),
                 dict(time_slice_type='all', space_slice_type='non-stim-d', time_slice=slice(None, None)),
                 dict(time_slice_type='post-stim', space_slice_type='non-stim-d', time_slice=slice(None, None))
             ]
             fig = plot_onestep_pred_error_decreasing(srs, row_info, make_slices_tensor)
             for ax in fig.axes:
                 ax.set_ylim(0, 1)
+
+            for lines in fig.axes[1].get_lines():
+                ydata = lines.get_ydata()
+                if len(ydata) == 2:
+                    fig.axes[0].axhline(ydata[0], color=lines.get_color(), linestyle='--')
 
             table_text, _, _ = make_table(srs, time_slices=['post-stim', 'non-stim'], space_slices=['non-stim-d','stim-d'], make_slices_tensor=make_slices_tensor, show_rows=False)
             tex_text = to_tex_command(key='s_hat_ss_rmse_comparison_table', value=table_text)

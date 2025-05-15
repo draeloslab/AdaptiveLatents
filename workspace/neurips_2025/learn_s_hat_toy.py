@@ -181,7 +181,7 @@ if __name__ == '__main__':
             Z = 0 * X
             for i_x, i_y in itertools.product(range(depth), range(depth)):
                 Z[i_x, i_y] = true_S([X[i_x, i_y], Y[i_x, i_y], None])[2]
-            ax2.plot_surface(X, Y, Z, color='gray')
+            ax2.plot_surface(X, Y, Z, color='#C9C9C9')
 
             errors = [np.linalg.norm(true_S(row[:3]) - row[-3:]) for row in h]
             c = ax2.scatter(h[:,0], h[:,1], h[:,-1], c=errors, zorder=100, alpha=1, cmap='plasma', vmin=0)
@@ -189,7 +189,8 @@ if __name__ == '__main__':
 
             ax2.axis('equal')
             ax2.view_init(elev=24, azim=147, roll=0)
-            ax2.axis((np.float64(-24.059680968092277), np.float64(27.5328712068437), np.float64(-26.059286658753816), np.float64(27.257531995356583), np.float64(-12.057545210133634), np.float64(11.79530183372015)))
+            # ax2.axis((np.float64(-24.059680968092277), np.float64(27.5328712068437), np.float64(-26.059286658753816), np.float64(27.257531995356583), np.float64(-12.057545210133634), np.float64(11.79530183372015)))
+            ax2.axis((np.float64(-15*3/2), np.float64(15*3/2), np.float64(-15*3/2), np.float64(15*3/2), np.float64(-15), np.float64(15)))
 
             ax2.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
             ax2.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))

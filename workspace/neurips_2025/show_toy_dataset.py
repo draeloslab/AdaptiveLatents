@@ -18,11 +18,11 @@ def show_toy_dataset():
 
     def true_S(lds, state, i, rng):
         u = np.zeros(3)
-        if i in {16, 32}: # 52
+        if i in {16, 32, 80, 150}: # 52
             u[2] = stim_magnitude * state[0] / np.linalg.norm(state[:2])
         return u
 
-    show_toy_n_turns = log_for_tex(key='show_toy_n_turns', value=3, current_file=__file__, output_directory=args.output.parent)
+    show_toy_n_turns = log_for_tex(key='show_toy_n_turns', value=10, current_file=__file__, output_directory=args.output.parent)
 
     _, Y, stim = LDS.run_nest_dynamical_system(show_toy_n_turns, stims_per_rotation=stims_per_rotation, stim_magnitude=stim_magnitude, rng=rng, u_function=true_S, noise=noise_variance, radius=15)
 
@@ -30,7 +30,8 @@ def show_toy_dataset():
 
     ax.axis('equal')
     ax.view_init(elev=24, azim=147, roll=0)
-    ax.axis((np.float64(-24.059680968092277), np.float64(27.5328712068437), np.float64(-26.059286658753816), np.float64(27.257531995356583), np.float64(-12.057545210133634), np.float64(11.79530183372015)))
+    # ax.axis((np.float64(-24.059680968092277), np.float64(27.5328712068437), np.float64(-26.059286658753816), np.float64(27.257531995356583), np.float64(-12.057545210133634), np.float64(11.79530183372015)))
+    ax.axis((np.float64(-18), np.float64(15), np.float64(-15), np.float64(15), np.float64(-10), np.float64(10)))
     ax.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
     ax.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
     ax.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
