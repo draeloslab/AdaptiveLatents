@@ -232,7 +232,7 @@ class UpdatingOptimizationGraph:
         return (tried[idx] + tried[idx + 1]) / 2
 
 
-def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, scatter_alpha=0, normalize_method=None, fig=None, axs=None, method='quiver', format_axis=True):
+def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, scatter_alpha=0, normalize_method=None, fig=None, axs=None, method='quiver', format_axis=True, limits=None):
     """
     Examples
     --------
@@ -251,7 +251,10 @@ def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, 
 
         ax: plt.Axes = axs[idx]
         ax.scatter(latents @ e1, latents @ e2, s=5, alpha=scatter_alpha)
-        x1, x2, y1, y2 = ax.axis()
+        if limits is None:
+            x1, x2, y1, y2 = ax.axis()
+        else:
+            x1, x2, y1, y2 = limits
         x_points = np.linspace(x1, x2, grid_n)
         y_points = np.linspace(y1, y2, grid_n)
         assert x1 < x2 and y1 < y2
@@ -278,7 +281,7 @@ def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, 
                     arrow = np.nanmean(d_latents[s],axis=0)
                     if normalize_method == 'hcubes':
                         arrow = arrow / np.linalg.norm(arrow)
-                    arrow = -arrow
+                    arrow = arrow
                     arrows.append(arrow)
                     origins.append([np.nanmean(x_points[i:i + 2]), np.nanmean(y_points[j:j + 2])])
                     n_points.append(s.sum())
@@ -307,9 +310,10 @@ def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, 
         if format_axis:
             ax.axis('scaled')
             ax.axis('off')
-        """
         # TODO: this should be a test?
+        """
         # I used this for debugging this function:
+        # note that the rotation is backwards (clockwise) for this LDS
         from adaptive_latents.input_sources.lds_simulation import LDS
         rng = np.random.default_rng(13)
 

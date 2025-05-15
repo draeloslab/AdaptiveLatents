@@ -7,20 +7,23 @@ import matplotlib.pyplot as plt
 def plot_onestep_pred_error_decreasing(srs, row_info, make_slices_tensor):
     fig, axs = plt.subplots(nrows=len(row_info), layout='tight', figsize=(8, 2*len(row_info)+1), sharex=True, sharey=True)
 
-    def p(ax, time_slice_type, space_slice_type, xlabel='time', sr_kind_keys=None, title=None):
+    def p(ax, time_slice_type, space_slice_type, xlabel='time', sr_kind_keys=None, title=None, time_slice=None):
+        if time_slice is  None:
+            time_slice = slice(None, None)
+
         if sr_kind_keys is None:
             sr_kind_keys = srs.keys()
         for idx, sr_kind_key in reversed(list(enumerate(sr_kind_keys))):
             all_to_plot = []
             for sr in srs[sr_kind_key]:
                 run_to_plot = make_slices_tensor(sr)
-                sub_to_plot = run_to_plot[time_slice_type][space_slice_type]
+                sub_to_plot = run_to_plot[time_slice_type][space_slice_type].slice_by_time(time_slice)
                 sub_to_plot = ArrayWithTime(np.linalg.norm(sub_to_plot, axis=1), sub_to_plot.t)
                 all_to_plot.append(sub_to_plot)
             to_plot = ArrayWithTime(np.hstack(all_to_plot), np.hstack([p.t for p in all_to_plot]))
             # TODO: you could do smoothing here
-            ax.plot(to_plot.t, to_plot, '.', color=f'C{idx}', label=sr_kind_key)
-        ax.legend(loc='upper right')
+            ax.plot(to_plot.t, to_plot, '.-', color=f'C{idx}', label=sr_kind_key)
+        # ax.legend(loc='upper right')
         ax.set_xlabel(xlabel)
         ax.set_ylabel('error norm')
         if title is None:

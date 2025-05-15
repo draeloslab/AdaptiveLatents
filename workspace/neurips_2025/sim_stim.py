@@ -2,6 +2,7 @@ import copy
 from collections import deque
 import functools
 import time
+from itertools import cycle
 import jax
 
 from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap, proSVD, CenteringTransformer, VJF, KernelSmoother
@@ -33,12 +34,14 @@ def make_sr(
         design_method='optimized identity u_to_s',
         true_S='identity',
         # design_method = 'direct cheating',
+        stim_timing_method='random',
         n_identity_prior=10,
         stim_direction_type='first',
         initial_nostim_period=5,
         stim_reg_maxlen=500,
         smoothing_tau=None,
         centerer_init_size=0,
+        regular_stim_iter=None,
 ):
     stim_time_rng, other_rng = rng.spawn(2)
     sr = StimRegressor(
@@ -70,10 +73,26 @@ def make_sr(
     latents = []
     high_d_with_stim = []
     high_d_without_stim = []
+    if stim_timing_method == 'regular':
+        last_stim_t = initial_nostim_period
+        if regular_stim_iter is not None:
+            assert stim_rate is None
+            regular_stim_iter = copy.deepcopy(regular_stim_iter)
+            stim_rate = next(regular_stim_iter)
     for data in Pipeline().streaming_run_on(input_array):
         log_stim_reg_after_stim = False
 
-        stim_decision = data.t > initial_nostim_period and stim_time_rng.random() < stim_rate * input_array.dt
+        if stim_timing_method == 'random':
+            stim_decision = data.t > initial_nostim_period and stim_time_rng.random() < stim_rate * input_array.dt
+        elif stim_timing_method == 'regular':
+            stim_decision = False
+            if data.t > initial_nostim_period and data.t - last_stim_t > 1/stim_rate:
+                stim_decision = True
+                last_stim_t = data.t
+                if regular_stim_iter is not None:
+                    stim_rate = next(regular_stim_iter)
+        else:
+            raise ValueError()
 
         decided_stims.append(ArrayWithTime(stim_decision, data.t))
         if stim_decision and pro.Q is not None:
@@ -236,33 +255,39 @@ def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False, overr
                     # to_run[f'({i}, {j})'] = dict(stim_time_delay=i, regressor_stim_delay=j, stim_magnitude=10, prosvd_k=8, exit_time=30, initial_nostim_period=5, design_method='direct cheating')
 
         case 'default':
-            stim_magnitude = 10000
-            # design_method = 'optimized identity u_to_s'
-            design_method = 'direct cheating'
-            exit_time = 200
-            stim_rate = 1/5
-            smoothing_tau = .5
+            stim_magnitude = 10
+            design_method = 'optimized identity u_to_s'
+            exit_time = np.inf
+            stim_rate = None
+            smoothing_tau = 1
             centerer_init_size = 8 * 25
             initial_nostim_period = 30
+            regular_stim_iter = cycle([1 / 10, 1 / 3])
+            stim_timing_method = 'regular'
+            autoreg=functools.partial(StreamingKalmanFilter, steps_between_refits=5)
+
             to_run = {
-                'learning from stim': dict(attempt_correction=True, heed_stimuli=True, exit_time=exit_time, stim_magnitude=stim_magnitude, design_method=design_method, stim_rate=stim_rate, smoothing_tau=smoothing_tau, centerer_init_size=centerer_init_size, initial_nostim_period=initial_nostim_period,),
-                'ignoring stim samples':dict(attempt_correction=False, heed_stimuli=True, exit_time=exit_time,stim_magnitude=stim_magnitude, design_method=design_method,stim_rate=stim_rate, smoothing_tau=smoothing_tau,centerer_init_size=centerer_init_size,initial_nostim_period=initial_nostim_period,),
-                'unaware of stim':dict(attempt_correction=False, heed_stimuli=False, exit_time=exit_time, stim_magnitude=stim_magnitude,design_method=design_method,stim_rate=stim_rate, smoothing_tau=smoothing_tau,centerer_init_size=centerer_init_size,initial_nostim_period=initial_nostim_period,)
+                'learning from stim': dict(attempt_correction=True, heed_stimuli=True, exit_time=exit_time, stim_magnitude=stim_magnitude, design_method=design_method, stim_rate=stim_rate, smoothing_tau=smoothing_tau, centerer_init_size=centerer_init_size, initial_nostim_period=initial_nostim_period,regular_stim_iter=regular_stim_iter,stim_timing_method=stim_timing_method, autoreg=autoreg,),
+                'ignoring stim samples':dict(attempt_correction=False, heed_stimuli=True, exit_time=exit_time,stim_magnitude=stim_magnitude, design_method=design_method,stim_rate=stim_rate, smoothing_tau=smoothing_tau,centerer_init_size=centerer_init_size,initial_nostim_period=initial_nostim_period,regular_stim_iter=regular_stim_iter,stim_timing_method=stim_timing_method, autoreg=autoreg,),
+                'unaware of stim':dict(attempt_correction=False, heed_stimuli=False, exit_time=exit_time, stim_magnitude=stim_magnitude,design_method=design_method,stim_rate=stim_rate, smoothing_tau=smoothing_tau,centerer_init_size=centerer_init_size,initial_nostim_period=initial_nostim_period,regular_stim_iter=regular_stim_iter,stim_timing_method=stim_timing_method, autoreg=autoreg,)
             }
         case 'visualization':
-            stim_magnitude = 30000
+            stim_magnitude = 10
             design_method = 'optimized identity u_to_s'
-            exit_time = 300
-            stim_rate = 1 / 10
-            smoothing_tau = .7
+            exit_time = np.inf
+            stim_rate = None
+            smoothing_tau = 1
             centerer_init_size = 8 * 25
             initial_nostim_period = 30
-            decay_rate = .8
+            regular_stim_iter = cycle([1 / 10, 1 / 3])
+            stim_timing_method = 'regular'
+
             to_run = {
                 'learning from stim': dict(attempt_correction=True, heed_stimuli=True, exit_time=exit_time,
                                            stim_magnitude=stim_magnitude, design_method=design_method, stim_rate=stim_rate,
                                            smoothing_tau=smoothing_tau, centerer_init_size=centerer_init_size,
-                                           initial_nostim_period=initial_nostim_period, decay_rate=decay_rate),
+                                           initial_nostim_period=initial_nostim_period,
+                                           regular_stim_iter =regular_stim_iter, stim_timing_method=stim_timing_method),
             }
 
         case _:

@@ -27,15 +27,17 @@ if __name__ == '__main__':
             d = datasets.Zong22Dataset()
             data = d.neural_data
 
-            srs = make_srs(data, rng, comparison_preset='default', n_runs=1, show_tqdm=False)
+            srs = make_srs(data, rng, comparison_preset='default', n_runs=1, show_tqdm=True)
 
             row_info = [
-                dict(time_slice_type='all', space_slice_type='stim-d'),
-                dict(time_slice_type='post-stim', space_slice_type='stim-d'),
-                dict(time_slice_type='all', space_slice_type='non-stim-d'),
-                dict(time_slice_type='post-stim', space_slice_type='non-stim-d')
+                dict(time_slice_type='all', space_slice_type='stim-d', time_slice=slice(None, None)),
+                dict(time_slice_type='post-stim', space_slice_type='stim-d', time_slice=slice(None, None)),
+                dict(time_slice_type='all', space_slice_type='non-stim-d', time_slice=slice(None, None)),
+                dict(time_slice_type='post-stim', space_slice_type='non-stim-d', time_slice=slice(None, None))
             ]
             fig = plot_onestep_pred_error_decreasing(srs, row_info, make_slices_tensor)
+            for ax in fig.axes:
+                ax.set_ylim(0, 1)
 
             table_text, _, _ = make_table(srs, time_slices=['post-stim', 'non-stim'], space_slices=['non-stim-d','stim-d'], make_slices_tensor=make_slices_tensor, show_rows=False)
             tex_text = to_tex_command(key='s_hat_ss_rmse_comparison_table', value=table_text)
