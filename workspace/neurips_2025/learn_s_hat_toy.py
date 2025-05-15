@@ -164,6 +164,16 @@ if __name__ == '__main__':
                 if len(ydata) == 2:
                     fig.axes[0].axhline(ydata[0], color=lines.get_color(), linestyle='--')
 
+            for line in fig.axes[0].get_lines():
+                color = line.get_color()
+                if color == 'C0':
+                    line.set_color('#ca1469ff')
+                elif color == 'C1':
+                    line.set_color('#4d4d4dff')
+                elif color == 'C2':
+                    line.set_color('#00000000')
+
+
             h = srs['learning from stim'][0].stim_reg.history
             h = h[~np.isnan(h).any(axis=1)]
 

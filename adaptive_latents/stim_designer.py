@@ -1,15 +1,6 @@
 import time
-import functools
-
-from adaptive_latents.input_sources.autoregressor import AdamOptimizer
-import jax
 import numpy
 import jax.numpy as jnp
-from jax.nn import relu
-import warnings
-from collections import deque
-
-from jax import grad, jit, value_and_grad
 from jaxopt import ScipyBoundedMinimize
 
 class StimDesigner:
@@ -54,12 +45,12 @@ class StimDesigner:
         if u.max() > 0:
             u = numpy.array(u / u.max())
 
-        unthresholded_u = numpy.array(u)
-        unthresholded_s = u_to_s_function(unthresholded_u)
+
         idx = numpy.argsort(u)
         u[idx[:-self.max_l0_norm]] = 0
-
         if self.should_log:
+            unthresholded_u = numpy.array(u)
+            unthresholded_s = u_to_s_function(unthresholded_u)
             self.log.append({
                 'time': time.time() - start_time,
                 'v':v,
@@ -73,4 +64,6 @@ class StimDesigner:
                 # 'l0_history':l0_history,
                 # 's_history':s_history,
             })
-        return u, u_to_s_function(u)
+
+        # print(time.time() - start_time)
+        return u, None#, u_to_s_function(u)

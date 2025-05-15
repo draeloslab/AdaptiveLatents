@@ -169,6 +169,10 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
                 latent = np.squeeze(self.latent_state_history[-1])
                 obs = np.squeeze(self.observation_history[-1])
 
+                while sum([len(x) for x in self.observation_history]) > 5000:
+                    self.observation_history.pop(0)
+                    self.latent_state_history.pop(0)
+
                 constant = min(self.steps_between_refits, len(obs)) # todo: set this more rigorously
                 self.state = latent[obs.shape[0]-constant]
                 for i in range(constant):
