@@ -123,7 +123,7 @@ def make_sr(
                 else:
                     raise ValueError()
 
-                designed_stim, _ = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=pro.Q.shape[0])
+                designed_stim = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=pro.Q.shape[0])
 
                 log_stim_reg_after_stim = True
             elif design_method == 'direct cheating':

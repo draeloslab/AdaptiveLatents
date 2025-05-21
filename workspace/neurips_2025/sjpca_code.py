@@ -41,6 +41,7 @@ def get_offline_projection_matrix(data, mid_d, low_d):
 
 
 def native_nearness_to_offline(mid_d, low_d, rng, T, dt, iterations_to_run, calculate_intra_run_errors=False):
+    import matlab.engine
     eng = matlab.engine.start_matlab()
     trajectories = []
     offline_errors = []

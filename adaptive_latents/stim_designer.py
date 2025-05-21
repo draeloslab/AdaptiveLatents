@@ -67,5 +67,4 @@ class StimDesigner:
                 # 's_history':s_history,
             })
 
-        # print(time.time() - start_time)
-        return u, None#, u_to_s_function(u)
+        return u
