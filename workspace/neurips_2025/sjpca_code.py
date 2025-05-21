@@ -1,7 +1,6 @@
 from adaptive_latents import proSVD, sjPCA, Pipeline
 import numpy as np
 from adaptive_latents import ArrayWithTime
-import matlab.engine
 
 from adaptive_latents.jpca import generate_circle_embedded_in_high_d
 from adaptive_latents.utils import principle_angles
@@ -24,6 +23,8 @@ def get_projection_matrix_over_time(data, mid_d, low_d):
 
 
 def get_offline_projection_matrix(data, mid_d, low_d):
+    import matlab.engine
+
     eng = matlab.engine.start_matlab()
 
     params = dict(

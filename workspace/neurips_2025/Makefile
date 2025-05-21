@@ -143,6 +143,11 @@ $(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype): $(script_p
 	    --type-of-plot optim_open_vs_closed_toy
 
 
+$(generated_path)/zong_stim.$(vector_output_filetype): $(script_path)/zong_stim.py $(script_path)/sim_stim.py
+	$(CONDA_ACTIVATE) adaptive_latents
+	$(python_command) $(script_path)/zong_stim.py --output $@
+
+
 generated_yamls = $(shell find $(generated_path) -name '*.yaml')
 $(generated_yamls): $(generated_path)/generated_by_%.yaml: $(script_path)/%.py $(script_path)/common.py ;
 
@@ -152,11 +157,6 @@ $(pdf_path)/constants.tex: FORCE # $(script_path)/make_constants_file.py $(const
 	$(python_command) $(script_path)/make_constants_file.py \
 		--output $@ \
 		--input $(wildcard $(generated_path)/*.yaml) $(wildcard $(generated_path)/*.tex)
-
-
-$(generated_path)/zong_stim.$(vector_output_filetype): $(script_path)/zong_stim.py $(script_path)/sim_stim.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/zong_stim.py --output $@
 
 
 half_turn_plots: $(half_turn_plots)
@@ -171,7 +171,7 @@ optim: $(generated_path)/optim_col_vs_rand.$(vector_output_filetype) $(generated
 other: $(generated_path)/zong_stim.$(vector_output_filetype)
 constants: $(pdf_path)/constants.tex
 
-all_generated: half_turn_plots profile_by_step_plots stability_by_step_plots nearness_to_offline_by_step_plots native_nearness_to_offline_by_step_plots toy_dataset learn_s_hat_toy learn_s_hat_ss constants optim other
+all_generated: half_turn_plots profile_by_step_plots stability_by_step_plots native_nearness_to_offline_by_step_plots toy_dataset learn_s_hat_toy learn_s_hat_ss constants optim other
 
 pdf: all_generated FORCE
 	cd $(pdf_path)

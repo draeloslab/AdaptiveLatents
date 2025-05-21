@@ -20,6 +20,8 @@ class StimDesigner:
 
 
     def design_stim(self, v, u_dimension, u_to_s_function=None):
+        if u_to_s_function is None:
+            u_to_s_function = lambda x: x
         start_time = time.time()
         assert len(v.shape) == 2
         assert self.max_l0_norm > 0

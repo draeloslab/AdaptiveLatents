@@ -1,4 +1,4 @@
-from adaptive_latents.stim_designer import StimDesigner, loss
+from adaptive_latents.stim_designer import StimDesigner
 from adaptive_latents.regressions import BaseKernelRegressor
 import numpy as np
 import jax
@@ -9,7 +9,7 @@ def test_design_stim(rng: np.random.Generator):
         sd = StimDesigner(max_l0_norm=max_nonzero_elements,)
         v = rng.normal(size=(100,1))
         v = v/np.linalg.norm(v)
-        s = sd.design_stim(v)
+        s, _ = sd.design_stim(v, u_dimension=100)
         assert np.linalg.norm(s, ord=0) <= max_nonzero_elements
 
 def test_kernel_regression_integration(show_plots):
@@ -65,5 +65,5 @@ def test_kernel_regression_integration(show_plots):
         ax.axis('equal')
         plt.show(block=True)
 
-    assert np.allclose(target.flatten(), sd1.design_stim(target))
-    assert np.allclose(target.flatten()[::-1], sd2.design_stim(target, u_to_s_function=reg.make_jax_pred_f()))
+    assert np.allclose(target.flatten(), sd1.design_stim(target, u_dimension=2)[0])
+    assert np.allclose(target.flatten()[::-1], sd2.design_stim(target, u_dimension=2, u_to_s_function=reg.make_jax_pred_f())[0])
