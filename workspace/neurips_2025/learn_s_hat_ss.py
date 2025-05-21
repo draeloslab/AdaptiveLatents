@@ -80,12 +80,12 @@ if __name__ == '__main__':
             # fig2 = f(5)
             # fig2.savefig(args.output.with_stem('zhong_stim'), bbox_inches="tight")
 
-            with open(pathlib.Path(args.output).parent / 'optimization_history.pkl', 'wb') as fhan:
-                # TODO: add this to makefile
-                example_sr = srs['learning from stim'][0]
-                example_sr.predictions = []
-                example_sr.unevaluated_log_pred_ps = []
-                pickle.dump(example_sr, fhan)
+            # with open(pathlib.Path(args.output).parent / 'optimization_history.pkl', 'wb') as fhan:
+            #     # TODO: add this to makefile
+            #     example_sr = srs['learning from stim'][0]
+            #     example_sr.predictions = []
+            #     example_sr.unevaluated_log_pred_ps = []
+            #     pickle.dump(example_sr, fhan)
 
         case 'delay-table':
             # LDS:

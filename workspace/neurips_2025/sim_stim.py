@@ -245,6 +245,16 @@ def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False, overr
                 'open flip': dict(design_method='optimized identity u_to_s', true_S='flip', stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k, ),
                 'closed flip': dict(design_method='optimized learned u_to_s', true_S='flip', stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k, ),
             }
+        case 'optim_open_vs_closed_toy':
+            stim_rate = 3
+            exit_time = np.inf
+            prosvd_k = 2
+            to_run = {
+                'open id': dict(design_method='optimized identity u_to_s', true_S='identity', stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k,),
+                'closed id': dict(design_method='optimized learned u_to_s', true_S='identity', stim_direction_type='first',stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k,),
+                'open flip': dict(design_method='optimized identity u_to_s', true_S='flip', stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k, ),
+                'closed flip': dict(design_method='optimized learned u_to_s', true_S='flip', stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k, ),
+            }
         case 'delay-table':
             to_run = {}
             for i in range(4):

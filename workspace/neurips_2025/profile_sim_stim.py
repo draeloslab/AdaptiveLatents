@@ -112,5 +112,7 @@ if __name__ == '__main__':
     np.save('times.npy', times)
 
     import matplotlib.pyplot as plt
-    plt.plot(np.diff(times))
-    plt.show()
+    fig, ax = plt.subplots()
+
+    ax.plot(np.diff(times))
+    fig.savefig("profile_sim_stim.svg")
