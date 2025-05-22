@@ -1,2 +1,2 @@
 jax_platform_name: 'cpu'
-dataset_path: datasets
+dataset_path: ../datasets

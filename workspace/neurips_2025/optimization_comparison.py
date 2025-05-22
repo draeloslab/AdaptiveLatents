@@ -115,7 +115,7 @@ def extract_metrics(srs, preq_cutoff=None):
     return proportions, preq_errors, v_delta_errors, s_delta_errors
 
 
-def open_v_closed_plot(proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=True):
+def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=True):
     fig, axs = plt.subplots(ncols=2, nrows=1, squeeze=False, layout='constrained', figsize=(2*4, 1*4))
 
     # ax: plt.Axes = axs[0,0]
@@ -129,9 +129,10 @@ def open_v_closed_plot(proportions, preq_errors, v_delta_errors, s_delta_errors,
 
 
     ax: plt.Axes = axs[0,0]
-    for i, (k, errors) in enumerate(zip(srs.keys(), v_delta_errors)):
-        for j, e in enumerate(errors):
-            ax.plot(e, color=f'C{i}', alpha=0.1)
+    if show_individuals:
+        for i, (k, errors) in enumerate(zip(srs.keys(), v_delta_errors)):
+            for j, e in enumerate(errors):
+                ax.plot(e, color=f'C{i}', alpha=0.1)
     for i, (k, errors) in enumerate(zip(srs.keys(), v_delta_errors)):
         trendline = np.mean(errors, axis=0)
         ax.plot(trendline, color=f'C{i}', lw=1.5)
@@ -157,10 +158,10 @@ def open_v_closed_plot(proportions, preq_errors, v_delta_errors, s_delta_errors,
         trendline = np.mean(errors, axis=0)
         ax.plot(trendline, color=f'C{i}', lw=1.5)
     ax.set_title('$\\Vert \\hat s_n - \\hat S_{n-1}(x_n, u_n) \\Vert$')
-    ax.semilogy()
+    # ax.semilogy()
 
     return fig
-
+N = 10
 if __name__ == '__main__':
     import argparse
     import pathlib
@@ -177,7 +178,7 @@ if __name__ == '__main__':
         case 'optim_col_vs_rand':
             d = datasets.Odoherty21Dataset()
             data = d.neural_data
-            srs = make_srs(data=data, rng=rng, comparison_preset='optim_col_vs_rand', n_runs=10, show_tqdm=True)
+            srs = make_srs(data=data, rng=rng, comparison_preset='optim_col_vs_rand', n_runs=N, show_tqdm=True)
 
             proportions_new, preq_errors_new, v_delta_errors, s_delta_errors = extract_metrics(srs, preq_cutoff=50)
             proportions_original, preq_errors_original = extract_metrics_depreciated(srs, preq_cutoff=50)
@@ -198,7 +199,7 @@ if __name__ == '__main__':
 
         case 'optim_open_vs_closed':
             data = datasets.Odoherty21Dataset().neural_data
-            srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed', n_runs=10, show_tqdm=True, overrides=dict(last_dim_red=args.type_of_dim_red))
+            srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed', n_runs=N, show_tqdm=True, overrides=dict(last_dim_red=args.type_of_dim_red))
 
             proportions, preq_errors, v_delta_errors, s_delta_errors = extract_metrics(srs, preq_cutoff=None)
             fig = open_v_closed_plot(proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=False)
@@ -209,7 +210,7 @@ if __name__ == '__main__':
 
 
             all_srs = []
-            for _ in range(20):
+            for _ in range(N):
                 lds = LDS.circular_lds(rng=rng, obs_d=130)
                 _, data, _ = lds.simulate(int((30+1/np.pi) * 80), rng=rng, initial_state=np.array([20, 0]))
                 t = np.arange(data.shape[0]) * 1/lds.transitions_per_rotation

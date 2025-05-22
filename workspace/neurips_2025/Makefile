@@ -151,7 +151,7 @@ $(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype): $(script_p
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(script_path)/optimization_comparison.py \
 		--output $@ \
-	    --type-of-plot optim_open_vs_closed_toy
+	    --type-of-plot optim_open_vs_closed_toy \
 		--type-of-dim-red prosvd # you could do more here
 
 

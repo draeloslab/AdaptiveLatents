@@ -124,6 +124,10 @@ def make_sr(
             if stim_direction_type == 'first':
                 desired_stim = np.zeros((equivalent_projection_matrix.shape[1], 1))
                 desired_stim[0] = 1
+            elif stim_direction_type == 'first2':
+                desired_stim = np.zeros((equivalent_projection_matrix.shape[1], 2))
+                desired_stim[0] = 1
+                desired_stim[1] = 1
             elif stim_direction_type == 'col':
                 desired_stim = np.zeros((equivalent_projection_matrix.shape[1], 1))
                 desired_stim[other_rng.choice(equivalent_projection_matrix.shape[1]), 0] = 1

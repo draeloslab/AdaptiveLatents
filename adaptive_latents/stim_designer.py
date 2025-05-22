@@ -37,7 +37,8 @@ class StimDesigner:
             s = u_to_s_function(u)
             s_norm = jnp.linalg.norm(s)
             loss = self.lam_1 * (self.max_l0_norm - jnp.sum(jnp.abs(u)))
-            loss += jnp.dot(s, v) / (s_norm + 1e-10)
+            loss += jnp.dot(s, v)                     / (s_norm + 1e-10)
+            # new: loss += jnp.linalg.norm(jnp.dot(s, v))**2 / (s_norm + 1e-10)
             return -loss.reshape()
 
         runner = ScipyBoundedMinimize(fun=objective, method='l-bfgs-b')
