@@ -5,7 +5,7 @@ import time
 from itertools import cycle
 import jax
 
-from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap, proSVD, CenteringTransformer, VJF, KernelSmoother
+from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap, proSVD, CenteringTransformer, VJF, KernelSmoother, mmICA, sjPCA
 from adaptive_latents.regressions import BaseKernelRegressor
 import tqdm.auto as tqdm
 import numpy as np
@@ -42,6 +42,7 @@ def make_sr(
         smoothing_tau=None,
         centerer_init_size=0,
         regular_stim_iter=None,
+        last_dim_red='prosvd',
 ):
     stim_time_rng, other_rng = rng.spawn(2)
     sr = StimRegressor(
@@ -65,6 +66,14 @@ def make_sr(
         smoother = Pipeline()
 
     pro = proSVD(k=prosvd_k)
+    if last_dim_red == 'prosvd':
+        last_dim_red_object = None
+    elif last_dim_red == 'sjpca':
+        last_dim_red_object = sjPCA()
+    elif last_dim_red == 'mmica':
+        last_dim_red_object = mmICA()
+    else:
+        raise ValueError()
 
     stim_delay_queue = deque([0]*stim_time_delay)
 
@@ -95,15 +104,31 @@ def make_sr(
             raise ValueError()
 
         decided_stims.append(ArrayWithTime(stim_decision, data.t))
-        if stim_decision and pro.Q is not None:
+
+        equivalent_projection_matrix = pro.Q
+        if equivalent_projection_matrix is not None:
+            if last_dim_red == 'sjpca':
+                try:
+                    U = last_dim_red_object.get_U()
+                except AttributeError: # TODO make this more elegant
+                    U = None
+                if U is not None:
+                    equivalent_projection_matrix = equivalent_projection_matrix @ U
+            if last_dim_red == 'mmica':
+                W = last_dim_red_object.W
+                if W is not None:
+                    equivalent_projection_matrix = equivalent_projection_matrix @ W.T
+
+
+        if stim_decision and equivalent_projection_matrix is not None:
             if stim_direction_type == 'first':
-                desired_stim = np.zeros((pro.Q.shape[1], 1))
+                desired_stim = np.zeros((equivalent_projection_matrix.shape[1], 1))
                 desired_stim[0] = 1
             elif stim_direction_type == 'col':
-                desired_stim = np.zeros((pro.Q.shape[1], 1))
-                desired_stim[other_rng.choice(pro.Q.shape[1]), 0] = 1
+                desired_stim = np.zeros((equivalent_projection_matrix.shape[1], 1))
+                desired_stim[other_rng.choice(equivalent_projection_matrix.shape[1]), 0] = 1
             elif stim_direction_type == 'random':
-                desired_stim = other_rng.normal(size=(pro.Q.shape[1], 1))
+                desired_stim = other_rng.normal(size=(equivalent_projection_matrix.shape[1], 1))
                 desired_stim = desired_stim / np.linalg.norm(desired_stim)
             else:
                 raise ValueError()
@@ -116,18 +141,18 @@ def make_sr(
                             return stim_magnitude * f(jax.numpy.hstack((sr.autoreg.predict(n_steps=0), u)))
                     else:
                         def u_to_s_function(u):
-                            return stim_magnitude * pro.Q.T @ u
+                            return stim_magnitude * equivalent_projection_matrix.T @ u
                 elif design_method == 'optimized identity u_to_s':
                     def u_to_s_function(u):
-                        return stim_magnitude * pro.Q.T @ u
+                        return stim_magnitude * equivalent_projection_matrix.T @ u
                 else:
                     raise ValueError()
 
-                designed_stim = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=pro.Q.shape[0])
+                designed_stim = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
 
                 log_stim_reg_after_stim = True
             elif design_method == 'direct cheating':
-                designed_stim = (pro.Q @ desired_stim).flatten()
+                designed_stim = (equivalent_projection_matrix @ desired_stim).flatten()
             else:
                 raise NotImplementedError()
 
@@ -135,7 +160,7 @@ def make_sr(
                 sr.stim_designer.log.append({})
 
             sr.stim_designer.log[-1]['stim_reg'] = copy.deepcopy(sr.stim_reg)
-            sr.stim_designer.log[-1]['pro'] = copy.deepcopy(pro)
+            # sr.stim_designer.log[-1]['pro'] = copy.deepcopy(pro)
 
             instantaneous_stim = designed_stim * stim_magnitude
         else:
@@ -148,10 +173,10 @@ def make_sr(
         if true_S == 'identity':
             transformed_instantaneous_stim = instantaneous_stim
         elif true_S == 'flip':
-            if pro.Q is not None:
-                in_space_comp = pro.Q.T @ instantaneous_stim
-                out_of_space_comp = instantaneous_stim - pro.Q @ in_space_comp
-                transformed_instantaneous_stim = pro.Q @ in_space_comp[::-1] + out_of_space_comp
+            if equivalent_projection_matrix is not None:
+                in_space_comp = equivalent_projection_matrix.T @ instantaneous_stim
+                out_of_space_comp = instantaneous_stim - equivalent_projection_matrix @ in_space_comp
+                transformed_instantaneous_stim = equivalent_projection_matrix @ in_space_comp[::-1] + out_of_space_comp
             else:
                 assert (instantaneous_stim == 0).all()
                 transformed_instantaneous_stim = instantaneous_stim
@@ -175,6 +200,8 @@ def make_sr(
         data = smoother.partial_fit_transform(data, stream= 'X')
         high_d_with_stim.append(centerer.inverse_transform(data))
         data = pro.partial_fit_transform(data, stream='X')
+        if last_dim_red_object is not None:
+            data = last_dim_red_object.partial_fit_transform(data, stream='X')
         latents.append(data)
 
 

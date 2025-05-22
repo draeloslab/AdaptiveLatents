@@ -140,19 +140,29 @@ $(generated_path)/optim_col_vs_rand.$(vector_output_filetype): $(script_path)/op
 	    --type-of-plot optim_col_vs_rand
 
 
-$(generated_path)/optim_open_vs_closed.$(vector_output_filetype): $(script_path)/optimization_comparison.py sim_stim.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/optimization_comparison.py \
-		--output $@ \
-	    --type-of-plot optim_open_vs_closed
+#$(generated_path)/optim_open_vs_closed.$(vector_output_filetype): $(script_path)/optimization_comparison.py $(script_path)/sim_stim.py
+#	$(CONDA_ACTIVATE) adaptive_latents
+#	$(python_command) $(script_path)/optimization_comparison.py \
+#		--output $@ \
+#	    --type-of-plot optim_open_vs_closed
 
 
-$(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype): $(script_path)/optimization_comparison.py sim_stim.py
+$(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype): $(script_path)/optimization_comparison.py $(script_path)/sim_stim.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(script_path)/optimization_comparison.py \
 		--output $@ \
 	    --type-of-plot optim_open_vs_closed_toy
 
+
+
+open_vs_closed_by_dimred_prefix := $(generated_path)/open_vs_closed_by_dimred_
+open_vs_closed_by_dimred_plots := $(foreach method, $(dim_red_methods), $(open_vs_closed_by_dimred_prefix)$(method).$(vector_output_filetype))
+$(open_vs_closed_by_dimred_plots): $(open_vs_closed_by_dimred_prefix)%.$(vector_output_filetype): $(script_path)/optimization_comparison.py $(script_path)/sim_stim.py
+	$(CONDA_ACTIVATE) adaptive_latents
+	$(python_command) $(script_path)/optimization_comparison.py \
+		--output $@ \
+	    --type-of-plot optim_open_vs_closed \
+		--type-of-dim-red $*
 
 $(generated_path)/zong_stim.$(vector_output_filetype): $(script_path)/zong_stim.py $(script_path)/sim_stim.py
 	$(CONDA_ACTIVATE) adaptive_latents
@@ -169,7 +179,7 @@ $(pdf_path)/constants.tex: FORCE # $(script_path)/make_constants_file.py $(const
 		--output $@ \
 		--input $(wildcard $(generated_path)/*.yaml) $(wildcard $(generated_path)/*.tex)
 
-
+open_vs_closed_by_dimred: $(open_vs_closed_by_dimred_plots)
 half_turn_plots: $(half_turn_plots)
 profile_by_step_plots: $(profile_by_step_plots)
 stability_by_step_plots: $(stability_by_step_plots)
@@ -178,7 +188,7 @@ native_nearness_to_offline_by_step_plots: $(native_nearness_to_offline_by_step_p
 toy_dataset: $(generated_path)/show_toy_dataset.$(vector_output_filetype)
 learn_s_hat_toy: $(generated_path)/learn_s_hat_toy_1step.$(vector_output_filetype) $(generated_path)/learn_s_hat_toy_manifold_error.$(vector_output_filetype) $(generated_path)/learn_s_hat_table_toy.tex
 learn_s_hat_ss: $(ss_1step_plots)  $(generated_path)/delay_table_ss.tex
-optim: $(generated_path)/optim_col_vs_rand.$(vector_output_filetype) $(generated_path)/optim_open_vs_closed.$(vector_output_filetype) $(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype)
+optim: $(generated_path)/optim_col_vs_rand.$(vector_output_filetype) $(generated_path)/optim_open_vs_closed.$(vector_output_filetype) $(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype) open_vs_closed_by_dimred
 other: $(generated_path)/zong_stim.$(vector_output_filetype)
 constants: $(pdf_path)/constants.tex
 

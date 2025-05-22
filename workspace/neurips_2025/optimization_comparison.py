@@ -167,6 +167,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--output", type=pathlib.Path, required=True)
     parser.add_argument( "--type-of-plot", type=str, required=True)
+    parser.add_argument( "--type-of-dim-red", type=str, required=False)
     args = parser.parse_args()
 
     rng = np.random.default_rng(0)
@@ -196,7 +197,8 @@ if __name__ == '__main__':
 
         case 'optim_open_vs_closed':
             data = datasets.Odoherty21Dataset().neural_data
-            srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed', n_runs=2, show_tqdm=True)
+            srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed', n_runs=10, show_tqdm=True, overrides=dict(last_dim_red=args.type_of_dim_red))
+
             proportions, preq_errors, v_delta_errors, s_delta_errors = extract_metrics(srs, preq_cutoff=None)
             fig = open_v_closed_plot(proportions, preq_errors, v_delta_errors, s_delta_errors)
 
