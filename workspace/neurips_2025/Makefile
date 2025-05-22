@@ -26,8 +26,9 @@ pdf_path:=./generated
 
 -include local.mk
 
+prediction_methods := kf bw vjf
 half_turn_prefix := $(generated_path)/hturn_log_pred_p_
-half_turn_plots := $(foreach method, bw vjf kf, $(half_turn_prefix)$(method).$(raster_output_filetype))
+half_turn_plots := $(foreach method, $(prediction_methods), $(half_turn_prefix)$(method).$(raster_output_filetype))
 $(half_turn_plots): $(half_turn_prefix)%.$(raster_output_filetype): $(script_path)/half_turn_log_pred_heatmaps.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(script_path)/half_turn_log_pred_heatmaps.py \
@@ -106,11 +107,21 @@ $(generated_path)/learn_s_hat_toy_manifold_error.$(vector_output_filetype): $(sc
 	    --type-of-plot manifold-error
 
 
-$(generated_path)/learn_s_hat_ss_1step.$(vector_output_filetype) $(generated_path)/learn_s_hat_table_ss.tex  $(generated_path)/zhong_stim.$(vector_output_filetype): $(script_path)/learn_s_hat_ss.py
+ss_1step_prefix := $(generated_path)/ss_1step_
+ss_1step_plots := $(foreach method, $(prediction_methods), $(ss_1step_prefix)$(method).$(vector_output_filetype))
+$(ss_1step_plots): $(ss_1step_prefix)%.$(vector_output_filetype): $(script_path)/learn_s_hat_ss.py $(script_path)/sim_stim.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(script_path)/learn_s_hat_ss.py \
 		--output $@ \
-	    --type-of-plot 1-step-prediction
+	    --type-of-plot 1-step-prediction \
+		--type-of-predictor $*
+
+
+#$(generated_path)/learn_s_hat_ss_1step.$(vector_output_filetype): $(script_path)/learn_s_hat_ss.py $(script_path)/sim_stim.py
+#	$(CONDA_ACTIVATE) adaptive_latents
+#	$(python_command) $(script_path)/learn_s_hat_ss.py \
+#		--output $@ \
+#	    --type-of-plot 1-step-prediction
 
 
 
@@ -166,7 +177,7 @@ nearness_to_offline_by_step_plots: $(nearness_to_offline_by_step_plots)
 native_nearness_to_offline_by_step_plots: $(native_nearness_to_offline_by_step_plots)
 toy_dataset: $(generated_path)/show_toy_dataset.$(vector_output_filetype)
 learn_s_hat_toy: $(generated_path)/learn_s_hat_toy_1step.$(vector_output_filetype) $(generated_path)/learn_s_hat_toy_manifold_error.$(vector_output_filetype) $(generated_path)/learn_s_hat_table_toy.tex
-learn_s_hat_ss: $(generated_path)/learn_s_hat_ss_1step.$(vector_output_filetype)  $(generated_path)/delay_table_ss.tex
+learn_s_hat_ss: $(ss_1step_plots)  $(generated_path)/delay_table_ss.tex
 optim: $(generated_path)/optim_col_vs_rand.$(vector_output_filetype) $(generated_path)/optim_open_vs_closed.$(vector_output_filetype) $(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype)
 other: $(generated_path)/zong_stim.$(vector_output_filetype)
 constants: $(pdf_path)/constants.tex

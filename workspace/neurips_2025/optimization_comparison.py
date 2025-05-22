@@ -204,11 +204,11 @@ if __name__ == '__main__':
             rng = np.random.default_rng(4)
             from adaptive_latents.input_sources.lds_simulation import LDS
             lds = LDS.circular_lds(rng=rng, obs_d=130)
-            _, data, _ = lds.simulate(int((30+1/np.pi) * 50), rng=rng, initial_state=np.array([20, 0]))
+            _, data, _ = lds.simulate(int((30+1/np.pi) * 30), rng=rng, initial_state=np.array([20, 0]))
             t = np.arange(data.shape[0]) * 1/lds.transitions_per_rotation
             data = ArrayWithTime(data,t)
 
-            srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed_toy', n_runs=2, show_tqdm=True)
+            srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed_toy', n_runs=10, show_tqdm=True)
             proportions, preq_errors, v_delta_errors, s_delta_errors = extract_metrics(srs, preq_cutoff=None)
             fig = open_v_closed_plot(proportions, preq_errors, v_delta_errors, s_delta_errors)
         case _:

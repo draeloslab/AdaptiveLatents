@@ -2,8 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pickle
+import functools
 
-from adaptive_latents import ArrayWithTime, datasets
+from adaptive_latents import ArrayWithTime, datasets, StreamingKalmanFilter, VJF, Bubblewrap
 from make_constants_file import to_tex_command
 from sim_stim import make_srs, make_slices_tensor
 
@@ -17,27 +18,35 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--output", type=pathlib.Path, required=True)
     parser.add_argument( "--type-of-plot", type=str, required=True)
+    parser.add_argument( "--type-of-predictor", type=str, required=False)
     args = parser.parse_args()
 
 
     fig = None
     match args.type_of_plot:
         case '1-step-prediction':
+            if args.type_of_predictor == 'kf':
+                autoreg=functools.partial(StreamingKalmanFilter, steps_between_refits=5)
+            elif args.type_of_predictor == 'bw':
+                autoreg=functools.partial(Bubblewrap)
+            elif args.type_of_predictor == 'vjf':
+                autoreg=functools.partial(VJF)
+
             rng = np.random.default_rng(0)
             d = datasets.Zong22Dataset()
             data = d.neural_data
 
-            srs = make_srs(data, rng, comparison_preset='default', n_runs=1, show_tqdm=True)
+            srs = make_srs(data, rng, comparison_preset='default', n_runs=1, show_tqdm=True, overrides=dict(autoreg=autoreg))
 
             row_info = [
                 dict(time_slice_type='all', space_slice_type='stim-d', time_slice=slice(None, None)),
                 dict(time_slice_type='post-stim', space_slice_type='stim-d', time_slice=slice(None, None), last_half_average=True),
-                dict(time_slice_type='all', space_slice_type='non-stim-d', time_slice=slice(None, None)),
-                dict(time_slice_type='post-stim', space_slice_type='non-stim-d', time_slice=slice(None, None))
+                # dict(time_slice_type='all', space_slice_type='non-stim-d', time_slice=slice(None, None)),
+                # dict(time_slice_type='post-stim', space_slice_type='non-stim-d', time_slice=slice(None, None))
             ]
             fig = plot_onestep_pred_error_decreasing(srs, row_info, make_slices_tensor)
             for ax in fig.axes:
-                ax.set_ylim(0, 1)
+                ax.set_ylim(0, 3)
 
             for lines in fig.axes[1].get_lines():
                 ydata = lines.get_ydata()
