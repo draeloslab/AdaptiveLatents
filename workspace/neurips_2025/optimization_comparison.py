@@ -115,7 +115,7 @@ def extract_metrics(srs, preq_cutoff=None):
     return proportions, preq_errors, v_delta_errors, s_delta_errors
 
 
-def open_v_closed_plot(proportions, preq_errors, v_delta_errors, s_delta_errors):
+def open_v_closed_plot(proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=True):
     fig, axs = plt.subplots(ncols=2, nrows=1, squeeze=False, layout='constrained', figsize=(2*4, 1*4))
 
     # ax: plt.Axes = axs[0,0]
@@ -148,9 +148,10 @@ def open_v_closed_plot(proportions, preq_errors, v_delta_errors, s_delta_errors)
 
 
     ax: plt.Axes = axs[0,1]
-    for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors)):
-        for j, e in enumerate(errors):
-            ax.plot(e, color=f'C{i}', alpha=0.1)
+    if show_individuals:
+        for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors)):
+            for j, e in enumerate(errors):
+                ax.plot(e, color=f'C{i}', alpha=0.1)
 
     for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors)):
         trendline = np.mean(errors, axis=0)
@@ -200,7 +201,7 @@ if __name__ == '__main__':
             srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed', n_runs=10, show_tqdm=True, overrides=dict(last_dim_red=args.type_of_dim_red))
 
             proportions, preq_errors, v_delta_errors, s_delta_errors = extract_metrics(srs, preq_cutoff=None)
-            fig = open_v_closed_plot(proportions, preq_errors, v_delta_errors, s_delta_errors)
+            fig = open_v_closed_plot(proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=False)
 
         case 'optim_open_vs_closed_toy':
             rng = np.random.default_rng(4)
@@ -214,11 +215,11 @@ if __name__ == '__main__':
                 t = np.arange(data.shape[0]) * 1/lds.transitions_per_rotation
                 data = ArrayWithTime(data,t)
 
-                srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed_toy', n_runs=1, show_tqdm=True)
+                srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed_toy', n_runs=1, show_tqdm=True, overrides=dict(last_dim_red=args.type_of_dim_red))
                 all_srs.append(srs)
             srs = {k: [sub_srs[k][0] for sub_srs in all_srs] for k in srs.keys()}
             proportions, preq_errors, v_delta_errors, s_delta_errors = extract_metrics(srs, preq_cutoff=None)
-            fig = open_v_closed_plot(proportions, preq_errors, v_delta_errors, s_delta_errors)
+            fig = open_v_closed_plot(proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=False)
         case _:
             raise ValueError()
 
