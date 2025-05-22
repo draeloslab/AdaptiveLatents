@@ -59,7 +59,6 @@ class BaseMMICA:
             self.A += compute_A(u, x)
         self.W = min_W(self.W, self.A, self.maxiter_cg)
 
-        # extra added by jgould
         non_gaussianness = self.density.logp(self.W @ x).mean(axis=1)
         self.cumulants = self.cumulants + (non_gaussianness - self.cumulants) / (self.columns_seen + batch_size)
         self.columns_seen += batch_size

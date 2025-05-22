@@ -3,7 +3,6 @@
 ## Quickstart
 ```bash
 # download the repo
-git clone https://github.com/draeloslab/AdaptiveLatents
 cd AdaptiveLatents
 
 # install dependencies

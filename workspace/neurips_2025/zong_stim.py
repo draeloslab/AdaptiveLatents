@@ -63,6 +63,5 @@ if __name__ == '__main__':
 
     fig = main()
 
-    # fig.savefig(pathlib.Path('/home/jgould/Documents/neurips_2025/generated') / 'zong_stim.svg', bbox_inches="tight")
 
     fig.savefig(args.output, bbox_inches="tight")

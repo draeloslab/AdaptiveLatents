@@ -1,5 +1,2 @@
 jax_platform_name: 'cpu'
-jax_supress_xla_bridge_warnings: True # doesn't work
-attempt_to_cache: False
-cache_path: ./figure_code/al_generated
-dataset_path: /home/jgould/Documents/AdaptiveLatents/workspace/datasets
+dataset_path: datasets
