@@ -632,7 +632,8 @@ class CenteringTransformer(TypicalTransformer):
         return X + self.center
 
     def instance_get_params(self, deep=True):
-        return {'init_size': self.init_size}
+        return {'init_size': self.init_size, 'nan_when_uninitialized': self.nan_when_uninitialized}
+         
 
 class ZScoringTransformer(TypicalTransformer):
     # see https://math.stackexchange.com/a/1769248/701602

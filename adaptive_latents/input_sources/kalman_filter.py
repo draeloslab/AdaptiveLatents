@@ -133,7 +133,7 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
         KalmanFilter.__init__(self, use_steady_state_k=use_steady_state_k, subtract_means=subtract_means)
         self.no_hidden_state = no_hidden_state
         self.steps_between_refits = steps_between_refits
-        self.max_history_lenght = max_history_length
+        self.max_history_length = max_history_length
 
         self.last_seen = {}
         self.latent_state_history = [[]]
@@ -170,11 +170,16 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
                 latent = np.squeeze(self.latent_state_history[-1])
                 obs = np.squeeze(self.observation_history[-1])
 
-                while sum([len(x) for x in self.observation_history]) > self.max_history_lenght:
-                    self.observation_history.pop(0)
-                    self.latent_state_history.pop(0)
+                while sum([len(x) for x in self.observation_history]) > self.max_history_length:
+                    if len(self.observation_history) > 1:
+                        self.observation_history.pop(0)
+                        self.latent_state_history.pop(0)
+                    else:
+                        self.observation_history[0].pop(0)
+                        self.latent_state_history[0].pop(0)
 
-                constant = min(self.steps_between_refits, len(obs)) # todo: set this more rigorously
+
+                constant = min(self.steps_between_refits, len(obs)) # TODO: set this more rigorously
                 self.state = latent[obs.shape[0]-constant]
                 for i in range(constant):
                     self.step(Y=obs[obs.shape[0]-constant+i])
