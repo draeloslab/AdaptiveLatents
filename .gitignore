@@ -4,6 +4,8 @@ workspace/datasets/*
 workspace/**/*.ipynb
 scripts/*
 *.sh
+*.mk
+*.pkl
 
 *.mp4
 *.db
