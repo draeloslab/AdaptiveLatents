@@ -196,14 +196,14 @@ class BaseBubblewrap:
         x = self.obs.curr
         self.beta = 1 + 10 / (self.t + 1)
         self.B = self.logB_jax(x, self.mu, self.L, self.L_diag)
-        if self.dead_nodes_unlikely:
+        if self.dead_nodes_unlikely and len(self.dead_nodes):
             self.B = self.B.at[numpy.array(self.dead_nodes)].set(min(-10000, numpy.min(self.B) * 10))  # TODO: test this more
         self.update_B(x)
         self.gamma, self.alpha, self.En, self.S1, self.S2, self.n_obs = self.update_internal_jax(self.A, self.B, self.alpha, self.En, self.eps, self.S1, x, self.S2, self.n_obs)
 
         if not self.go_fast and jnp.any(jnp.isnan(self.alpha)):
             # this sometimes happens when the input data has a singular covariance matrix
-            raise Exception("There's a NaN in the alphas, something's wrong.")
+            raise ValueError("There's a NaN in the alphas, something's wrong.")
         self.t += 1
 
     def update_B(self, x):

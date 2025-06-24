@@ -118,10 +118,12 @@ class StimRegressor(Predictor):
                 stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for])
                 self.stim_reg.observe(stim_reg_input, residual)
 
-            self.autoreg.observe(X, stream=self.input_streams[stream])
+            # TODO: make a decision about wheither autoreg needs to be a transformer
+            # self.autoreg.observe(X, stream=self.input_streams[stream])
+            self.autoreg.partial_fit_transform(data=X, stream=self.input_streams[stream])
         else:
             self.autoreg.toggle_parameter_fitting(True)
-            self.autoreg.observe(X, stream=self.input_streams[stream])
+            self.autoreg.partial_fit_transform(data=X, stream=self.input_streams[stream])
 
     def get_state(self):
         return self.autoreg.get_state()

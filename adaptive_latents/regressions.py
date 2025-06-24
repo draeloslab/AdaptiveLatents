@@ -224,7 +224,7 @@ class BaseKernelRegressor(NonParametricRegressor):
             error_stds.append(numpy.std(error, ddof=1))
         errors = numpy.array(errors)
         error_stds = numpy.array(error_stds)
-        return length_scales[numpy.argmin(errors + error_stds)], (length_scales, errors, error_stds)
+        return length_scales[numpy.argmin(errors + error_stds / numpy.sqrt(depth))], (length_scales, errors, error_stds)
 
 
 
