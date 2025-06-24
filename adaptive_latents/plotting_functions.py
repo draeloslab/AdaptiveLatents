@@ -232,7 +232,7 @@ class UpdatingOptimizationGraph:
         return (tried[idx] + tried[idx + 1]) / 2
 
 
-def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, scatter_alpha=0, normalize_method=None, fig=None):
+def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, scatter_alpha=0, normalize_method=None, fig=None, axs=None, method='quiver', format_axis=True, limits=None, f_on_arrows=None):
     """
     Examples
     --------
@@ -242,19 +242,22 @@ def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, 
     assert normalize_method in {None, 'none', 'diffs', 'hcubes', 'squares'}
     if fig is None:
         fig, axs = plt.subplots(nrows=1, ncols=len(dim_reduced_data), squeeze=False, layout='tight', figsize=(12,4))
-    else:
-        axs = fig.axes
+        axs = axs[0]
 
     for idx, (name, latents) in enumerate(dim_reduced_data.items()):
         e1, e2 = np.zeros(latents.shape[1]), np.zeros(latents.shape[1])
         e1[x_direction] = 1
         e2[y_direction] = 1
 
-        ax: plt.Axes = axs[0, idx]
+        ax: plt.Axes = axs[idx]
         ax.scatter(latents @ e1, latents @ e2, s=5, alpha=scatter_alpha)
-        x1, x2, y1, y2 = ax.axis()
+        if limits is None:
+            x1, x2, y1, y2 = ax.axis()
+        else:
+            x1, x2, y1, y2 = limits
         x_points = np.linspace(x1, x2, grid_n)
         y_points = np.linspace(y1, y2, grid_n)
+        assert x1 < x2 and y1 < y2
 
         d_latents = np.diff(latents, axis=0)
         if normalize_method == 'diffs':
@@ -278,18 +281,60 @@ def plot_flow_fields(dim_reduced_data, x_direction=0, y_direction=1, grid_n=13, 
                     arrow = np.nanmean(d_latents[s],axis=0)
                     if normalize_method == 'hcubes':
                         arrow = arrow / np.linalg.norm(arrow)
+                    arrow = arrow
                     arrows.append(arrow)
                     origins.append([np.nanmean(x_points[i:i + 2]), np.nanmean(y_points[j:j + 2])])
                     n_points.append(s.sum())
+                else:
+                    arrow = np.nanmean(d_latents[s],axis=0) * 0
+                    arrows.append(arrow)
+                    origins.append([np.nanmean(x_points[i:i + 2]), np.nanmean(y_points[j:j + 2])])
+                    n_points.append(s.sum())
+
         origins, arrows, n_points = np.array(origins), np.array(arrows), np.array(n_points)
         arrows = np.array([arrows @ e1, arrows @ e2]).T
         if normalize_method == 'squares':
             arrows = arrows / np.linalg.norm(arrows, axis=1)[:, np.newaxis]
 
-        ax.quiver(origins[:, 0], origins[:, 1], arrows[:,0], arrows[:,1], scale=1 / 20, units='dots', color='red')
+        if f_on_arrows is not None:
+            arrows = f_on_arrows(arrows)
 
-        ax.axis('equal')
-        ax.axis('off')
+        if method == 'quiver':
+            ax.quiver(origins[:, 0], origins[:, 1], arrows[:,0], arrows[:,1], scale=1 / 20, units='dots', color='red')
+        elif method == 'streamplot':
+            origins = origins.reshape((grid_n-1,grid_n-1,2))
+            a = origins[..., 1].mean(axis=0) # -1 2 is the x axis
+            b = origins[..., 0].mean(axis=1)
+            arrows = arrows.reshape((grid_n-1,grid_n-1,2))
+            ax.streamplot(y=a, x=b, v=arrows[...,1].T, u=arrows[...,0].T, color='red')
+        else:
+            raise ValueError()
+
+        if format_axis:
+            ax.axis('scaled')
+            ax.axis('off')
+        # TODO: this should be a test?
+        """
+        # I used this for debugging this function:
+        # note that the rotation is backwards (clockwise) for this LDS
+        from adaptive_latents.input_sources.lds_simulation import LDS
+        rng = np.random.default_rng(13)
+
+        lds = LDS.circular_lds(transitions_per_rotation=30, obs_d=2, rng=rng,)
+        lds.C = np.eye(2)
+        _, X, _ = lds.simulate(1200, initial_state=[0,6], rng=rng)
+        X = list(X)
+        for _ in range(10):
+            X.append(X[-1] - np.array([1,0]))
+        X = np.array(X)
+
+        importlib.reload(adaptive_latents.plotting_functions)
+        adaptive_latents.plotting_functions.plot_flow_fields(
+            {'test':X + np.array([0,0])},
+            method='streamplot', normalize_method='hcubes',
+            x_direction=0, y_direction=1, scatter_alpha=1,
+        )
+        """
 
 
 class MultiRowRunComparison:
