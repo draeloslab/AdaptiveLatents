@@ -220,7 +220,7 @@ class BaseVJF:
 class VJF(Predictor, BaseVJF):
     base_algorithm = BaseVJF
 
-    def __init__(self, *, config=None, latent_d=6, rng=None, take_U=False, n_particles_for_prediction=500, n_steps_to_predict=None, check_dt=False, input_streams=None, output_streams=None, log_level=None):
+    def __init__(self, *, config=None, latent_d=6, rng=None, take_U=False, n_particles_for_prediction=500, n_steps_to_predict=1, check_dt=False, input_streams=None, output_streams=None, log_level=None):
         if input_streams is None:
             input_streams = {1: 'U'} if take_U else {}
             input_streams = input_streams | {0: 'X', 2:'dt'}

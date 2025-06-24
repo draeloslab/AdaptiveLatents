@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import deque
 import copy
+import warnings
 
 import jax
 from jax import numpy as jnp
@@ -186,7 +187,7 @@ class BaseKernelRegressor(NonParametricRegressor):
     def predict(self, x):
         return numpy.array(self.make_jax_pred_f()(x))
 
-    def cross_validate_length_scale(self, length_scales, depth=100, ratio=.9, rng=None):
+    def cross_validate_length_scale(self, length_scales, depth=100, ratio=.9, n_train=None, rng=None):
         if rng is None:
             rng = numpy.random.default_rng()
 
@@ -197,7 +198,10 @@ class BaseKernelRegressor(NonParametricRegressor):
         history = history[~numpy.isnan(history).any(axis=1)]
 
         n_total = history.shape[0]
-        n_train = int(ratio * n_total)
+        if n_train is None:
+            n_train = int(ratio * n_total)
+        else:
+            assert ratio is None, "can't specify both n_train and ratio"
 
         test_reg: BaseKernelRegressor = copy.deepcopy(self)
         test_reg.n_observed = n_train
