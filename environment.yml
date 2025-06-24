@@ -38,6 +38,7 @@ dependencies:
   - pip:
      - jax[cuda12]
      - jaxlib
+     - jaxopt
      - datahugger
      - python-picard
      - "git+https://github.com/draeloslab/mmica"
