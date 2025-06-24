@@ -1111,6 +1111,15 @@ class Zong22Dataset(Dataset):
 
         part, total = self.sub_datset_info.part_of_F[self.sub_dataset]
         block_length = F_all.shape[1] // total
+
+        F_all = F_all - F_all.min(axis=1, keepdims=True)
+        # F_all = F_all / np.median(F_all, axis=1, keepdims=True)
+
+        F_all_0 = np.median(F_all, axis=1, keepdims=True)
+        F_all = (F_all - F_all_0) / F_all_0
+
+        F_all[np.isnan(F_all)] = 0
+
         F = F_all[:, (part - 1) * block_length: part * block_length]
         img = Image.open(sub_dataset_base_path / self.sub_datset_info.raw_frames[self.sub_dataset])
         video = None
