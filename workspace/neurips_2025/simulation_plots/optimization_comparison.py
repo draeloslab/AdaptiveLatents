@@ -202,7 +202,7 @@ if __name__ == '__main__':
             srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed', n_runs=N, show_tqdm=True, overrides=dict(last_dim_red=args.type_of_dim_red))
 
             proportions, preq_errors, v_delta_errors, s_delta_errors = extract_metrics(srs, preq_cutoff=None)
-            fig = open_v_closed_plot(proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=False)
+            fig = open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=False)
 
         case 'optim_open_vs_closed_toy':
             rng = np.random.default_rng(4)
@@ -220,7 +220,7 @@ if __name__ == '__main__':
                 all_srs.append(srs)
             srs = {k: [sub_srs[k][0] for sub_srs in all_srs] for k in srs.keys()}
             proportions, preq_errors, v_delta_errors, s_delta_errors = extract_metrics(srs, preq_cutoff=None)
-            fig = open_v_closed_plot(proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=False)
+            fig = open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=False)
         case _:
             raise ValueError()
 

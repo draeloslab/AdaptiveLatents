@@ -5,7 +5,6 @@ import pickle
 import functools
 
 from adaptive_latents import ArrayWithTime, datasets, StreamingKalmanFilter, VJF, Bubblewrap
-from make_constants_file import to_tex_command
 from sim_stim import make_srs, make_slices_tensor
 
 from learn_s_hat_plots import plot_onestep_pred_error_decreasing, make_table
@@ -63,8 +62,11 @@ if __name__ == '__main__':
                     line.set_color('#00000000')
 
             table_text, _, _ = make_table(srs, time_slices=['post-stim', 'non-stim'], space_slices=['non-stim-d','stim-d'], make_slices_tensor=make_slices_tensor, show_rows=False)
-            tex_text = to_tex_command(key='s_hat_ss_rmse_comparison_table', value=table_text)
-            (pathlib.Path(args.output).parent / 'learn_s_hat_table_ss.tex').write_text(tex_text)
+
+            import warnings
+            warnings.warn('depreciated')
+            # tex_text = to_tex_command(key='s_hat_ss_rmse_comparison_table', value=table_text)
+            # (pathlib.Path(args.output).parent / 'learn_s_hat_table_ss.tex').write_text(tex_text)
 
             # def f(i=5):
             #     fig2, axs2 = plt.subplots(ncols=3, figsize=(12,4), sharex=False, sharey=False, layout='constrained')

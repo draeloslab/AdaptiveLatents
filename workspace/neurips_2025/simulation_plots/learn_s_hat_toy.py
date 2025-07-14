@@ -8,9 +8,6 @@ from adaptive_latents.input_sources.lds_simulation import LDS
 from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap
 import tqdm.auto as tqdm
 
-from common import log_for_tex
-from make_constants_file import to_tex_command
-
 standard_kinds_of_sr = ['learning from stim', 'ignoring stim samples', 'unaware of stim']
 time_slices = ('post-stim', 'non-stim', 'all')
 space_slices = ('stim-d', 'non-stim-d', 'all')
@@ -219,8 +216,10 @@ if __name__ == '__main__':
             srs['ideal streaming'] = make_ideal_nostim_srs(rng, n_runs=n_runs, streaming=True, show_tqdm=True)
             table_text, _, _ = make_table(srs, time_slices=['post-stim', 'non-stim'], space_slices=['stim-d', 'non-stim-d'], make_slices_tensor=make_slices_tensor, show_rows=False, normalize_key='ideal')
 
-            with open(args.output,'w') as fhan:
-                fhan.write(to_tex_command(key='s_hat_toy_rmse_comparison_table', value=table_text))
+            import warnings
+            warnings.warn('depreciated')
+            # with open(args.output,'w') as fhan:
+            #     fhan.write(to_tex_command(key='s_hat_toy_rmse_comparison_table', value=table_text))
 
         case 'manifold-error':
             srs = make_srs(rng, n_runs=1, show_tqdm=False)

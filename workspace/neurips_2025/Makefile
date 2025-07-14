@@ -1,199 +1,11 @@
-# Disable built-in rules and variables
-MAKEFLAGS += --no-builtin-rules
-MAKEFLAGS += --no-builtin-variables
-
-
-
-.ONESHELL:
-SHELL:=/bin/bash
-
-CONDA_ACTIVATE := source $$(conda info --base)/etc/profile.d/conda.sh; conda activate
-
 .DEFAULT_GOAL := all_generated
 
-.PHONY: FORCE
+include common.mk
+include half_turn_plots/Makefile
+include dim_red_plots/Makefile
+include simulation_plots/Makefile
 
-#output_filetype:=pdf
-vector_output_filetype:=svg
-raster_output_filetype:=png
-
-python_command := python
-#python_command := python -m ipdb -c "c"
-
-script_path :=.
-generated_path :=./generated
-pdf_path:=./generated
-
--include local.mk
-
-prediction_methods := kf bw vjf
-half_turn_prefix := $(generated_path)/hturn_log_pred_p_
-half_turn_plots := $(foreach method, $(prediction_methods), $(half_turn_prefix)$(method).$(raster_output_filetype))
-$(half_turn_plots): $(half_turn_prefix)%.$(raster_output_filetype): $(script_path)/half_turn_log_pred_heatmaps.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/half_turn_log_pred_heatmaps.py \
-		--output $@ \
-		--pred_type $*
-
-
-dim_red_methods := prosvd sjpca mmica
-
-by_step_prefix := $(generated_path)/profile_by_step_
-profile_by_step_plots := $(foreach method, $(dim_red_methods), $(by_step_prefix)$(method).$(vector_output_filetype))
-$(profile_by_step_plots): $(by_step_prefix)%.$(vector_output_filetype): $(script_path)/%_code.py $(script_path)/dimension_reduction_plots.py $(script_path)/make_step_time_figure.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/dimension_reduction_plots.py \
-	    --type-of-plot time \
-		--output $@ \
-		--transformer $*
-
-stability_prefix := $(generated_path)/stability_by_step_
-stability_by_step_plots := $(foreach method, $(dim_red_methods), $(stability_prefix)$(method).$(vector_output_filetype))
-$(stability_by_step_plots): $(stability_prefix)%.$(vector_output_filetype): $(script_path)/%_code.py $(script_path)/dimension_reduction_plots.py $(script_path)/make_stability_figure.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/dimension_reduction_plots.py \
-	    --type-of-plot stability \
-		--output $@ \
-		--transformer $*
-
-
-nearness_to_offline_prefix := $(generated_path)/nearness_to_offline_by_step_
-nearness_to_offline_by_step_plots := $(foreach method, $(dim_red_methods), $(nearness_to_offline_prefix)$(method).$(vector_output_filetype))
-$(nearness_to_offline_by_step_plots): $(nearness_to_offline_prefix)%.$(vector_output_filetype): $(script_path)/%_code.py $(script_path)/dimension_reduction_plots.py $(script_path)/make_nearness_to_offline_figure.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/dimension_reduction_plots.py \
-	    --type-of-plot nearness_to_offline \
-		--output $@ \
-		--transformer $*
-
-native_nearness_to_offline_prefix := $(generated_path)/native_nearness_to_offline_by_step_
-native_nearness_to_offline_by_step_plots := $(foreach method, $(dim_red_methods), $(native_nearness_to_offline_prefix)$(method).$(vector_output_filetype))
-$(native_nearness_to_offline_by_step_plots): $(native_nearness_to_offline_prefix)%.$(vector_output_filetype): $(script_path)/%_code.py $(script_path)/dimension_reduction_plots.py $(script_path)/make_native_nearness_to_offline_figure.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/dimension_reduction_plots.py \
-	    --type-of-plot native_nearness_to_offline \
-		--output $@ \
-		--transformer $*
-
-
-$(generated_path)/show_toy_dataset.$(vector_output_filetype): $(script_path)/show_toy_dataset.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/show_toy_dataset.py \
-		--output $@
-
-$(script_path)/learn_s_hat_ss.py $(script_path)/learn_s_hat_toy.py: $(script_path)/learn_s_hat_plots.py
-$(script_path)/learn_s_hat_ss.py: $(script_path)/sim_stim.py
-$(script_path)/sim_stim.py $(script_path)/learn_s_hat_toy.py: $(script_path)/learn_s_hat_plots.py # finalize_log import
-
-%.py::
-	touch $@
-
-$(generated_path)/learn_s_hat_toy_1step.$(vector_output_filetype) $(generated_path)/toy_curvy.$(vector_output_filetype): $(script_path)/learn_s_hat_toy.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/learn_s_hat_toy.py \
-		--output $@ \
-	    --type-of-plot 1-step-prediction
-
-$(generated_path)/learn_s_hat_table_toy.tex: $(script_path)/learn_s_hat_toy.py $(script_path)/make_constants_file.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/learn_s_hat_toy.py \
-		--output $@ \
-	    --type-of-plot 1-step-prediction-table
-
-$(generated_path)/learn_s_hat_toy_manifold_error.$(vector_output_filetype): $(script_path)/learn_s_hat_toy.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/learn_s_hat_toy.py \
-		--output $@ \
-	    --type-of-plot manifold-error
-
-
-ss_1step_prefix := $(generated_path)/ss_1step_
-ss_1step_plots := $(foreach method, $(prediction_methods), $(ss_1step_prefix)$(method).$(vector_output_filetype))
-$(ss_1step_plots): $(ss_1step_prefix)%.$(vector_output_filetype): $(script_path)/learn_s_hat_ss.py $(script_path)/sim_stim.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/learn_s_hat_ss.py \
-		--output $@ \
-	    --type-of-plot 1-step-prediction \
-		--type-of-predictor $*
-
-
-#$(generated_path)/learn_s_hat_ss_1step.$(vector_output_filetype): $(script_path)/learn_s_hat_ss.py $(script_path)/sim_stim.py
-#	$(CONDA_ACTIVATE) adaptive_latents
-#	$(python_command) $(script_path)/learn_s_hat_ss.py \
-#		--output $@ \
-#	    --type-of-plot 1-step-prediction
-
-
-
-$(generated_path)/delay_table_ss.tex: $(script_path)/learn_s_hat_ss.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/learn_s_hat_ss.py \
-		--output $@ \
-	    --type-of-plot delay-table
-
-
-
-$(generated_path)/optim_col_vs_rand.$(vector_output_filetype): $(script_path)/optimization_comparison.py sim_stim.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/optimization_comparison.py \
-		--output $@ \
-	    --type-of-plot optim_col_vs_rand
-
-
-#$(generated_path)/optim_open_vs_closed.$(vector_output_filetype): $(script_path)/optimization_comparison.py $(script_path)/sim_stim.py
-#	$(CONDA_ACTIVATE) adaptive_latents
-#	$(python_command) $(script_path)/optimization_comparison.py \
-#		--output $@ \
-#	    --type-of-plot optim_open_vs_closed
-
-
-$(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype): $(script_path)/optimization_comparison.py $(script_path)/sim_stim.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/optimization_comparison.py \
-		--output $@ \
-	    --type-of-plot optim_open_vs_closed_toy \
-		--type-of-dim-red prosvd # you could do more here
-
-
-
-open_vs_closed_by_dimred_prefix := $(generated_path)/open_vs_closed_by_dimred_
-open_vs_closed_by_dimred_plots := $(foreach method, $(dim_red_methods), $(open_vs_closed_by_dimred_prefix)$(method).$(vector_output_filetype))
-$(open_vs_closed_by_dimred_plots): $(open_vs_closed_by_dimred_prefix)%.$(vector_output_filetype): $(script_path)/optimization_comparison.py $(script_path)/sim_stim.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/optimization_comparison.py \
-		--output $@ \
-	    --type-of-plot optim_open_vs_closed \
-		--type-of-dim-red $*
-
-$(generated_path)/zong_stim.$(vector_output_filetype): $(script_path)/zong_stim.py $(script_path)/sim_stim.py
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/zong_stim.py --output $@
-
-
-generated_yamls = $(shell find $(generated_path) -name '*.yaml')
-$(generated_yamls): $(generated_path)/generated_by_%.yaml: $(script_path)/%.py $(script_path)/common.py ;
-
-#constant_input_files = adaptive_latents_config.yaml $(generated_yamls)
-$(pdf_path)/constants.tex: FORCE # $(script_path)/make_constants_file.py $(constant_input_files)
-	$(CONDA_ACTIVATE) adaptive_latents
-	$(python_command) $(script_path)/make_constants_file.py \
-		--output $@ \
-		--input $(wildcard $(generated_path)/*.yaml) $(wildcard $(generated_path)/*.tex)
-
-open_vs_closed_by_dimred: $(open_vs_closed_by_dimred_plots)
-half_turn_plots: $(half_turn_plots)
-profile_by_step_plots: $(profile_by_step_plots)
-stability_by_step_plots: $(stability_by_step_plots)
-nearness_to_offline_by_step_plots: $(nearness_to_offline_by_step_plots)
-native_nearness_to_offline_by_step_plots: $(native_nearness_to_offline_by_step_plots)
-toy_dataset: $(generated_path)/show_toy_dataset.$(vector_output_filetype)
-learn_s_hat_toy: $(generated_path)/learn_s_hat_toy_1step.$(vector_output_filetype) $(generated_path)/learn_s_hat_toy_manifold_error.$(vector_output_filetype) $(generated_path)/learn_s_hat_table_toy.tex
-learn_s_hat_ss: $(ss_1step_plots)  $(generated_path)/delay_table_ss.tex
-optim: $(generated_path)/optim_col_vs_rand.$(vector_output_filetype) $(generated_path)/optim_open_vs_closed.$(vector_output_filetype) $(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype) open_vs_closed_by_dimred
-other: $(generated_path)/zong_stim.$(vector_output_filetype)
-constants: $(pdf_path)/constants.tex
-
-all_generated: half_turn_plots profile_by_step_plots stability_by_step_plots native_nearness_to_offline_by_step_plots toy_dataset learn_s_hat_toy learn_s_hat_ss constants optim other
+all_generated: half_turn_plots dim_red_plots simulation_plots
 
 pdf: all_generated FORCE
 	cd $(pdf_path)
@@ -201,14 +13,10 @@ pdf: all_generated FORCE
 
 all: pdf
 
-meta_dependency_graph:
-	make -Bnd | make2graph | dot -Tpng -o makefile_graph.png
-
 clean:
 	trash $(generated_path)/*.$(vector_output_filetype)
 	trash $(generated_path)/*.yaml
 	trash $(generated_path)/*.tex
-	trash $(pdf_path)/constants.tex
 	trash $(pdf_path)/aux_dir/*
 	trash makefile_graph.png
 	cd $(pdf_path)

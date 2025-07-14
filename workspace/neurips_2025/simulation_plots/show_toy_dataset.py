@@ -3,7 +3,6 @@ from adaptive_latents.input_sources.lds_simulation import LDS
 import numpy as np
 from learn_s_hat_toy import n_rotations, stims_per_rotation, stim_magnitude, noise_variance
 
-from common import log_for_tex
 
 def show_toy_dataset():
     fig, ax = plt.subplots(subplot_kw=dict(projection="3d"))
@@ -22,7 +21,9 @@ def show_toy_dataset():
             u[2] = stim_magnitude * state[0] / np.linalg.norm(state[:2])
         return u
 
-    show_toy_n_turns = log_for_tex(key='show_toy_n_turns', value=10, current_file=__file__, output_directory=args.output.parent)
+    # show_toy_n_turns = log_for_tex(key='show_toy_n_turns', value=10, current_file=__file__, output_directory=args.output.parent)
+    # TODO: depreciated
+    show_toy_n_turns = 10
 
     _, Y, stim = LDS.run_nest_dynamical_system(show_toy_n_turns, stims_per_rotation=stims_per_rotation, stim_magnitude=stim_magnitude, rng=rng, u_function=true_S, noise=noise_variance, radius=15)
 
