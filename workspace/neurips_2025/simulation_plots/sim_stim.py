@@ -15,6 +15,34 @@ from adaptive_latents.stim_designer import StimDesigner
 from learn_s_hat_plots import finalize_log
 
 
+from adaptive_latents.transformer import StreamingTransformer
+class SimStim(StreamingTransformer):
+    def __init__(self, *, tau=1, u_to_s_callback=None, input_streams=None, output_streams=None, log_level=None):
+        input_streams = input_streams or {0:'X'}
+        super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
+        self.tau = tau
+        delta_t = 1 # todo: make time-aware
+        self.alpha = 1 - np.exp(-delta_t/tau)
+        self.to_add = 0
+        if u_to_s_callback is None:
+            u_to_s_callback = lambda x: x
+        self.u_to_s_callback = u_to_s_callback
+
+    def register_stim(self, u):
+        self.to_add = self.to_add + self.u_to_s_callback(u)
+
+    def _partial_fit_transform(self, data, stream, return_output_stream):
+        if self.input_streams[stream] == 'X':
+            data = data + self.to_add
+            self.to_add = self.to_add * self.alpha
+        stream = self.output_streams[stream]
+        return (data, stream) if return_output_stream else data
+
+    def get_params(self, deep=True):
+        return dict(tau=self.tau, u_to_s_callback=self.u_to_s_callback) | super().get_params()
+
+
+
 stim_dim_slice = 5
 
 def make_sr(

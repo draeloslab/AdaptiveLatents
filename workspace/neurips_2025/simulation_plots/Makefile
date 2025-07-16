@@ -1,4 +1,4 @@
-simulation_plots: toy_dataset learn_s_hat_toy learn_s_hat_ss optim $(generated_path)/zong_stim.$(vector_output_filetype)
+simulation_plots: toy_dataset learn_s_hat_toy learn_s_hat_ss optim zong_stim
 
 ROOT_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 include $(realpath $(ROOT_DIR)/../common.mk)
@@ -111,3 +111,4 @@ toy_dataset: $(generated_path)/show_toy_dataset.$(vector_output_filetype)
 learn_s_hat_toy: $(generated_path)/learn_s_hat_toy_1step.$(vector_output_filetype) $(generated_path)/learn_s_hat_toy_manifold_error.$(vector_output_filetype) #$(generated_path)/learn_s_hat_table_toy.tex
 learn_s_hat_ss: $(ss_1step_plots)  # $(generated_path)/delay_table_ss.tex
 optim: $(generated_path)/optim_col_vs_rand.$(vector_output_filetype)  $(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype) open_vs_closed_by_dimred # $(generated_path)/optim_open_vs_closed.$(vector_output_filetype)
+zong_stim: $(generated_path)/zong_stim.$(vector_output_filetype)

@@ -21,7 +21,7 @@ class StimRegressor(Predictor):
             autoreg = StreamingKalmanFilter()
         self.autoreg: Predictor = autoreg
         if stim_designer is None:
-            stim_designer = StimDesigner()
+            stim_designer = StimDesigner()  # TODO: remove
         self.stim_designer = stim_designer
         if stim_reg is None:
             # stim_reg = BaseKNearestNeighborRegressor(k=2)

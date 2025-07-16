@@ -9,8 +9,8 @@ CONDA_ACTIVATE := source $$(conda info --base)/etc/profile.d/conda.sh; conda act
 vector_output_filetype:=svg
 raster_output_filetype:=png
 
-#python_command := python
-python_command := coverage run --append
+python_command := python
+# python_command := coverage run --append
 #python_command := python -m ipdb -c "c"
 
 script_path :=.
