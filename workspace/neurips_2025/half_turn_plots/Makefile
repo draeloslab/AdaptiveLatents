@@ -1,5 +1,5 @@
 # NOTE: you should probably not use this makefile, but the one at the root of the project
-half_turn_plots:
+half_turn_plots: htps
 
 ROOT_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 include $(realpath $(ROOT_DIR)/../common.mk)
@@ -15,4 +15,4 @@ $(half_turn_plots_list): $(half_turn_prefix)%.$(raster_output_filetype): $(htp_s
 		--output $@ \
 		--pred_type $*
 
-half_turn_plots: $(half_turn_plots_list)
+htps: $(half_turn_plots_list)

@@ -115,7 +115,7 @@ class StimRegressor(Predictor):
                 self.autoreg.toggle_parameter_fitting(False)
                 pred = self.autoreg.predict(n_steps=1)
                 residual = X - pred
-                stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for])
+                stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for])  # TODO: deal with nan from autoreg
                 self.stim_reg.observe(stim_reg_input, residual)
 
             # TODO: make a decision about wheither autoreg needs to be a transformer
