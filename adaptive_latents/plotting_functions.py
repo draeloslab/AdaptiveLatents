@@ -51,9 +51,9 @@ class AnimationManager:
         self.movie_writer = Writer(fps=fps, bitrate=-1)
         if fig is None:
             if make_axs:
-                self.fig, self.axs = plt.subplots(n_rows, n_cols, figsize=figsize, layout='tight', squeeze=False, subplot_kw={'projection': projection})
+                self.fig, self.axs = plt.subplots(n_rows, n_cols, figsize=figsize, layout='constrained', squeeze=False, subplot_kw={'projection': projection})
             else:
-                self.fig = plt.figure(figsize=figsize, layout='tight')
+                self.fig = plt.figure(figsize=figsize, layout='constrained')
         else:
             self.fig = fig
         self.movie_writer.setup(self.fig, self.outfile, dpi=dpi)
