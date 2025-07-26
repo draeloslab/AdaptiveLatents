@@ -15,36 +15,6 @@ from adaptive_latents.stim_designer import StimDesigner
 from learn_s_hat_plots import finalize_log
 
 
-from adaptive_latents.transformer import StreamingTransformer
-class SimStim(StreamingTransformer):
-    def __init__(self, *, tau=1, u_to_s_callback=None, input_streams=None, output_streams=None, log_level=None):
-        input_streams = input_streams or {0:'X'}
-        super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
-        self.tau = tau
-        delta_t = 1 # todo: make time-aware
-        self.alpha = 1 - np.exp(-delta_t/tau)
-        self.to_add = 0
-        if u_to_s_callback is None:
-            u_to_s_callback = lambda x: x
-        self.u_to_s_callback = u_to_s_callback
-
-    def register_stim(self, u):
-        self.to_add = self.to_add + self.u_to_s_callback(u)
-
-    def _partial_fit_transform(self, data, stream, return_output_stream):
-        if self.input_streams[stream] == 'X':
-            data = data + self.to_add
-            self.to_add = self.to_add * self.alpha
-        stream = self.output_streams[stream]
-        return (data, stream) if return_output_stream else data
-
-    def get_params(self, deep=True):
-        return dict(tau=self.tau, u_to_s_callback=self.u_to_s_callback) | super().get_params()
-
-
-
-stim_dim_slice = 5
-
 def make_sr(
         input_array,
         rng,
@@ -179,7 +149,6 @@ def make_sr(
                         return stim_magnitude * equivalent_projection_matrix.T @ u
                 else:
                     raise ValueError()
-
                 designed_stim = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
 
                 log_stim_reg_after_stim = True
@@ -227,12 +196,13 @@ def make_sr(
         # data_no_stim = nostim_smoother.partial_fit_transform(data_no_stim, stream= 'X')
         # high_d_without_stim.append(nostim_centerer.inverse_transform(data_no_stim))
 
+        high_d_without_stim.append(data)
         to_add = to_add + delayed_stim
         data = data + to_add
+        high_d_with_stim.append(data)
         to_add = decay_rate * to_add
         data = centerer.partial_fit_transform(data, stream= 'X')
         data = smoother.partial_fit_transform(data, stream= 'X')
-        high_d_with_stim.append(centerer.inverse_transform(data))
         data = pro.partial_fit_transform(data, stream='X')
         if last_dim_red_object is not None:
             data = last_dim_red_object.partial_fit_transform(data, stream='X')
@@ -243,10 +213,11 @@ def make_sr(
         data = sr.partial_fit_transform(data, stream= 'X')
 
         if log_stim_reg_after_stim and heed_stimuli:
-            newest_row = sr.stim_reg.history[sr.stim_reg.n_observed-1]
-            assert np.isnan(sr.stim_reg.history[sr.stim_reg.n_observed]).all()
+            overflow, to_grab_idx = divmod(sr.stim_reg.n_observed, sr.stim_reg.history.shape[0])
+            newest_row = sr.stim_reg.history[to_grab_idx-1]
+            assert overflow or np.isnan(sr.stim_reg.history[to_grab_idx]).all()
             sr.stim_designer.log[-1]['observed_s_hat'] = newest_row[-sr.stim_reg.output_d:]
-            sr.stim_designer.log[-1]['observed_reg_inpt'] = newest_row[:-sr.stim_reg.output_d]
+            sr.stim_designer.log[-1]['observed_reg_input'] = newest_row[:-sr.stim_reg.output_d]
 
         if data.t > exit_time:
             break
@@ -393,6 +364,7 @@ def get_presets(comparison_preset):
 
 
 
+stim_dim_slice = 5
 time_slices = ('post-stim', 'non-stim', 'all')
 space_slices = ('stim-d', 'non-stim-d', 'all')
 def make_slices_tensor(sr):

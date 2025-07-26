@@ -6,39 +6,65 @@ import pytest
 import numpy as np
 import adaptive_latents as al
 import copy
+import jaxlib
 import matplotlib.pyplot as plt
 import inspect
 
-@pytest.mark.parametrize('comparison_preset', [
-        'pred methods',
-        # 'optim_col_vs_rand',
-        # 'optim_col_vs_rand_with_high_d_rand',
-        # 'optim_open_vs_closed',
-        # 'optim_open_vs_closed_toy',
-        # 'delay-table',
-        # 'default',
-        # 'visualization',
-    ])
-def test_consistency(comparison_preset, show_plots=True):
+# pytest test_consistency.py --timeout=10000 --pdb
 
-    data = al.datasets.Zong22Dataset().neural_data
+@pytest.mark.parametrize('comparison_preset', reversed([
+    'optim_col_vs_rand',
+    'pred methods',
+    'optim_col_vs_rand_with_high_d_rand',
+    'optim_open_vs_closed',
+    'optim_open_vs_closed_toy',
+    'delay-table',
+    'default',
+    'visualization',
+    ]))
+def test_consistency(comparison_preset, test_old_consistent=False):
+    # pred_methods
+    data = al.datasets.Odoherty21Dataset().neural_data
     rng = np.random.default_rng()
     preset = sim_stim_old.get_presets(comparison_preset)
     for k, v in preset.items():
+        v = v | {'exit_time': 41}
+        old_result_1 = sim_stim_old.make_sr(data, copy.deepcopy(rng), **v)
+        if test_old_consistent:
+            old_result_2 = sim_stim_old.make_sr(data, copy.deepcopy(rng), **v)
         new_sr, new_stim_designer, new_log = sim_stim_refactored.make_sr(data, copy.deepcopy(rng), **v)
-        old_result = sim_stim_old.make_sr(data, copy.deepcopy(rng), **v)
 
-        if show_plots:
-            fig, ax = plt.subplots()
-            assert (new_log['latents'].t == old_result.log['latents'].t).all()
-            ax.plot(new_log['latents'].t, new_log['latents'] - old_result.log['latents'])
-            plt.show()
+        if test_old_consistent:
+            compare_stim_designer_logs(old_result_1.stim_designer.log, old_result_2.stim_designer.log)
+        compare_stim_designer_logs(new_stim_designer.log, old_result_1.stim_designer.log)
 
-        assert (new_log['latents'] == old_result.log['latents']).all()
-        assert new_sr.log == old_result.log
-        assert new_stim_designer == old_result.stim_designer
+        for key in ['high_d_without_stim', 'stim_intended_samples', 'high_d_with_stim', 'latents']:
+            if test_old_consistent:
+                old_result_2_value = old_result_2.log.pop(key)
+                assert (old_result_1.log[key] == old_result_2_value).all()
+                assert (old_result_1.log[key].t == old_result_2_value.t).all()
 
+            old_log_value = old_result_1.log.pop(key)
+            assert (new_log[key] == old_log_value).all()
+            assert (new_log[key].t == old_log_value.t).all()
 
-    new_sig = inspect.signature(sim_stim_refactored.make_sr)
-    old_sig = inspect.signature(sim_stim_old.make_sr)
-    assert new_sig.parameters == old_sig.parameters
+    #
+    #
+    # new_sig = inspect.signature(sim_stim_refactored.make_sr)
+    # old_sig = inspect.signature(sim_stim_old.make_sr)
+    # assert new_sig.parameters == old_sig.parameters
+
+def compare_stim_designer_logs(a, b):
+    for i, (n, o) in enumerate(zip(a, b)):
+        assert n.keys() == o.keys()
+
+        keys = (set(n.keys()) - {'time'})
+        for key in keys:
+            if isinstance(n[key], np.ndarray) or isinstance(n[key], jaxlib.xla_extension.ArrayImpl):
+                assert np.array_equal(n[key], o[key], equal_nan=True)
+                if isinstance(n[key], al.ArrayWithTime):
+                    assert np.array_equal(n[key].t, o[key].t, equal_nan=True)
+            elif isinstance(n[key], al.regressions.BaseKernelRegressor):
+                assert (n[key].history is None and o[key].history is None) or np.array_equal(n[key].history, o[key].history, equal_nan=True)
+            else:
+                assert n[key] == o[key]

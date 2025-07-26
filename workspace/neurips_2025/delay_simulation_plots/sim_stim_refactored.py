@@ -14,32 +14,55 @@ from contextlib import nullcontext
 
 from adaptive_latents.transformer import StreamingTransformer
 class SimulatedStimAdder(StreamingTransformer):
-    def __init__(self, *, tau=1, delay=0, u_to_s_callback=None, input_streams=None, output_streams=None, log_level=None):
+    def __init__(self, *, tau=1, true_S, static_S_seed, decay=.8, stim_time_delay=0, input_streams=None, output_streams=None, log_level=None):
         input_streams = input_streams or {0:'X'}
         super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
-        self.tau = tau
-        delta_t = 1 # todo: make time-aware
-        self.alpha = 1 - np.exp(-delta_t/tau)
+
+        self.true_S = true_S
+        self.static_S_seed = static_S_seed
+
+        # self.tau = tau
+        # delta_t = 1
+        # self.alpha = 1 - np.exp(-delta_t/tau)
+        self.alpha = decay
+
         self.to_add = 0
-        if u_to_s_callback is None:
-            u_to_s_callback = lambda x: x
-        self.u_to_s_callback = u_to_s_callback
 
-        assert delay == 0
-        self.delay = delay
+        self.stim_time_delay = stim_time_delay
+        self.stim_delay_queue = deque([0] * stim_time_delay)
 
-    def register_stim(self, u):
-        self.to_add = self.to_add + self.u_to_s_callback(u)
+    def register_stim(self, true_stim_result):
+        self.stim_delay_queue.appendleft(true_stim_result)
 
     def _partial_fit_transform(self, data, stream, return_output_stream):
         if self.input_streams[stream] == 'X':
+            self.to_add += self.stim_delay_queue.pop()
             data = data + self.to_add
             self.to_add = self.to_add * self.alpha
+
         stream = self.output_streams[stream]
         return (data, stream) if return_output_stream else data
 
-    def get_params(self, deep=True):
-        return dict(tau=self.tau, u_to_s_callback=self.u_to_s_callback, delay=self.delay) | super().get_params()
+    def true_stim_result(self, instantaneous_stim, equivalent_projection_matrix=None):
+        if self.true_S == 'identity':
+            transformed_instantaneous_stim = instantaneous_stim
+        elif self.true_S == 'flip':
+            if equivalent_projection_matrix is not None:
+                in_space_comp = equivalent_projection_matrix.T @ instantaneous_stim
+                out_of_space_comp = instantaneous_stim - equivalent_projection_matrix @ in_space_comp
+                transformed_instantaneous_stim = equivalent_projection_matrix @ in_space_comp[::-1] + out_of_space_comp
+            else:
+                assert (instantaneous_stim == 0).all()
+                transformed_instantaneous_stim = instantaneous_stim
+        elif self.true_S == 'high_d_permuted':
+            transformed_instantaneous_stim = np.random.default_rng(self.static_S_seed).permuted(instantaneous_stim)
+        else:
+            raise ValueError(self.true_S)
+
+        return transformed_instantaneous_stim
+
+        # def get_params(self, deep=True):
+    #     return dict(tau=self.tau, u_to_s_callback=self.u_to_s_callback, delay=self.delay) | super().get_params()
 
 
 def calculate_equivalent_projection_matrix(pro, last_dim_red_object):
@@ -64,12 +87,13 @@ def calculate_equivalent_projection_matrix(pro, last_dim_red_object):
 
 
 stim_dim_slice = 5
-
 def make_sr(
         input_array,
         rng,
         autoreg=StreamingKalmanFilter,
-        stim_rate=1,
+        stim_rate=1, # todo: refactor out
+        regular_stim_iter=None,  # todo: refactor out
+        isi_generator=None,
         exit_time=60,
         decay_rate=.8,
         prosvd_k=10,
@@ -89,11 +113,20 @@ def make_sr(
         stim_reg_maxlen=500,
         smoothing_tau=None,
         centerer_init_size=0,
-        regular_stim_iter=None,
         last_dim_red='prosvd',
         show_tqdm=False,
 ):
+    assert (regular_stim_iter is not None) + (stim_rate is not None) + (isi_generator is not None) == 1
+    if stim_rate:
+        isi_generator = cycle([1/stim_rate])
+    elif regular_stim_iter:
+        isi_generator = map(lambda x: 1/x, regular_stim_iter)
+        assert stim_timing_method == 'regular'
+        stim_timing_method = 'isi'
+
     stim_time_rng, other_rng = rng.spawn(2)
+
+
     sr = StimRegressor(
         autoreg=autoreg(),
         stim_reg=BaseKernelRegressor(length_scale=0.04, maxlen=stim_reg_maxlen),
@@ -107,11 +140,20 @@ def make_sr(
         max_l0_norm=max_l0_norm,
         rng_seed=other_rng.integers(2 ** 32),
         should_log=True,
-        # inter_stim_interval_generator=chain([30], cycle([1,2]))
-        timing_mode='extreme'
+        initial_nostim_period=initial_nostim_period,
+        stim_timing_method=stim_timing_method,
+        inter_stim_interval_generator=isi_generator,
+        optimization_method='jaxopt', # todo:fix
+    )
+
+    static_S_seed = other_rng.integers(2 ** 32)
+    sim_stim_adder = SimulatedStimAdder(
+        true_S=true_S,
+        static_S_seed=static_S_seed,
     )
 
     log = {}
+
 
     centerer = CenteringTransformer(init_size=centerer_init_size, nan_when_uninitialized=True)
     if smoothing_tau is not None:
@@ -135,6 +177,7 @@ def make_sr(
     decided_stims = []
     latents = []
     high_d_with_stim = []
+    high_d_without_stim = []
 
     pbar = nullcontext()
     if show_tqdm:
@@ -144,7 +187,7 @@ def make_sr(
         for data in Pipeline().streaming_run_on(input_array):
             log_stim_reg_after_stim = False
 
-            stim_decision = stim_designer.decide_whether_to_stim(data.t, objective_value=latents[-1][0][0] if len(latents) > 0 else float('inf'))
+            stim_decision = stim_designer.decide_whether_to_stim(data.t, stim_time_rng=stim_time_rng, input_array_dt=input_array.dt)
             decided_stims.append(ArrayWithTime(stim_decision, data.t))
 
             equivalent_projection_matrix = calculate_equivalent_projection_matrix(pro, last_dim_red_object)
@@ -169,7 +212,6 @@ def make_sr(
                             return stim_magnitude * equivalent_projection_matrix.T @ u
                     else:
                         raise ValueError()
-
                     designed_stim = stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
 
                     log_stim_reg_after_stim = True
@@ -187,29 +229,17 @@ def make_sr(
             else:
                 instantaneous_stim = np.zeros(input_array.shape[1])
 
-            if true_S == 'identity':
-                transformed_instantaneous_stim = instantaneous_stim
-            elif true_S == 'flip':
-                if equivalent_projection_matrix is not None:
-                    in_space_comp = equivalent_projection_matrix.T @ instantaneous_stim
-                    out_of_space_comp = instantaneous_stim - equivalent_projection_matrix @ in_space_comp
-                    transformed_instantaneous_stim = equivalent_projection_matrix @ in_space_comp[::-1] + out_of_space_comp
-                else:
-                    assert (instantaneous_stim == 0).all()
-                    transformed_instantaneous_stim = instantaneous_stim
-            else:
-                raise ValueError(true_S)
 
-            stim_delay_queue.appendleft(transformed_instantaneous_stim)
-            delayed_stim = stim_delay_queue.pop()
+            true_stim_result = sim_stim_adder.true_stim_result(instantaneous_stim, equivalent_projection_matrix)
 
+            sim_stim_adder.register_stim(true_stim_result)  # TODO: make this a transformer step?
 
-            to_add = to_add + delayed_stim
-            data = data + to_add
-            to_add = decay_rate * to_add
+            high_d_without_stim.append(data)
+            data = sim_stim_adder.partial_fit_transform(data, stream='X')
+            high_d_with_stim.append(data)
+
             data = centerer.partial_fit_transform(data, stream= 'X')
             data = smoother.partial_fit_transform(data, stream= 'X')
-            high_d_with_stim.append(centerer.inverse_transform(data))
             data = pro.partial_fit_transform(data, stream='X')
             if last_dim_red_object is not None:
                 data = last_dim_red_object.partial_fit_transform(data, stream='X')
@@ -219,11 +249,12 @@ def make_sr(
             sr.partial_fit_transform(ArrayWithTime(instantaneous_stim, data.t), stream= 'stim')
             data = sr.partial_fit_transform(data, stream= 'X')
 
-            if log_stim_reg_after_stim and heed_stimuli and instantaneous_stim.any():
-                newest_row = sr.stim_reg.history[sr.stim_reg.n_observed-1]
-                assert np.isnan(sr.stim_reg.history[sr.stim_reg.n_observed]).all()
+            if log_stim_reg_after_stim and heed_stimuli:
+                overflow, to_grab_idx = divmod(sr.stim_reg.n_observed, sr.stim_reg.history.shape[0])
+                newest_row = sr.stim_reg.history[to_grab_idx-1]
+                assert overflow or np.isnan(sr.stim_reg.history[to_grab_idx]).all()
                 stim_designer.log[-1]['observed_s_hat'] = newest_row[-sr.stim_reg.output_d:]
-                stim_designer.log[-1]['observed_reg_inpt'] = newest_row[:-sr.stim_reg.output_d]
+                stim_designer.log[-1]['observed_reg_input'] = newest_row[:-sr.stim_reg.output_d]
 
             if show_tqdm:
                 pbar.update(round(float(data.t), 2) - pbar.n)
@@ -231,6 +262,7 @@ def make_sr(
                 break
 
     log['high_d_with_stim'] = ArrayWithTime.from_list(high_d_with_stim, squeeze_type='to_2d', drop_early_nans=True)
+    log['high_d_without_stim'] = ArrayWithTime.from_list(high_d_without_stim, squeeze_type='to_2d', drop_early_nans=True)
     log['latents'] = ArrayWithTime.from_list(latents, squeeze_type='to_2d', drop_early_nans=True)
 
     stim_intended_samples = ArrayWithTime.from_list(decided_stims, squeeze_type='to_2d')
