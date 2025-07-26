@@ -197,6 +197,28 @@ if __name__ == '__main__':
                 axs[0,1].plot(trendline, color=f'C{i}', lw=1.5)
             axs[0, 1].semilogy()
 
+        case 'optim_col_vs_rand_with_high_d_rand':
+            d = datasets.Odoherty21Dataset()
+            data = d.neural_data
+            srs = make_srs(data=data, rng=rng, comparison_preset='optim_col_vs_rand_with_high_d_rand', n_runs=2, show_tqdm=True)
+
+            proportions_new, preq_errors_new, v_delta_errors, s_delta_errors = extract_metrics(srs, preq_cutoff=50)
+            proportions_original, preq_errors_original = extract_metrics_depreciated(srs, preq_cutoff=50)
+            assert np.array_equal(preq_errors_original, preq_errors_new, equal_nan=True)
+
+            fig, axs = plt.subplots(ncols=2, squeeze=False, figsize=(8, 4), layout='constrained')
+            to_plot = {k: v for k, v in zip(srs.keys(), [x[0] for x in proportions_original])}
+            sns.violinplot(to_plot, orient='v', ax=axs[0, 0])
+            sns.swarmplot(to_plot, orient='v', ax=axs[0, 0])
+
+            for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors_original)):
+                for j, e in enumerate(errors):
+                    axs[0, 1].plot(e, color=f'C{i}', alpha=0.1)
+            for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors_original)):
+                trendline = np.mean(errors, axis=0)
+                axs[0, 1].plot(trendline, color=f'C{i}', lw=1.5)
+            axs[0, 1].semilogy()
+
         case 'optim_open_vs_closed':
             data = datasets.Odoherty21Dataset().neural_data
             srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed', n_runs=N, show_tqdm=True, overrides=dict(last_dim_red=args.type_of_dim_red))

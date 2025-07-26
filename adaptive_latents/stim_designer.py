@@ -104,12 +104,12 @@ class StimDesigner:
         idx = numpy.argsort(u)
         u[idx[:-self.max_l0_norm]] = 0
 
-        return u
+        return u, {'s': u_to_s_function(u)}
 
 
     @staticmethod
     def design_stim_cheat(v, equivalent_projection_matrix):
-        return (equivalent_projection_matrix @ v).flatten()
+        return (equivalent_projection_matrix @ v).flatten(), {}
 
 
     def design_stim(self, v, **kwargs):
@@ -118,9 +118,9 @@ class StimDesigner:
 
         match self.optimization_method:
             case 'jaxopt':
-                u = self.design_stim_jaxopt(v, **kwargs)
+                u, l = self.design_stim_jaxopt(v, **kwargs)
             case 'cheat':
-                u = self.design_stim_cheat(v, **kwargs)
+                u, l = self.design_stim_cheat(v, **kwargs)
             case _:
                 raise ValueError()
 
@@ -130,6 +130,6 @@ class StimDesigner:
                 'time': time.time() - start_time,
                 'v':v,
                 'u':u,
-            })
+            } | l)
 
         return u

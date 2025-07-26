@@ -212,6 +212,8 @@ def make_sr(
             else:
                 assert (instantaneous_stim == 0).all()
                 transformed_instantaneous_stim = instantaneous_stim
+        elif true_S == 'high_d_permuted':
+            transformed_instantaneous_stim = np.random.default_rng(static_S_seed).permuted(instantaneous_stim)
         else:
             raise ValueError(true_S)
 
@@ -278,6 +280,22 @@ def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False, overr
     if overrides is None:
         overrides = {}
 
+    to_run = get_presets(comparison_preset)
+
+    srs = {}
+    with tqdm.tqdm(total=len(to_run) * n_runs, disable=not show_tqdm) as pbar:
+        for key, val in to_run.items():
+            val = val | overrides
+            sub_rng = copy.deepcopy(rng)
+            srs[key] = []
+            for _ in range(n_runs):
+                srs[key].append(make_sr(input_array=data, rng=sub_rng, **val))
+                pbar.update(1)
+
+    return srs
+
+
+def get_presets(comparison_preset):
     match comparison_preset:
         case 'pred methods':
             to_run = {
@@ -294,6 +312,14 @@ def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False, overr
                 'random columns of Q': dict(design_method=design_method, stim_direction_type='col',stim_rate=stim_rate, exit_time=exit_time,),
                 'random unit vector': dict(design_method=design_method, stim_direction_type='random', stim_rate=stim_rate, exit_time=exit_time,),
             }
+
+        case 'optim_col_vs_rand_with_high_d_rand':
+            common = dict(design_method='optimized identity u_to_s', stim_rate=1/2, exit_time=130, )
+            to_run = {
+                'normal': dict(stim_direction_type='random', true_S='identity') | common,
+                'shuffled': dict(stim_direction_type='random', true_S='high_d_permuted') | common,
+            }
+
         case 'optim_open_vs_closed':
             stim_rate = 1/2
             exit_time = np.inf
@@ -362,18 +388,7 @@ def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False, overr
         case _:
             raise ValueError()
 
-    srs = {}
-    with tqdm.tqdm(total=len(to_run) * n_runs, disable=not show_tqdm) as pbar:
-        for key, val in to_run.items():
-            val = val | overrides
-            sub_rng = copy.deepcopy(rng)
-            srs[key] = []
-            for _ in range(n_runs):
-                srs[key].append(make_sr(input_array=data, rng=sub_rng, **val))
-                pbar.update(1)
-
-    return srs
-
+    return to_run
 
 
 

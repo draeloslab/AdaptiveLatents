@@ -75,6 +75,13 @@ $(generated_path)/optim_col_vs_rand.$(vector_output_filetype): $(sim_script_path
 	    --type-of-plot optim_col_vs_rand
 
 
+$(generated_path)/optim_col_vs_rand_with_high_d_rand.$(vector_output_filetype): $(sim_script_path)/optimization_comparison.py $(sim_script_path)/sim_stim.py
+	$(CONDA_ACTIVATE) adaptive_latents
+	$(python_command) $(sim_script_path)/optimization_comparison.py \
+		--output $@ \
+	    --type-of-plot optim_col_vs_rand_with_high_d_rand
+
+
 #$(generated_path)/optim_open_vs_closed.$(vector_output_filetype): $(script_path)/optimization_comparison.py $(script_path)/sim_stim.py
 #	$(CONDA_ACTIVATE) adaptive_latents
 #	$(python_command) $(script_path)/optimization_comparison.py \
@@ -110,5 +117,5 @@ open_vs_closed_by_dimred: $(open_vs_closed_by_dimred_plots)
 toy_dataset: $(generated_path)/show_toy_dataset.$(vector_output_filetype)
 learn_s_hat_toy: $(generated_path)/learn_s_hat_toy_1step.$(vector_output_filetype) $(generated_path)/learn_s_hat_toy_manifold_error.$(vector_output_filetype) #$(generated_path)/learn_s_hat_table_toy.tex
 learn_s_hat_ss: $(ss_1step_plots)  # $(generated_path)/delay_table_ss.tex
-optim: $(generated_path)/optim_col_vs_rand.$(vector_output_filetype)  $(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype) open_vs_closed_by_dimred # $(generated_path)/optim_open_vs_closed.$(vector_output_filetype)
+optim: $(generated_path)/optim_col_vs_rand.$(vector_output_filetype)  $(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype) $(generated_path)/high_d_rand_doesnt_work.$(vector_output_filetype) open_vs_closed_by_dimred # $(generated_path)/optim_open_vs_closed.$(vector_output_filetype)
 zong_stim: $(generated_path)/zong_stim.$(vector_output_filetype)
