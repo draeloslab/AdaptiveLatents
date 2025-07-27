@@ -239,7 +239,7 @@ def make_sr(
         latents.append(data)
 
 
-        sr.partial_fit_transform(ArrayWithTime(instantaneous_stim, data.t), stream= 'stim')
+        sr.partial_fit_transform(ArrayWithTime(transformed_instantaneous_stim, data.t), stream= 'stim')
         data = sr.partial_fit_transform(data, stream= 'X')
 
         if log_stim_reg_after_stim and heed_stimuli:
@@ -314,10 +314,10 @@ def get_presets(comparison_preset):
             }
 
         case 'optim_col_vs_rand_with_high_d_rand':
-            common = dict(design_method='optimized identity u_to_s', stim_rate=1/2, exit_time=130, )
+            common = dict(design_method='optimized identity u_to_s', stim_rate=1/2, exit_time=130)
             to_run = {
-                'normal': dict(stim_direction_type='random', true_S='identity') | common,
-                'shuffled': dict(stim_direction_type='random', true_S='high_d_permuted') | common,
+                'normal': dict(stim_direction_type='first', true_S='identity') | common,
+                'shuffled': dict(stim_direction_type='first', true_S='high_d_permuted') | common,
             }
 
         case 'optim_open_vs_closed':
