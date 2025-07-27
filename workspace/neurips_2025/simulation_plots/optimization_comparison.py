@@ -229,6 +229,8 @@ if __name__ == '__main__':
             to_plot = {k: np.array(v).flatten() for k, v in zip(srs.keys(), mags_along)}
             sns.violinplot(to_plot, orient='v', ax=axs[0, 1])
             sns.swarmplot(to_plot, orient='v', ax=axs[0, 1], size=3, edgecolor='white')
+            print(f"{to_plot['normal'].mean() = } {to_plot['normal'].std() = }")
+            print(f"{to_plot['shuffled'].mean() = } {to_plot['shuffled'].std() = }")
             axs[0,1].set_title('magnitude along desired vector ($Q_1$)')
             axs[0,1].set_ylabel('magnitude (a.u.)')
 
