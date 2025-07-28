@@ -172,8 +172,9 @@ def make_sr(
                 if design_method == 'optimized learned u_to_s':
                     if sr.stim_reg.n_observed > n_identity_prior:
                         f = sr.stim_reg.make_jax_pred_f()
+                        pred = sr.autoreg.predict(n_steps=0)
                         def u_to_s_function(u):
-                            return stim_magnitude * f(jax.numpy.hstack((sr.autoreg.predict(n_steps=0), u)))
+                            return stim_magnitude * f(jax.numpy.hstack((pred, u)))
                     else:
                         def u_to_s_function(u):
                             return stim_magnitude * equivalent_projection_matrix.T @ u

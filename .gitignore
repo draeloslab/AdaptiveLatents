@@ -6,6 +6,7 @@ scripts/*
 *.sh
 workspace/neurips_2025/local.mk
 *.pkl
+*.csv
 
 *.mp4
 *.db

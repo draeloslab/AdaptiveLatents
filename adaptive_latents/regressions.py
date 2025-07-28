@@ -136,7 +136,8 @@ class NonParametricRegressor(OnlineRegressor):
         if self.history is None:
             self.input_d = x.size
             self.output_d = y.size
-            self.history = numpy.zeros(shape=(self.maxlen, self.input_d + self.output_d)) * numpy.nan
+            self.history = numpy.zeros(shape=(self.maxlen, self.input_d + self.output_d))
+            self.history[:,:self.input_d] = numpy.nan
         self._observe(x, y)
 
     def _observe(self, x, y):
@@ -177,11 +178,12 @@ class BaseKernelRegressor(NonParametricRegressor):
                 return numpy.array([[numpy.nan]])
         else:
             def f(x):
-                distances = jnp.linalg.norm(self.history[:self.n_observed, :self.input_d] - jnp.squeeze(x), axis=1)
+                distances = jnp.linalg.norm(self.history[:, :self.input_d] - jnp.squeeze(x), axis=1)
+                distances = jnp.nan_to_num(distances, nan=jnp.inf)
                 log_weights = -self.length_scale * distances ** 2
                 log_sum = jax.scipy.special.logsumexp(log_weights)
                 log_weights = log_weights - log_sum
-                return jnp.exp(log_weights) @ self.history[:self.n_observed, self.input_d:]
+                return jnp.exp(log_weights) @ self.history[:, self.input_d:]
         return f
 
     def predict(self, x):
