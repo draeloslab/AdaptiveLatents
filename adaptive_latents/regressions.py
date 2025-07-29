@@ -177,13 +177,16 @@ class BaseKernelRegressor(NonParametricRegressor):
             def f(x):
                 return numpy.array([[numpy.nan]])
         else:
+            history = jnp.array(self.history)
+            input_d = int(self.input_d)
+            length_scale = float(self.length_scale)
             def f(x):
-                distances = jnp.linalg.norm(self.history[:, :self.input_d] - jnp.squeeze(x), axis=1)
+                distances = jnp.linalg.norm(history[:, :input_d] - jnp.squeeze(x), axis=1)
                 distances = jnp.nan_to_num(distances, nan=jnp.inf)
-                log_weights = -self.length_scale * distances ** 2
+                log_weights = -length_scale * distances ** 2
                 log_sum = jax.scipy.special.logsumexp(log_weights)
                 log_weights = log_weights - log_sum
-                return jnp.exp(log_weights) @ self.history[:, self.input_d:]
+                return jnp.exp(log_weights) @ history[:, input_d:]
         return f
 
     def predict(self, x):

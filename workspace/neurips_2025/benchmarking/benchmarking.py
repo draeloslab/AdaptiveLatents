@@ -148,22 +148,23 @@ def make_sr(
                 raise ValueError()
 
             if 'optimized' in design_method:
-                if design_method == 'optimized learned u_to_s':
-                    if sr.stim_reg.n_observed > n_identity_prior:
-                        f = sr.stim_reg.make_jax_pred_f()
-                        pred = sr.autoreg.predict(n_steps=0)
-                        def u_to_s_function(u):
-                            return stim_magnitude * f(jax.numpy.hstack((pred, u)))
-                    else:
+                with jax.default_device('cpu'):
+                    if design_method == 'optimized learned u_to_s':
+                        if sr.stim_reg.n_observed > n_identity_prior:
+                            f = sr.stim_reg.make_jax_pred_f()
+                            pred = sr.autoreg.predict(n_steps=0)
+                            def u_to_s_function(u):
+                                return stim_magnitude * f(jax.numpy.hstack((pred, u)))
+                        else:
+                            def u_to_s_function(u):
+                                return stim_magnitude * equivalent_projection_matrix.T @ u
+                    elif design_method == 'optimized identity u_to_s':
                         def u_to_s_function(u):
                             return stim_magnitude * equivalent_projection_matrix.T @ u
-                elif design_method == 'optimized identity u_to_s':
-                    def u_to_s_function(u):
-                        return stim_magnitude * equivalent_projection_matrix.T @ u
-                else:
-                    raise ValueError()
+                    else:
+                        raise ValueError()
 
-                designed_stim = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
+                    designed_stim = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
 
             elif design_method == 'direct cheating':
                 designed_stim = (equivalent_projection_matrix @ desired_stim).flatten()
