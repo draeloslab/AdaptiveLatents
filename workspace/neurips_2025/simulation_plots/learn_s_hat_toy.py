@@ -6,6 +6,7 @@ import pandas as pd
 
 from adaptive_latents.input_sources.lds_simulation import LDS
 from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap
+from adaptive_latents.regressions import BaseMultiKernelRegressor
 import tqdm.auto as tqdm
 
 standard_kinds_of_sr = ['learning from stim', 'ignoring stim samples', 'unaware of stim']
@@ -103,9 +104,9 @@ def make_s_hat_error_function(rng, n_runs=10, n_points=200):
 def single_make_srs(rng):
     _, Y, stim = LDS.run_nest_dynamical_system(n_rotations, stims_per_rotation=stims_per_rotation, stim_magnitude=stim_magnitude, rng=rng, u_function='curvy', noise=noise_variance)
 
-    sr1 = StimRegressor(autoreg=StreamingKalmanFilter(), log_level=2, check_dt=True)
-    sr2 = StimRegressor(autoreg=StreamingKalmanFilter(), log_level=2, check_dt=True, attempt_correction=False)
-    sr3 = StimRegressor(autoreg=StreamingKalmanFilter(), log_level=2, check_dt=True, attempt_correction=False, heed_stimuli=False)
+    sr1 = StimRegressor(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True)
+    sr2 = StimRegressor(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True, attempt_correction=False)
+    sr3 = StimRegressor(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True, attempt_correction=False, heed_stimuli=False)
 
     sr3.stim_reg.observe(np.zeros(4), np.zeros(3))  # setting a zero prior for the manifold comparison
     s_hat_error_function = make_s_hat_error_function(rng)

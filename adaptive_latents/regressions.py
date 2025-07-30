@@ -232,6 +232,69 @@ class BaseKernelRegressor(NonParametricRegressor):
         return length_scales[numpy.argmin(errors + error_stds / numpy.sqrt(depth))], (length_scales, errors, error_stds)
 
 
+class BaseMultiKernelRegressor:
+    def __init__(self, length_scales=(1,1), kernel_weight_ratios=(1, 1), maxlen=100):
+        self.maxlen = maxlen
+        self.input_histories = None
+        self.output_history = None
+        self.n_observed = 0
+
+        self.length_scales = numpy.array(length_scales)
+        self.kernel_weight_ratios = numpy.array(kernel_weight_ratios)
+        self.kernel_weight_ratios = self.kernel_weight_ratios/self.kernel_weight_ratios.sum()
+        warnings.warn('kernel weights no longer used')
+
+    def observe(self, x, y):
+        if any([numpy.any(~numpy.isfinite(sub_x)) for sub_x in x]) or numpy.any(~numpy.isfinite(y)):
+            warnings.warn("ignoring non-finite input")
+            return
+
+        if self.input_histories is None:
+            self.input_histories = [numpy.zeros(shape=(self.maxlen, sub_x.size)) * numpy.nan for sub_x in x]
+            self.output_history = numpy.zeros(shape=(self.maxlen, y.size))
+
+        if self.n_observed == self.maxlen:
+            warnings.warn("history is full, overwriting old observations")
+        index = self.n_observed % self.maxlen
+
+        for history, sub_x in zip(self.input_histories, x):
+            history[index, :] = sub_x
+        self.output_history[index, :] = y
+        self.n_observed += 1
+
+
+    def make_jax_pred_f(self):
+        # TODO: precompute
+        if self.input_histories is None:
+            def f(x):
+                return numpy.array([[numpy.nan]])
+        else:
+            input_histories = [jnp.array(h) for h in self.input_histories]
+            output_history = jnp.array(self.output_history)
+            def f(x, length_scales=jnp.array(self.length_scales), kernel_weight_ratios=jnp.array(self.kernel_weight_ratios)):
+                distances = [-length_scale * jnp.linalg.norm(history - jnp.squeeze(sub_x), axis=1) ** 2 for
+                             (sub_x, history, length_scale) in zip(x, input_histories, length_scales)]
+                log_weights = jnp.array(distances).sum(axis=0)
+                log_weights = jnp.nan_to_num(log_weights, nan=-numpy.inf)
+                log_sum = jax.scipy.special.logsumexp(log_weights)
+                log_weights = log_weights - log_sum
+
+                return jnp.exp(log_weights) @ output_history
+        return f
+
+    def predict(self, x):
+        # if self.input_histories is None:
+        #     return numpy.array([[numpy.nan]])
+        #
+        # distances = [-length_scale*jnp.linalg.norm(history - jnp.squeeze(sub_x), axis=1)**2 for (sub_x, history, length_scale) in zip(x, self.input_histories, self.length_scales)]
+        # log_weights = jnp.array(distances)
+        # log_weights = jnp.nan_to_num(log_weights,nan=-numpy.inf)
+        # log_sum = jax.scipy.special.logsumexp(log_weights, axis=1)
+        # log_weights = log_weights - log_sum[:,None]
+        # return numpy.array((self.kernel_weights@jnp.exp(log_weights)) @ self.output_history)
+
+        return numpy.array(self.make_jax_pred_f()(x))
+
 
 
 def auto_regression_decorator(regressor_class: OnlineRegressor, n_steps=1, autoregress_only=False):
