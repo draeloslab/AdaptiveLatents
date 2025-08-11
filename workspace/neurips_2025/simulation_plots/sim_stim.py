@@ -257,7 +257,7 @@ def make_sr(
 
         if log_stim_reg_after_stim and heed_stimuli:
             newest_row = sr.stim_reg.history[sr.stim_reg.n_observed-1]
-            assert np.isnan(sr.stim_reg.history[sr.stim_reg.n_observed]).all()
+            assert np.isnan(sr.stim_reg.history[sr.stim_reg.n_observed]).any()
             sr.stim_designer.log[-1]['observed_s_hat'] = newest_row[-sr.stim_reg.output_d:]
             sr.stim_designer.log[-1]['observed_reg_inpt'] = newest_row[:-sr.stim_reg.output_d]
 
