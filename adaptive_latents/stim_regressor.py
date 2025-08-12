@@ -8,10 +8,12 @@ from .regressions import BaseKNearestNeighborRegressor, OnlineRegressor, BaseKer
 from .timed_data_source import ArrayWithTime
 from .stim_designer import StimDesigner
 
+# TODO: make the time comparisons more uniform
+
 
 class StimRegressor(Predictor):
     stream_to_update_log_on = 'stim'
-    def __init__(self, autoreg=None, stim_reg=None, stim_designer=None, heed_stimuli=True, attempt_correction=True, input_streams=None, output_streams=None, log_level=None, check_dt=True, n_steps_to_predict=1, stim_delay=0):
+    def __init__(self, autoreg=None, stim_reg=None, stim_designer=None, heed_stimuli=True, attempt_correction=True, error_on_missed_stim=True, input_streams=None, output_streams=None, log_level=None, check_dt=True, n_steps_to_predict=1, stim_delay=0):
         input_streams = input_streams or {0: 'stim', 1: 'X', 2: 'dt_X'}
         assert n_steps_to_predict == 1
         assert heed_stimuli or not attempt_correction  # correcting without learning doesn't make sense
@@ -24,7 +26,6 @@ class StimRegressor(Predictor):
             stim_designer = StimDesigner()  # TODO: remove
         self.stim_designer = stim_designer
         if stim_reg is None:
-            # stim_reg = BaseKNearestNeighborRegressor(k=2)
             stim_reg = BaseKernelRegressor()
         self.stim_reg: BaseKernelRegressor = stim_reg
         self.attempt_correction = attempt_correction
@@ -32,6 +33,7 @@ class StimRegressor(Predictor):
         self.last_seen_stims = deque()
         assert stim_delay >= 0
         self.stim_delay = stim_delay  # in units of time (wrt the data)
+        self.error_on_missed_stim = error_on_missed_stim
         self.s_hat_error_function = None # TODO: delete this, it's a hack
 
     def _partial_fit_transform(self, data, stream, return_output_stream):
@@ -64,6 +66,8 @@ class StimRegressor(Predictor):
         saftey_margin = self.dt if self.dt else self.stim_delay
         while self.last_seen_stims and (current_t - self.last_seen_stims[0].t) > (self.stim_delay + saftey_margin):
             self.last_seen_stims.popleft()
+            if self.error_on_missed_stim:
+                raise Exception("Missed stim.")
 
     def get_stim_to_correct_for(self, current_t):
         to_return = []
@@ -71,11 +75,12 @@ class StimRegressor(Predictor):
             if np.isclose(stim.t + self.stim_delay, current_t, atol=self.dt/20):
                 to_return.append(stim)
 
-        assert len(to_return) < 2
         if len(to_return) == 0:
             return []
         elif len(to_return) == 1:
             return to_return[0].flatten()
+        else:
+            raise Exception("Can only correct for one stimulus at a time.")
 
 
 

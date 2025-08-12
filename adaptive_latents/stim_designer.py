@@ -15,6 +15,8 @@ class StimDesigner:
             optimization_method='jaxopt',
             stim_timing_method='regular',
             initial_nostim_period=1,
+            u_to_s_model_type='identity',
+            n_identity_initialization=1,
     ):
         self.rng_seed = rng_seed
         self.rng = numpy.random.default_rng(rng_seed)
@@ -24,6 +26,8 @@ class StimDesigner:
         self.lam_1 = lam_1
 
         self.optimization_method = optimization_method
+        self.u_to_s_model_type = u_to_s_model_type
+        self.n_identity_initialization = n_identity_initialization
         self.stim_timing_method = stim_timing_method
         self.initial_nostim_period = initial_nostim_period
 
@@ -127,9 +131,9 @@ class StimDesigner:
 
         match self.optimization_method:
             case 'jaxopt':
-                u, l = self.design_stim_jaxopt(v, **kwargs)
+                u, l = self.design_stim_jaxopt(v, kwargs['u_dimension'], kwargs['u_to_s_function'])
             case 'cheat':
-                u, l = self.design_stim_cheat(v, **kwargs)
+                u, l = self.design_stim_cheat(v, kwargs['equivalent_projection_matrix'])
             case _:
                 raise ValueError()
 

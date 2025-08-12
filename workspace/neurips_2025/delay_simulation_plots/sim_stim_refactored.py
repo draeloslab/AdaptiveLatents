@@ -13,6 +13,8 @@ from contextlib import nullcontext
 
 
 from adaptive_latents.transformer import StreamingTransformer
+
+
 class SimulatedStimAdder(StreamingTransformer):
     def __init__(self, *, tau=1, true_S, static_S_seed, decay=.8, stim_time_delay=0, input_streams=None, output_streams=None, log_level=None):
         input_streams = input_streams or {0:'X'}
@@ -39,6 +41,9 @@ class SimulatedStimAdder(StreamingTransformer):
             self.to_add += self.stim_delay_queue.pop()
             data = data + self.to_add
             self.to_add = self.to_add * self.alpha
+        if self.input_streams[stream] == 'stim':
+            # TODO: check for regularity?
+            self.register_stim(data)
 
         stream = self.output_streams[stream]
         return (data, stream) if return_output_stream else data
@@ -60,9 +65,6 @@ class SimulatedStimAdder(StreamingTransformer):
             raise ValueError(self.true_S)
 
         return transformed_instantaneous_stim
-
-        # def get_params(self, deep=True):
-    #     return dict(tau=self.tau, u_to_s_callback=self.u_to_s_callback, delay=self.delay) | super().get_params()
 
 
 def calculate_equivalent_projection_matrix(pro, last_dim_red_object):
@@ -86,13 +88,42 @@ def calculate_equivalent_projection_matrix(pro, last_dim_red_object):
     return equivalent_projection_matrix
 
 
-stim_dim_slice = 5
+def design_stim(stim_designer, sr, stim_magnitude, desired_stim, equivalent_projection_matrix):
+    log_stim_reg_after_stim = False
+    optimization_method = stim_designer.optimization_method
+    u_to_s_model_type = stim_designer.u_to_s_model_type
+    if u_to_s_model_type == 'kernel_regressed' and sr.stim_reg.n_observed <= stim_designer.n_identity_initialization:
+        u_to_s_model_type = 'identity'
+
+
+    if optimization_method == 'jaxopt' and u_to_s_model_type == 'kernel_regressed':
+        f = sr.stim_reg.make_jax_pred_f()
+        def u_to_s_function(u):
+            return stim_magnitude * f(jax.numpy.hstack((sr.autoreg.predict(n_steps=0), u)))
+        designed_stim = stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
+        log_stim_reg_after_stim = True
+    elif optimization_method == 'jaxopt' and u_to_s_model_type == 'identity':
+        def u_to_s_function(u):
+            return stim_magnitude * equivalent_projection_matrix.T @ u
+        designed_stim = stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
+        log_stim_reg_after_stim = True
+    elif optimization_method == 'cheat' and u_to_s_model_type == 'identity':
+        designed_stim = (equivalent_projection_matrix @ desired_stim).flatten()
+        stim_designer.log.append({})
+    else:
+        raise ValueError()
+
+    stim_designer.log[-1]['stim_reg'] = copy.deepcopy(sr.stim_reg)
+
+    return designed_stim, log_stim_reg_after_stim
+
+
 def make_sr(
         input_array,
         rng,
         autoreg=StreamingKalmanFilter,
-        stim_rate=1, # todo: refactor out
-        regular_stim_iter=None,  # todo: refactor out
+        stim_rate=1, # TODO: refactor out
+        regular_stim_iter=None,  # TODO: refactor out
         isi_generator=None,
         exit_time=60,
         decay_rate=.8,
@@ -103,9 +134,10 @@ def make_sr(
         heed_stimuli=True,
         stim_time_delay=0,
         regressor_stim_delay=0,
-        design_method='optimized identity u_to_s',
+        design_method='optimized identity u_to_s', # TODO: refactor out
+        design_type=None,
+        u_to_s_model_type=None,
         true_S='identity',
-        # design_method = 'direct cheating',
         stim_timing_method='random',
         n_identity_prior=10,
         stim_direction_type='first',
@@ -123,6 +155,14 @@ def make_sr(
         isi_generator = map(lambda x: 1/x, regular_stim_iter)
         assert stim_timing_method == 'regular'
         stim_timing_method = 'isi'
+    del regular_stim_iter, stim_rate
+
+    optimization_method, u_to_s_model_type = {
+        'optimized learned u_to_s': ('jaxopt', 'kernel_regressed'),
+        'optimized identity u_to_s': ('jaxopt', 'identity'),
+        'direct cheating': ('cheat', 'identity'),
+    }[design_method]
+    # del design_method
 
     stim_time_rng, other_rng = rng.spawn(2)
 
@@ -143,7 +183,9 @@ def make_sr(
         initial_nostim_period=initial_nostim_period,
         stim_timing_method=stim_timing_method,
         inter_stim_interval_generator=isi_generator,
-        optimization_method='jaxopt', # todo:fix
+        optimization_method=optimization_method, # todo:fix
+        u_to_s_model_type=u_to_s_model_type,
+        n_identity_initialization=n_identity_prior
     )
 
     static_S_seed = other_rng.integers(2 ** 32)
@@ -151,6 +193,7 @@ def make_sr(
         true_S=true_S,
         static_S_seed=static_S_seed,
         stim_time_delay=stim_time_delay,
+        decay=decay_rate
     )
 
     log = {}
@@ -172,9 +215,6 @@ def make_sr(
     else:
         raise ValueError()
 
-    stim_delay_queue = deque([0]*stim_time_delay)
-
-    to_add = np.zeros(input_array.shape[1])
     decided_stims = []
     latents = []
     high_d_with_stim = []
@@ -192,45 +232,16 @@ def make_sr(
             decided_stims.append(ArrayWithTime(stim_decision, data.t))
 
             equivalent_projection_matrix = calculate_equivalent_projection_matrix(pro, last_dim_red_object)
-
             if stim_decision and equivalent_projection_matrix is not None:
                 desired_stim = stim_designer.desired_stim_direction(equivalent_projection_matrix, stim_direction_type, other_rng)
-
-
-                if 'optimized' in design_method:
-                    if design_method == 'optimized learned u_to_s':
-                        if sr.stim_reg.n_observed > n_identity_prior:
-                            f = sr.stim_reg.make_jax_pred_f()
-                            def u_to_s_function(u):
-                                return stim_magnitude * f(jax.numpy.hstack((sr.autoreg.predict(n_steps=0), u)))
-                        else:
-                            def u_to_s_function(u):
-                                return stim_magnitude * equivalent_projection_matrix.T @ u
-                    elif design_method == 'optimized identity u_to_s':
-                        def u_to_s_function(u):
-                            return stim_magnitude * equivalent_projection_matrix.T @ u
-                    else:
-                        raise ValueError()
-                    designed_stim = stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
-
-                    log_stim_reg_after_stim = True
-                elif design_method == 'direct cheating':
-                    designed_stim = (equivalent_projection_matrix @ desired_stim).flatten()
-                else:
-                    raise NotImplementedError()
-
-                if design_method == 'direct cheating':
-                    stim_designer.log.append({})
-
-                stim_designer.log[-1]['stim_reg'] = copy.deepcopy(sr.stim_reg)
-
+                designed_stim, log_stim_reg_after_stim = design_stim(stim_designer, sr, stim_magnitude, desired_stim, equivalent_projection_matrix)
                 instantaneous_stim = designed_stim * stim_magnitude
             else:
                 instantaneous_stim = np.zeros(input_array.shape[1])
 
             true_stim_result = sim_stim_adder.true_stim_result(instantaneous_stim, equivalent_projection_matrix)
 
-            sim_stim_adder.register_stim(true_stim_result)  # TODO: make this a transformer step?
+            sim_stim_adder.partial_fit_transform(true_stim_result, stream='stim')
 
             high_d_without_stim.append(data)
             data = sim_stim_adder.partial_fit_transform(data, stream='X')
@@ -242,7 +253,6 @@ def make_sr(
             if last_dim_red_object is not None:
                 data = last_dim_red_object.partial_fit_transform(data, stream='X')
             latents.append(data)
-
 
             sr.partial_fit_transform(ArrayWithTime(instantaneous_stim, data.t), stream= 'stim')
             data = sr.partial_fit_transform(data, stream= 'X')
