@@ -170,7 +170,6 @@ def make_sr(
         # latent_position = centerer.transform(data, stream= 'X')
         # latent_position = pro.transform(latent_position, stream='X')
 
-
         if true_S == 'identity':
             transformed_instantaneous_stim = instantaneous_stim
         elif true_S == 'flip':
@@ -313,12 +312,17 @@ def get_presets(comparison_preset):
             }
         case 'delay-table':
             to_run = {}
+            common = dict(stim_magnitude=10, prosvd_k=8, exit_time=30, initial_nostim_period=5, design_method='direct cheating')
+
+            # for LDS
+            # common |= dict(prosvd_k=4, exit_time=np.inf, initial_nostim_period=10, stim_rate=1 / 20)
+
             for i in range(4):
                 for j in range(4):
                     # for LDS:
-                    to_run[f'({i}, {j})'] = dict(stim_time_delay=i, regressor_stim_delay=j, stim_magnitude=10, prosvd_k=4, exit_time=np.inf, initial_nostim_period=10, design_method='direct cheating', stim_rate=1/20)
+                    # to_run[f'({i}, {j})'] = dict(stim_time_delay=i, regressor_stim_delay=j, stim_magnitude=10, prosvd_k=4, exit_time=np.inf, initial_nostim_period=10, design_method='direct cheating', stim_rate=1/20)
                     # for ODoherty
-                    # to_run[f'({i}, {j})'] = dict(stim_time_delay=i, regressor_stim_delay=j, stim_magnitude=10, prosvd_k=8, exit_time=30, initial_nostim_period=5, design_method='direct cheating')
+                    to_run[f'({i}, {j})'] = common | dict(stim_time_delay=i, regressor_stim_delay=j)
 
         case 'default':
             stim_magnitude = 10

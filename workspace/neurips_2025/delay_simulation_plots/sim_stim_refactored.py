@@ -150,6 +150,7 @@ def make_sr(
     sim_stim_adder = SimulatedStimAdder(
         true_S=true_S,
         static_S_seed=static_S_seed,
+        stim_time_delay=stim_time_delay,
     )
 
     log = {}
@@ -192,8 +193,6 @@ def make_sr(
 
             equivalent_projection_matrix = calculate_equivalent_projection_matrix(pro, last_dim_red_object)
 
-
-
             if stim_decision and equivalent_projection_matrix is not None:
                 desired_stim = stim_designer.desired_stim_direction(equivalent_projection_matrix, stim_direction_type, other_rng)
 
@@ -228,7 +227,6 @@ def make_sr(
                 instantaneous_stim = designed_stim * stim_magnitude
             else:
                 instantaneous_stim = np.zeros(input_array.shape[1])
-
 
             true_stim_result = sim_stim_adder.true_stim_result(instantaneous_stim, equivalent_projection_matrix)
 
