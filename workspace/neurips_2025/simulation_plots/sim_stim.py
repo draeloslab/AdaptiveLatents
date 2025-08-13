@@ -78,8 +78,8 @@ def make_sr(
     to_add = np.zeros(input_array.shape[1])
     decided_stims = []
     latents = []
-    high_d_with_stim = []
     high_d_without_stim = []
+    high_d_stims = []
     if stim_timing_method == 'regular':
         last_stim_t = initial_nostim_period
         if regular_stim_iter is not None:
@@ -139,8 +139,9 @@ def make_sr(
                 if design_method == 'optimized learned u_to_s':
                     if sr.stim_reg.n_observed > n_identity_prior:
                         f = sr.stim_reg.make_jax_pred_f()
+                        pred = sr.autoreg.predict(n_steps=0)
                         def u_to_s_function(u):
-                            return stim_magnitude * f(jax.numpy.hstack((sr.autoreg.predict(n_steps=0), u)))
+                            return stim_magnitude * f(jax.numpy.hstack((pred, u)))
                     else:
                         def u_to_s_function(u):
                             return stim_magnitude * equivalent_projection_matrix.T @ u
@@ -149,19 +150,29 @@ def make_sr(
                         return stim_magnitude * equivalent_projection_matrix.T @ u
                 else:
                     raise ValueError()
+
                 designed_stim = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
 
                 log_stim_reg_after_stim = True
             elif design_method == 'direct cheating':
                 designed_stim = (equivalent_projection_matrix @ desired_stim).flatten()
+            elif design_method == 'single neurons':
+                designed_stim = np.zeros(equivalent_projection_matrix.shape[0])
+                designed_stim[other_rng.choice(equivalent_projection_matrix.shape[0])] = 1
+            elif design_method == 'many neurons':
+                designed_stim = np.zeros(equivalent_projection_matrix.shape[0])
+                designed_stim[other_rng.choice(equivalent_projection_matrix.shape[0], size=sr.stim_designer.max_l0_norm, replace=False)] = 1
             else:
                 raise NotImplementedError()
 
-            if design_method == 'direct cheating':
-                sr.stim_designer.log.append({})
+            log_stim_reg_after_stim = True
+
+            if 'optimized' not in design_method:
+                sr.stim_designer.log.append({'v': desired_stim, 'u': designed_stim, 's': desired_stim * np.nan})
 
             sr.stim_designer.log[-1]['stim_reg'] = copy.deepcopy(sr.stim_reg)
-            # sr.stim_designer.log[-1]['pro'] = copy.deepcopy(pro)
+            sr.stim_designer.log[-1]['time_of_stim'] = data.t
+            sr.stim_designer.log[-1]['equiv_proj_mat'] = equivalent_projection_matrix
 
             instantaneous_stim = designed_stim * stim_magnitude
         else:
@@ -195,10 +206,10 @@ def make_sr(
         # data_no_stim = nostim_smoother.partial_fit_transform(data_no_stim, stream= 'X')
         # high_d_without_stim.append(nostim_centerer.inverse_transform(data_no_stim))
 
-        high_d_without_stim.append(data)
         to_add = to_add + delayed_stim
+        high_d_without_stim.append(data)
+        high_d_stims.append(ArrayWithTime(to_add, data.t))
         data = data + to_add
-        high_d_with_stim.append(data)
         to_add = decay_rate * to_add
         data = centerer.partial_fit_transform(data, stream= 'X')
         data = smoother.partial_fit_transform(data, stream= 'X')
@@ -208,7 +219,7 @@ def make_sr(
         latents.append(data)
 
 
-        sr.partial_fit_transform(ArrayWithTime(instantaneous_stim, data.t), stream= 'stim')
+        sr.partial_fit_transform(ArrayWithTime(transformed_instantaneous_stim, data.t), stream= 'stim')
         data = sr.partial_fit_transform(data, stream= 'X')
 
         if log_stim_reg_after_stim and heed_stimuli:
@@ -221,8 +232,8 @@ def make_sr(
         if data.t > exit_time:
             break
 
-    sr.log['high_d_with_stim'] = ArrayWithTime.from_list(high_d_with_stim, squeeze_type='to_2d', drop_early_nans=True)
     sr.log['high_d_without_stim'] = ArrayWithTime.from_list(high_d_without_stim, squeeze_type='to_2d', drop_early_nans=True)
+    sr.log['high_d_stims'] = ArrayWithTime.from_list(high_d_stims, squeeze_type='to_2d', drop_early_nans=True)
     sr.log['latents'] = ArrayWithTime.from_list(latents, squeeze_type='to_2d', drop_early_nans=True)
     finalize_log(sr, ArrayWithTime.from_list(decided_stims, squeeze_type='to_2d'))
 
@@ -284,10 +295,13 @@ def get_presets(comparison_preset):
             }
 
         case 'optim_col_vs_rand_with_high_d_rand':
-            common = dict(design_method='optimized identity u_to_s', stim_rate=1/2, exit_time=130, )
+            common = dict(stim_direction_type='first', stim_rate=1/2, stim_magnitude=10, exit_time=130)
             to_run = {
-                'normal': dict(stim_direction_type='random', true_S='identity') | common,
-                'shuffled': dict(stim_direction_type='random', true_S='high_d_permuted') | common,
+                'normal': common | dict( true_S='identity', design_method='optimized identity u_to_s',),
+                'shuffled': common | dict(true_S='high_d_permuted',design_method='optimized identity u_to_s'),
+                'many': common | dict(true_S='identity',design_method='many neurons'),
+                'single': common | dict(true_S='identity', design_method='single neurons'),
+                # 'near_zero': common | dict(true_S='identity', design_method='optimized identity u_to_s', stim_magnitude=0.001),
             }
 
         case 'optim_open_vs_closed':

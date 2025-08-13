@@ -98,8 +98,9 @@ def design_stim(stim_designer, sr, stim_magnitude, desired_stim, equivalent_proj
 
     if optimization_method == 'jaxopt' and u_to_s_model_type == 'kernel_regressed':
         f = sr.stim_reg.make_jax_pred_f()
+        pred = sr.autoreg.predict(n_steps=0)
         def u_to_s_function(u):
-            return stim_magnitude * f(jax.numpy.hstack((sr.autoreg.predict(n_steps=0), u)))
+            return stim_magnitude * f(jax.numpy.hstack((pred, u)))
         designed_stim = stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
         log_stim_reg_after_stim = True
     elif optimization_method == 'jaxopt' and u_to_s_model_type == 'identity':
