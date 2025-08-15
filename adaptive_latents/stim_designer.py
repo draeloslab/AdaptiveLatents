@@ -3,7 +3,6 @@ import numpy
 import jax.numpy as jnp
 from jaxopt import ScipyBoundedMinimize
 import itertools
-from typing import Literal
 
 class StimDesigner:
     def __init__(
@@ -14,7 +13,10 @@ class StimDesigner:
             lam_1=0.001,
             inter_stim_interval_generator=None,
             optimization_method='jaxopt',
-            timing_mode='isi',
+            stim_timing_method='regular',
+            initial_nostim_period=1,
+            u_to_s_model_type='identity',
+            n_identity_initialization=1,
     ):
         self.rng_seed = rng_seed
         self.rng = numpy.random.default_rng(rng_seed)
@@ -24,7 +26,10 @@ class StimDesigner:
         self.lam_1 = lam_1
 
         self.optimization_method = optimization_method
-        self.timing_mode = timing_mode
+        self.u_to_s_model_type = u_to_s_model_type
+        self.n_identity_initialization = n_identity_initialization
+        self.stim_timing_method = stim_timing_method
+        self.initial_nostim_period = initial_nostim_period
 
         if inter_stim_interval_generator is None:
             inter_stim_interval_generator = itertools.repeat(1)
@@ -41,14 +46,22 @@ class StimDesigner:
         return current_t > 50 and objective_value == numpy.nanmin(self.objective_history)
 
     def decide_whether_to_stim(self, current_t, **kwargs):
-        if self.timing_mode == 'isi':
-            if self.last_stim_time is None or current_t > self.last_stim_time + self.current_isi:
+        if current_t < self.initial_nostim_period:
+            return False
+
+        if self.stim_timing_method == 'isi':  # or 'regular'
+            if self.last_stim_time is None:
+                self.last_stim_time = self.initial_nostim_period if self.initial_nostim_period is not None else 0
+                self.current_isi = next(self.inter_stim_interval_generator)
+            if current_t > self.last_stim_time + self.current_isi:
                 self.last_stim_time = current_t
                 self.current_isi = next(self.inter_stim_interval_generator)
                 return True
             return False
-        elif self.timing_mode == 'extreme':
+        elif self.stim_timing_method == 'extreme':
             return self.stim_when_extreme(current_t, **kwargs)
+        elif self.stim_timing_method == 'random':
+            return kwargs['stim_time_rng'].random() < 1/next(self.inter_stim_interval_generator) * kwargs['input_array_dt']
         else:
             raise ValueError()
 
@@ -109,7 +122,8 @@ class StimDesigner:
 
     @staticmethod
     def design_stim_cheat(v, equivalent_projection_matrix):
-        return (equivalent_projection_matrix @ v).flatten(), {}
+        return (equivalent_projection_matrix @ v).flatten(), {'s': numpy.nan * v}
+        # TODO: delete s here, it's mostly for compatibility with an old version of sim_stim
 
 
     def design_stim(self, v, **kwargs):
@@ -118,16 +132,16 @@ class StimDesigner:
 
         match self.optimization_method:
             case 'jaxopt':
-                u, l = self.design_stim_jaxopt(v, **kwargs)
+                u, l = self.design_stim_jaxopt(v, kwargs['u_dimension'], kwargs['u_to_s_function'])
             case 'cheat':
-                u, l = self.design_stim_cheat(v, **kwargs)
+                u, l = self.design_stim_cheat(v, kwargs['equivalent_projection_matrix'])
             case _:
                 raise ValueError()
 
 
         if self.should_log:
             self.log.append({
-                'time': time.time() - start_time,
+                'optimization_time': time.time() - start_time,
                 'v':v,
                 'u':u,
             } | l)

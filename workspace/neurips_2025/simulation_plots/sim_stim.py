@@ -6,7 +6,7 @@ from itertools import cycle
 import jax
 
 from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap, proSVD, CenteringTransformer, VJF, KernelSmoother, mmICA, sjPCA
-from adaptive_latents.regressions import BaseKernelRegressor
+from adaptive_latents.regressions import BaseMultiKernelRegressor
 import tqdm.auto as tqdm
 import numpy as np
 import pandas as pd
@@ -14,39 +14,6 @@ from adaptive_latents.stim_designer import StimDesigner
 
 from learn_s_hat_plots import finalize_log
 
-
-from adaptive_latents.transformer import StreamingTransformer
-from workspace.neurips_2025.simulation_plots.learn_s_hat_toy import stim_magnitude
-
-
-class SimStim(StreamingTransformer):
-    def __init__(self, *, tau=1, u_to_s_callback=None, input_streams=None, output_streams=None, log_level=None):
-        input_streams = input_streams or {0:'X'}
-        super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
-        self.tau = tau
-        delta_t = 1 # todo: make time-aware
-        self.alpha = 1 - np.exp(-delta_t/tau)
-        self.to_add = 0
-        if u_to_s_callback is None:
-            u_to_s_callback = lambda x: x
-        self.u_to_s_callback = u_to_s_callback
-
-    def register_stim(self, u):
-        self.to_add = self.to_add + self.u_to_s_callback(u)
-
-    def _partial_fit_transform(self, data, stream, return_output_stream):
-        if self.input_streams[stream] == 'X':
-            data = data + self.to_add
-            self.to_add = self.to_add * self.alpha
-        stream = self.output_streams[stream]
-        return (data, stream) if return_output_stream else data
-
-    def get_params(self, deep=True):
-        return dict(tau=self.tau, u_to_s_callback=self.u_to_s_callback) | super().get_params()
-
-
-
-stim_dim_slice = 5
 
 def make_sr(
         input_array,
@@ -78,7 +45,7 @@ def make_sr(
     stim_time_rng, other_rng = rng.spawn(2)
     sr = StimRegressor(
         autoreg=autoreg(),
-        stim_reg=BaseKernelRegressor(length_scale=0.04, maxlen=stim_reg_maxlen),
+        stim_reg=BaseMultiKernelRegressor(maxlen=stim_reg_maxlen),
         stim_designer=StimDesigner(max_l0_norm=max_l0_norm, rng_seed=other_rng.integers(2 ** 32), should_log=True),
         # stim_designer=StimDesigner(max_l0_norm=max_l0_norm, max_inner_iters=500, max_outer_loop_time_ms=5000, convergence_threshold=10**-2, adam_learning_rate=10**-2, rng_seed=other_rng.integers(2 ** 32), should_log=True),
         log_level=2,
@@ -169,22 +136,24 @@ def make_sr(
                 raise ValueError()
 
             if 'optimized' in design_method:
-                if design_method == 'optimized learned u_to_s':
-                    if sr.stim_reg.n_observed > n_identity_prior:
-                        f = sr.stim_reg.make_jax_pred_f()
-                        pred = sr.autoreg.predict(n_steps=0)
-                        def u_to_s_function(u):
-                            return stim_magnitude * f(jax.numpy.hstack((pred, u)))
-                    else:
+                with jax.default_device('cpu'):
+                    if design_method == 'optimized learned u_to_s':
+                        if sr.stim_reg.n_observed > n_identity_prior:
+                            f = sr.stim_reg.make_jax_pred_f()
+                            pred = sr.autoreg.predict(n_steps=0)
+                            current_t = data.t
+                            def u_to_s_function(u):
+                                return stim_magnitude * f((pred, u, current_t))
+                        else:
+                            def u_to_s_function(u):
+                                return stim_magnitude * equivalent_projection_matrix.T @ u
+                    elif design_method == 'optimized identity u_to_s':
                         def u_to_s_function(u):
                             return stim_magnitude * equivalent_projection_matrix.T @ u
-                elif design_method == 'optimized identity u_to_s':
-                    def u_to_s_function(u):
-                        return stim_magnitude * equivalent_projection_matrix.T @ u
-                else:
-                    raise ValueError()
+                    else:
+                        raise ValueError()
 
-                designed_stim = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
+                    designed_stim = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
 
             elif design_method == 'direct cheating':
                 designed_stim = (equivalent_projection_matrix @ desired_stim).flatten()
@@ -212,7 +181,6 @@ def make_sr(
 
         # latent_position = centerer.transform(data, stream= 'X')
         # latent_position = pro.transform(latent_position, stream='X')
-
 
         if true_S == 'identity':
             transformed_instantaneous_stim = instantaneous_stim
@@ -256,10 +224,11 @@ def make_sr(
         data = sr.partial_fit_transform(data, stream= 'X')
 
         if log_stim_reg_after_stim and heed_stimuli:
-            newest_row = sr.stim_reg.history[sr.stim_reg.n_observed-1]
-            assert np.isnan(sr.stim_reg.history[sr.stim_reg.n_observed]).any()
+            overflow, to_grab_idx = divmod(sr.stim_reg.n_observed, sr.stim_reg.history.shape[0])
+            newest_row = sr.stim_reg.history[to_grab_idx-1]
+            assert overflow or np.isnan(sr.stim_reg.history[to_grab_idx]).any()
             sr.stim_designer.log[-1]['observed_s_hat'] = newest_row[-sr.stim_reg.output_d:]
-            sr.stim_designer.log[-1]['observed_reg_inpt'] = newest_row[:-sr.stim_reg.output_d]
+            sr.stim_designer.log[-1]['observed_reg_input'] = newest_row[:-sr.stim_reg.output_d]
 
         if data.t > exit_time:
             break
@@ -329,7 +298,7 @@ def get_presets(comparison_preset):
         case 'optim_col_vs_rand_with_high_d_rand':
             common = dict(stim_direction_type='first', stim_rate=1/2, stim_magnitude=10, exit_time=130)
             to_run = {
-                'normal': common | dict( true_S='identity', design_method='optimized identity u_to_s',),
+                'normal': common | dict(true_S='identity', design_method='optimized identity u_to_s',),
                 'shuffled': common | dict(true_S='high_d_permuted',design_method='optimized identity u_to_s'),
                 'many': common | dict(true_S='identity',design_method='many neurons'),
                 'single': common | dict(true_S='identity', design_method='single neurons'),
@@ -358,12 +327,17 @@ def get_presets(comparison_preset):
             }
         case 'delay-table':
             to_run = {}
+            common = dict(stim_magnitude=10, prosvd_k=8, exit_time=30, initial_nostim_period=5, design_method='direct cheating')
+
+            # for LDS
+            # common |= dict(prosvd_k=4, exit_time=np.inf, initial_nostim_period=10, stim_rate=1 / 20)
+
             for i in range(4):
                 for j in range(4):
                     # for LDS:
-                    to_run[f'({i}, {j})'] = dict(stim_time_delay=i, regressor_stim_delay=j, stim_magnitude=10, prosvd_k=4, exit_time=np.inf, initial_nostim_period=10, design_method='direct cheating', stim_rate=1/20)
+                    # to_run[f'({i}, {j})'] = dict(stim_time_delay=i, regressor_stim_delay=j, stim_magnitude=10, prosvd_k=4, exit_time=np.inf, initial_nostim_period=10, design_method='direct cheating', stim_rate=1/20)
                     # for ODoherty
-                    # to_run[f'({i}, {j})'] = dict(stim_time_delay=i, regressor_stim_delay=j, stim_magnitude=10, prosvd_k=8, exit_time=30, initial_nostim_period=5, design_method='direct cheating')
+                    to_run[f'({i}, {j})'] = common | dict(stim_time_delay=i, regressor_stim_delay=j)
 
         case 'default':
             stim_magnitude = 10
@@ -409,6 +383,7 @@ def get_presets(comparison_preset):
 
 
 
+stim_dim_slice = 5
 time_slices = ('post-stim', 'non-stim', 'all')
 space_slices = ('stim-d', 'non-stim-d', 'all')
 def make_slices_tensor(sr):

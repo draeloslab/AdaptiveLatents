@@ -4,14 +4,16 @@ import numpy as np
 
 from . import StreamingKalmanFilter
 from .predictor import Predictor
-from .regressions import BaseKNearestNeighborRegressor, OnlineRegressor, BaseKernelRegressor
+from .regressions import BaseKNearestNeighborRegressor, OnlineRegressor, BaseMultiKernelRegressor
 from .timed_data_source import ArrayWithTime
 from .stim_designer import StimDesigner
+
+# TODO: make the time comparisons more uniform
 
 
 class StimRegressor(Predictor):
     stream_to_update_log_on = 'stim'
-    def __init__(self, autoreg=None, stim_reg=None, stim_designer=None, heed_stimuli=True, attempt_correction=True, input_streams=None, output_streams=None, log_level=None, check_dt=True, n_steps_to_predict=1, stim_delay=0):
+    def __init__(self, autoreg=None, stim_reg=None, stim_designer=None, heed_stimuli=True, attempt_correction=True, error_on_missed_stim=True, input_streams=None, output_streams=None, log_level=None, check_dt=True, n_steps_to_predict=1, stim_delay=0):
         input_streams = input_streams or {0: 'stim', 1: 'X', 2: 'dt_X'}
         assert n_steps_to_predict == 1
         assert heed_stimuli or not attempt_correction  # correcting without learning doesn't make sense
@@ -24,14 +26,14 @@ class StimRegressor(Predictor):
             stim_designer = StimDesigner()  # TODO: remove
         self.stim_designer = stim_designer
         if stim_reg is None:
-            # stim_reg = BaseKNearestNeighborRegressor(k=2)
-            stim_reg = BaseKernelRegressor()
-        self.stim_reg: BaseKernelRegressor = stim_reg
+            stim_reg = BaseMultiKernelRegressor(maxlen=100)
+        self.stim_reg: BaseMultiKernelRegressor = stim_reg
         self.attempt_correction = attempt_correction
         self.heed_stimuli = heed_stimuli
         self.last_seen_stims = deque()
         assert stim_delay >= 0
         self.stim_delay = stim_delay  # in units of time (wrt the data)
+        self.error_on_missed_stim = error_on_missed_stim
         self.s_hat_error_function = None # TODO: delete this, it's a hack
 
     def _partial_fit_transform(self, data, stream, return_output_stream):
@@ -63,19 +65,26 @@ class StimRegressor(Predictor):
     def trim_last_seen_stims(self, current_t):
         saftey_margin = self.dt if self.dt else self.stim_delay
         while self.last_seen_stims and (current_t - self.last_seen_stims[0].t) > (self.stim_delay + saftey_margin):
+            if self.error_on_missed_stim and self.heed_stimuli:
+                raise Exception("Missed stim.")
             self.last_seen_stims.popleft()
 
-    def get_stim_to_correct_for(self, current_t):
+    def get_stim_to_correct_for(self, current_t, remove=False):
         to_return = []
         for stim in self.last_seen_stims:
             if np.isclose(stim.t + self.stim_delay, current_t, atol=self.dt/20):
                 to_return.append(stim)
 
-        assert len(to_return) < 2
+        if remove:
+            for stim in to_return:
+                self.last_seen_stims.remove(stim)
+
         if len(to_return) == 0:
             return []
         elif len(to_return) == 1:
             return to_return[0].flatten()
+        else:
+            raise Exception("Can only correct for one stimulus at a time.")
 
 
 
@@ -102,20 +111,21 @@ class StimRegressor(Predictor):
                 self.unevaluated_log_pred_ps[prediction_time] = (current_t_as_of_last_x, self.unevaluated_log_pred_p(self.n_steps_to_predict))
 
 
-    def predict_stim_response(self, stim_to_correct_for):
-        stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for])
+    def predict_stim_response(self, stim_to_correct_for, current_t):
+        # TODO: is current_t correct here?
+        stim_reg_input = [self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for, current_t]
         return self.stim_reg.predict(stim_reg_input)
 
     def observe(self, X, stream=None):
         if self.heed_stimuli and self.in_stim_lag(current_t=X.t):
             self.autoreg.toggle_parameter_fitting(False)
 
-            stim_to_correct_for = self.get_stim_to_correct_for(current_t=X.t)
+            stim_to_correct_for = self.get_stim_to_correct_for(current_t=X.t, remove=True)
             if len(stim_to_correct_for):
                 self.autoreg.toggle_parameter_fitting(False)
                 pred = self.autoreg.predict(n_steps=1)
                 residual = X - pred
-                stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for])  # TODO: deal with nan from autoreg
+                stim_reg_input = [self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for, X.t]  # TODO: deal with nan from autoreg
                 self.stim_reg.observe(stim_reg_input, residual)
 
             # TODO: make a decision about wheither autoreg needs to be a transformer
@@ -138,9 +148,10 @@ class StimRegressor(Predictor):
         pred = self.autoreg.predict(n_steps=n_steps)
 
         if self.attempt_correction and np.isfinite(pred).all():
-            stim_to_correct_for = self.get_stim_to_correct_for(current_t=current_t + self.dt * n_steps)
+            current_t = current_t + self.dt * n_steps
+            stim_to_correct_for = self.get_stim_to_correct_for(current_t=current_t)
             if len(stim_to_correct_for):
-                pred = pred + self.predict_stim_response(stim_to_correct_for)
+                pred = pred + self.predict_stim_response(stim_to_correct_for, current_t)
         return pred
 
     def unevaluated_log_pred_p(self, n_steps, current_t=None):
@@ -150,9 +161,10 @@ class StimRegressor(Predictor):
         f = self.autoreg.unevaluated_log_pred_p(n_steps=n_steps)
 
         if self.attempt_correction:
-            stim_to_correct_for = self.get_stim_to_correct_for(current_t=self.dt * n_steps+current_t)
+            current_t = self.dt * n_steps + current_t
+            stim_to_correct_for = self.get_stim_to_correct_for(current_t=current_t)
             if len(stim_to_correct_for):
-                correction = self.predict_stim_response(stim_to_correct_for)
+                correction = self.predict_stim_response(stim_to_correct_for, current_t)
             else:
                 correction = 0
             def corrected_f(future_point):
