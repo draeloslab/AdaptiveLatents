@@ -122,7 +122,8 @@ class StimDesigner:
 
     @staticmethod
     def design_stim_cheat(v, equivalent_projection_matrix):
-        return (equivalent_projection_matrix @ v).flatten(), {}
+        return (equivalent_projection_matrix @ v).flatten(), {'s': numpy.nan * v}
+        # TODO: delete s here, it's mostly for compatibility with an old version of sim_stim
 
 
     def design_stim(self, v, **kwargs):
@@ -140,7 +141,7 @@ class StimDesigner:
 
         if self.should_log:
             self.log.append({
-                'time': time.time() - start_time,
+                'optimization_time': time.time() - start_time,
                 'v':v,
                 'u':u,
             } | l)

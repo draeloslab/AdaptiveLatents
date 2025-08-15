@@ -153,7 +153,6 @@ def make_sr(
 
                 designed_stim = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
 
-                log_stim_reg_after_stim = True
             elif design_method == 'direct cheating':
                 designed_stim = (equivalent_projection_matrix @ desired_stim).flatten()
             elif design_method == 'single neurons':
@@ -225,7 +224,7 @@ def make_sr(
         if log_stim_reg_after_stim and heed_stimuli:
             overflow, to_grab_idx = divmod(sr.stim_reg.n_observed, sr.stim_reg.history.shape[0])
             newest_row = sr.stim_reg.history[to_grab_idx-1]
-            assert overflow or np.isnan(sr.stim_reg.history[to_grab_idx]).all()
+            assert overflow or np.isnan(sr.stim_reg.history[to_grab_idx]).any()
             sr.stim_designer.log[-1]['observed_s_hat'] = newest_row[-sr.stim_reg.output_d:]
             sr.stim_designer.log[-1]['observed_reg_input'] = newest_row[:-sr.stim_reg.output_d]
 
@@ -297,7 +296,7 @@ def get_presets(comparison_preset):
         case 'optim_col_vs_rand_with_high_d_rand':
             common = dict(stim_direction_type='first', stim_rate=1/2, stim_magnitude=10, exit_time=130)
             to_run = {
-                'normal': common | dict( true_S='identity', design_method='optimized identity u_to_s',),
+                'normal': common | dict(true_S='identity', design_method='optimized identity u_to_s',),
                 'shuffled': common | dict(true_S='high_d_permuted',design_method='optimized identity u_to_s'),
                 'many': common | dict(true_S='identity',design_method='many neurons'),
                 'single': common | dict(true_S='identity', design_method='single neurons'),

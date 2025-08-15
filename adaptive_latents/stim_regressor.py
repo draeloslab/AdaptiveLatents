@@ -65,15 +65,19 @@ class StimRegressor(Predictor):
     def trim_last_seen_stims(self, current_t):
         saftey_margin = self.dt if self.dt else self.stim_delay
         while self.last_seen_stims and (current_t - self.last_seen_stims[0].t) > (self.stim_delay + saftey_margin):
-            self.last_seen_stims.popleft()
-            if self.error_on_missed_stim:
+            if self.error_on_missed_stim and self.heed_stimuli:
                 raise Exception("Missed stim.")
+            self.last_seen_stims.popleft()
 
-    def get_stim_to_correct_for(self, current_t):
+    def get_stim_to_correct_for(self, current_t, remove=False):
         to_return = []
         for stim in self.last_seen_stims:
             if np.isclose(stim.t + self.stim_delay, current_t, atol=self.dt/20):
                 to_return.append(stim)
+
+        if remove:
+            for stim in to_return:
+                self.last_seen_stims.remove(stim)
 
         if len(to_return) == 0:
             return []
@@ -115,7 +119,7 @@ class StimRegressor(Predictor):
         if self.heed_stimuli and self.in_stim_lag(current_t=X.t):
             self.autoreg.toggle_parameter_fitting(False)
 
-            stim_to_correct_for = self.get_stim_to_correct_for(current_t=X.t)
+            stim_to_correct_for = self.get_stim_to_correct_for(current_t=X.t, remove=True)
             if len(stim_to_correct_for):
                 self.autoreg.toggle_parameter_fitting(False)
                 pred = self.autoreg.predict(n_steps=1)
