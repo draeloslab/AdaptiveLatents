@@ -3,7 +3,7 @@ from collections import deque
 import jax
 
 from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap, proSVD, CenteringTransformer, VJF, KernelSmoother, mmICA, sjPCA, datasets
-from adaptive_latents.regressions import BaseKernelRegressor
+from adaptive_latents.regressions import BaseMultiKernelRegressor
 import numpy as np
 from adaptive_latents.stim_designer import StimDesigner
 import functools
@@ -57,7 +57,7 @@ def make_sr(
     stim_time_rng, other_rng = rng.spawn(2)
     sr = StimRegressor(
         autoreg=autoreg(log_level=0),
-        stim_reg=BaseKernelRegressor(length_scale=0.04, maxlen=stim_reg_maxlen),
+        stim_reg=BaseMultiKernelRegressor(maxlen=stim_reg_maxlen),
         stim_designer=StimDesigner(max_l0_norm=max_l0_norm, lam_1=lam_1, rng_seed=other_rng.integers(2 ** 32), should_log=False),
         log_level=0,
         check_dt=True,
@@ -153,8 +153,9 @@ def make_sr(
                         if sr.stim_reg.n_observed > n_identity_prior:
                             f = sr.stim_reg.make_jax_pred_f()
                             pred = sr.autoreg.predict(n_steps=0)
+                            current_t = data.t
                             def u_to_s_function(u):
-                                return stim_magnitude * f(jax.numpy.hstack((pred, u)))
+                                return stim_magnitude * f([pred, u, current_t])
                         else:
                             def u_to_s_function(u):
                                 return stim_magnitude * equivalent_projection_matrix.T @ u
@@ -239,7 +240,7 @@ if __name__ == '__main__':
     log = make_sr(
         neural_data,
         rng,
-        autoreg=functools.partial(Bubblewrap, num=1000, log_level=0),
+        # autoreg=functools.partial(Bubblewrap, num=1000, log_level=0),
         exit_time=np.inf,
         design_method = 'optimized learned u_to_s',
         stim_timing_method='regular',

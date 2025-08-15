@@ -4,7 +4,7 @@ import numpy as np
 
 from . import StreamingKalmanFilter
 from .predictor import Predictor
-from .regressions import BaseKNearestNeighborRegressor, OnlineRegressor, BaseKernelRegressor
+from .regressions import BaseKNearestNeighborRegressor, OnlineRegressor, BaseMultiKernelRegressor
 from .timed_data_source import ArrayWithTime
 from .stim_designer import StimDesigner
 
@@ -26,8 +26,8 @@ class StimRegressor(Predictor):
             stim_designer = StimDesigner()  # TODO: remove
         self.stim_designer = stim_designer
         if stim_reg is None:
-            stim_reg = BaseKernelRegressor()
-        self.stim_reg: BaseKernelRegressor = stim_reg
+            stim_reg = BaseMultiKernelRegressor(maxlen=100)
+        self.stim_reg: BaseMultiKernelRegressor = stim_reg
         self.attempt_correction = attempt_correction
         self.heed_stimuli = heed_stimuli
         self.last_seen_stims = deque()
@@ -111,8 +111,9 @@ class StimRegressor(Predictor):
                 self.unevaluated_log_pred_ps[prediction_time] = (current_t_as_of_last_x, self.unevaluated_log_pred_p(self.n_steps_to_predict))
 
 
-    def predict_stim_response(self, stim_to_correct_for):
-        stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for])
+    def predict_stim_response(self, stim_to_correct_for, current_t):
+        # TODO: is current_t correct here?
+        stim_reg_input = [self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for, current_t]
         return self.stim_reg.predict(stim_reg_input)
 
     def observe(self, X, stream=None):
@@ -124,7 +125,7 @@ class StimRegressor(Predictor):
                 self.autoreg.toggle_parameter_fitting(False)
                 pred = self.autoreg.predict(n_steps=1)
                 residual = X - pred
-                stim_reg_input = np.hstack([self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for])  # TODO: deal with nan from autoreg
+                stim_reg_input = [self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for, X.t]  # TODO: deal with nan from autoreg
                 self.stim_reg.observe(stim_reg_input, residual)
 
             # TODO: make a decision about wheither autoreg needs to be a transformer
@@ -147,9 +148,10 @@ class StimRegressor(Predictor):
         pred = self.autoreg.predict(n_steps=n_steps)
 
         if self.attempt_correction and np.isfinite(pred).all():
-            stim_to_correct_for = self.get_stim_to_correct_for(current_t=current_t + self.dt * n_steps)
+            current_t = current_t + self.dt * n_steps
+            stim_to_correct_for = self.get_stim_to_correct_for(current_t=current_t)
             if len(stim_to_correct_for):
-                pred = pred + self.predict_stim_response(stim_to_correct_for)
+                pred = pred + self.predict_stim_response(stim_to_correct_for, current_t)
         return pred
 
     def unevaluated_log_pred_p(self, n_steps, current_t=None):
@@ -159,9 +161,10 @@ class StimRegressor(Predictor):
         f = self.autoreg.unevaluated_log_pred_p(n_steps=n_steps)
 
         if self.attempt_correction:
-            stim_to_correct_for = self.get_stim_to_correct_for(current_t=self.dt * n_steps+current_t)
+            current_t = self.dt * n_steps + current_t
+            stim_to_correct_for = self.get_stim_to_correct_for(current_t=current_t)
             if len(stim_to_correct_for):
-                correction = self.predict_stim_response(stim_to_correct_for)
+                correction = self.predict_stim_response(stim_to_correct_for, current_t)
             else:
                 correction = 0
             def corrected_f(future_point):

@@ -6,7 +6,7 @@ from itertools import cycle
 import jax
 
 from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap, proSVD, CenteringTransformer, VJF, KernelSmoother, mmICA, sjPCA
-from adaptive_latents.regressions import BaseKernelRegressor
+from adaptive_latents.regressions import BaseMultiKernelRegressor
 import tqdm.auto as tqdm
 import numpy as np
 import pandas as pd
@@ -45,7 +45,7 @@ def make_sr(
     stim_time_rng, other_rng = rng.spawn(2)
     sr = StimRegressor(
         autoreg=autoreg(),
-        stim_reg=BaseKernelRegressor(length_scale=0.04, maxlen=stim_reg_maxlen),
+        stim_reg=BaseMultiKernelRegressor(maxlen=stim_reg_maxlen),
         stim_designer=StimDesigner(max_l0_norm=max_l0_norm, rng_seed=other_rng.integers(2 ** 32), should_log=True),
         # stim_designer=StimDesigner(max_l0_norm=max_l0_norm, max_inner_iters=500, max_outer_loop_time_ms=5000, convergence_threshold=10**-2, adam_learning_rate=10**-2, rng_seed=other_rng.integers(2 ** 32), should_log=True),
         log_level=2,
@@ -136,22 +136,24 @@ def make_sr(
                 raise ValueError()
 
             if 'optimized' in design_method:
-                if design_method == 'optimized learned u_to_s':
-                    if sr.stim_reg.n_observed > n_identity_prior:
-                        f = sr.stim_reg.make_jax_pred_f()
-                        pred = sr.autoreg.predict(n_steps=0)
-                        def u_to_s_function(u):
-                            return stim_magnitude * f(jax.numpy.hstack((pred, u)))
-                    else:
+                with jax.default_device('cpu'):
+                    if design_method == 'optimized learned u_to_s':
+                        if sr.stim_reg.n_observed > n_identity_prior:
+                            f = sr.stim_reg.make_jax_pred_f()
+                            pred = sr.autoreg.predict(n_steps=0)
+                            current_t = data.t
+                            def u_to_s_function(u):
+                                return stim_magnitude * f((pred, u, current_t))
+                        else:
+                            def u_to_s_function(u):
+                                return stim_magnitude * equivalent_projection_matrix.T @ u
+                    elif design_method == 'optimized identity u_to_s':
                         def u_to_s_function(u):
                             return stim_magnitude * equivalent_projection_matrix.T @ u
-                elif design_method == 'optimized identity u_to_s':
-                    def u_to_s_function(u):
-                        return stim_magnitude * equivalent_projection_matrix.T @ u
-                else:
-                    raise ValueError()
+                    else:
+                        raise ValueError()
 
-                designed_stim = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
+                    designed_stim = sr.stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
 
             elif design_method == 'direct cheating':
                 designed_stim = (equivalent_projection_matrix @ desired_stim).flatten()
