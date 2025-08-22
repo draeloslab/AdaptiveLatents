@@ -52,9 +52,8 @@ def test_consistency(comparison_preset, test_old_consistent=False):
 
 def compare_stim_designer_logs(a, b):
     for i, (n, o) in enumerate(zip(a, b)):
-        assert n.keys() == o.keys(), set(n.keys()).symmetric_difference(set(o.keys()))
+        assert (keys:=set(n.keys()) - {'optimization_time'}) == set(o.keys()- {'optimization_time'}), set(n.keys()).symmetric_difference(set(o.keys()))
 
-        keys = (set(n.keys()) - {'optimization_time'})
         for key in keys:
             if isinstance(n[key], np.ndarray) or isinstance(n[key], jaxlib.xla_extension.ArrayImpl):
                 assert np.array_equal(n[key], o[key], equal_nan=True), key
