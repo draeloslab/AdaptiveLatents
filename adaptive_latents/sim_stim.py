@@ -5,16 +5,21 @@ from itertools import cycle, chain
 import jax
 import warnings
 
-from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap, proSVD, CenteringTransformer, VJF, KernelSmoother, mmICA, sjPCA
-from adaptive_latents.regressions import BaseKernelRegressor
 import numpy as np
-from adaptive_latents.stim_designer import StimDesigner
 from tqdm.auto import tqdm
 from contextlib import nullcontext
 
-
-from adaptive_latents.transformer import StreamingTransformer
-
+from .timed_data_source import ArrayWithTime
+from .transformer import Pipeline, CenteringTransformer, KernelSmoother, StreamingTransformer
+from .stim_regressor import StimRegressor
+from .bubblewrap import Bubblewrap
+from .ica import mmICA
+from .jpca import sjPCA
+from .vjf import VJF
+from .prosvd import proSVD
+from .input_sources.kalman_filter import StreamingKalmanFilter
+from .regressions import BaseKernelRegressor
+from .stim_designer import StimDesigner
 
 class SimulatedStimAdder(StreamingTransformer):
     def __init__(self, *, tau=1, true_S, static_S_seed, decay=.8, stim_time_delay=0, input_streams=None, output_streams=None, log_level=None):
@@ -89,7 +94,7 @@ def calculate_equivalent_projection_matrix(pro, last_dim_red_object):
     return equivalent_projection_matrix
 
 
-def design_stim(stim_designer, sr, stim_magnitude, desired_stim, equivalent_projection_matrix, other_rng, current_t):
+def design_stim(stim_designer, sr, stim_magnitude, desired_stim, equivalent_projection_matrix,  current_t):
     stim_designer: StimDesigner
     optimization_method = stim_designer.optimization_method
     u_to_s_model_type = stim_designer.u_to_s_model_type
@@ -110,7 +115,7 @@ def design_stim(stim_designer, sr, stim_magnitude, desired_stim, equivalent_proj
     elif optimization_method == 'cheat_lowd_vec' and u_to_s_model_type == 'identity':
         designed_stim = stim_designer.design_stim(desired_stim, equivalent_projection_matrix=equivalent_projection_matrix)
     elif optimization_method in {'cheat_highd_vec_single_neurons','cheat_highd_vec_many_neurons'} and u_to_s_model_type is None:
-        designed_stim = stim_designer.design_stim(desired_stim, equivalent_projection_matrix=equivalent_projection_matrix, other_rng=other_rng)
+        designed_stim = stim_designer.design_stim(desired_stim, equivalent_projection_matrix=equivalent_projection_matrix)
     else:
         raise ValueError()
 
@@ -241,7 +246,7 @@ def make_sr(
             equivalent_projection_matrix = calculate_equivalent_projection_matrix(pro, last_dim_red_object)
             if stim_decision and equivalent_projection_matrix is not None:
                 desired_stim = stim_designer.desired_stim_direction(equivalent_projection_matrix, stim_direction_type, other_rng)
-                designed_stim = design_stim(stim_designer, sr, stim_magnitude, desired_stim, equivalent_projection_matrix, other_rng=other_rng, current_t=data.t)  # TODO: delete other_rng
+                designed_stim = design_stim(stim_designer, sr, stim_magnitude, desired_stim, equivalent_projection_matrix, current_t=data.t)
                 log_stim_reg_after_stim = True
                 instantaneous_stim = designed_stim * stim_magnitude
             else:
@@ -286,6 +291,10 @@ def make_sr(
 
     stim_intended_samples = ArrayWithTime.from_list(decided_stims, squeeze_type='to_2d')
     log['stim_intended_samples'] = stim_intended_samples.slice((stim_intended_samples > 0).any(axis=1))
+
+    sr.log['error'] = ArrayWithTime.from_list(sr.log['pred_error'])
+    sr.log['stim_intended_samples'] = ArrayWithTime.from_list(sr.log['stim_intended_samples'])
+
 
 
     return sr, stim_designer, log

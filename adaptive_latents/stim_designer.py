@@ -133,10 +133,10 @@ class StimDesigner:
                 u = (kwargs['equivalent_projection_matrix'] @ v).flatten(),
             case 'cheat_highd_vec_single_neurons':
                 u = numpy.zeros(kwargs['equivalent_projection_matrix'].shape[0])
-                u[kwargs['other_rng'].choice(kwargs['equivalent_projection_matrix'].shape[0])] = 1
+                u[self.rng.choice(kwargs['equivalent_projection_matrix'].shape[0])] = 1
             case 'cheat_highd_vec_many_neurons':
                 u = numpy.zeros(kwargs['equivalent_projection_matrix'].shape[0])
-                u[kwargs['other_rng'].choice(kwargs['equivalent_projection_matrix'].shape[0], size=self.max_l0_norm, replace=False)] = 1
+                u[self.rng.choice(kwargs['equivalent_projection_matrix'].shape[0], size=self.max_l0_norm, replace=False)] = 1
             case _:
                 raise ValueError()
 

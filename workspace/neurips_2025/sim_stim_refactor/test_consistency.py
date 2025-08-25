@@ -1,4 +1,4 @@
-import sim_stim_refactored
+from adaptive_latents.sim_stim import make_sr as make_sr_refactored
 import sys
 sys.path.append('/home/jgould/Documents/AdaptiveLatents/workspace/neurips_2025/simulation_plots')
 import sim_stim as sim_stim_old
@@ -32,7 +32,7 @@ def test_consistency(comparison_preset, test_old_consistent=False):
         old_result_1 = sim_stim_old.make_sr(data, copy.deepcopy(rng), **v)
         if test_old_consistent:
             old_result_2 = sim_stim_old.make_sr(data, copy.deepcopy(rng), **v)
-        new_sr, new_stim_designer, new_log = sim_stim_refactored.make_sr(data, copy.deepcopy(rng), **v)
+        new_sr, new_stim_designer, new_log = make_sr_refactored(data, copy.deepcopy(rng), **v)
 
         for key in ['high_d_without_stim', 'stim_intended_samples', 'high_d_stims', 'latents']:
             if test_old_consistent:
