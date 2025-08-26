@@ -20,6 +20,8 @@ def make_sr(*args, **kwargs):
     sr, stim_designer, log = new_make_sr(*args, **kwargs)
     sr.log.update(log)
     sr.stim_designer = stim_designer
+
+    # sr.log['stim_intended_samples'] = ArrayWithTime.from_list(sr.log['stim_intended_samples'])
     return sr
 
 def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False, overrides=None):

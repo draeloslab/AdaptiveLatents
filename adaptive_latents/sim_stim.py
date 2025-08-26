@@ -230,6 +230,7 @@ def make_sr(
     decided_stims = []
     latents = []
     high_d_without_stim = []
+    high_d_with_stim = []
     high_d_stims = []
 
     pbar = nullcontext()
@@ -259,6 +260,7 @@ def make_sr(
             high_d_without_stim.append(data)
             pre_stim_data = data
             data = sim_stim_adder.partial_fit_transform(data, stream='X')
+            high_d_with_stim.append(data)
             high_d_stims.append(data - pre_stim_data)
 
             data = centerer.partial_fit_transform(data, stream= 'X')
@@ -285,6 +287,8 @@ def make_sr(
 
     log['high_d_stims'] = ArrayWithTime.from_list(high_d_stims, squeeze_type='to_2d', drop_early_nans=True)
     log['high_d_without_stim'] = ArrayWithTime.from_list(high_d_without_stim, squeeze_type='to_2d', drop_early_nans=True)
+    log['high_d_with_stim'] = ArrayWithTime.from_list(high_d_with_stim, squeeze_type='to_2d', drop_early_nans=True)
+    assert np.allclose(log['high_d_with_stim'], log['high_d_stims'] + log['high_d_without_stim'])
     log['latents'] = ArrayWithTime.from_list(latents, squeeze_type='to_2d', drop_early_nans=True)
     if (log['high_d_stims'] == 0).all():
         warnings.warn("No stims delivered in sim-stim.")
@@ -292,8 +296,7 @@ def make_sr(
     stim_intended_samples = ArrayWithTime.from_list(decided_stims, squeeze_type='to_2d')
     log['stim_intended_samples'] = stim_intended_samples.slice((stim_intended_samples > 0).any(axis=1))
 
-    sr.log['error'] = ArrayWithTime.from_list(sr.log['pred_error'])
-    sr.log['stim_intended_samples'] = ArrayWithTime.from_list(sr.log['stim_intended_samples'])
+    sr.log['pred_error'] = ArrayWithTime.from_list(sr.log['pred_error'])
 
 
 
