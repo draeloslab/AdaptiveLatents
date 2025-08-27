@@ -43,8 +43,8 @@ $(generated_path)/learn_s_hat_toy_manifold_error.$(vector_output_filetype): $(si
 
 
 ss_1step_prefix := $(generated_path)/ss_1step_
-ss_1step_plots := $(foreach method, $(prediction_methods), $(ss_1step_prefix)$(method).$(vector_output_filetype))
-$(ss_1step_plots): $(ss_1step_prefix)%.$(vector_output_filetype): $(sim_script_path)/learn_s_hat_ss.py $(sim_script_path)/sim_stim.py
+ss_1step_plots := $(foreach method, $(prediction_methods), $(ss_1step_prefix)$(method).$(raster_output_filetype))
+$(ss_1step_plots): $(ss_1step_prefix)%.$(raster_output_filetype): $(sim_script_path)/learn_s_hat_ss.py $(sim_script_path)/sim_stim.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(sim_script_path)/learn_s_hat_ss.py \
 		--output $@ \
