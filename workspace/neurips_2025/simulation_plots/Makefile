@@ -1,4 +1,4 @@
-simulation_plots: toy_dataset learn_s_hat_toy learn_s_hat_ss optim zong_stim
+simulation_plots: toy_dataset learn_s_hat_toy learn_s_hat_ss optim zong_stim $(generated_path)/optim_col_vs_rand_with_high_d_rand.$(vector_output_filetype)
 
 ROOT_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 include $(realpath $(ROOT_DIR)/../common.mk)
@@ -50,7 +50,6 @@ $(ss_1step_plots): $(ss_1step_prefix)%.$(raster_output_filetype): $(sim_script_p
 		--output $@ \
 	    --type-of-plot 1-step-prediction \
 		--type-of-predictor $*
-
 
 #$(generated_path)/learn_s_hat_ss_1step.$(vector_output_filetype): $(script_path)/learn_s_hat_ss.py $(script_path)/sim_stim.py
 #	$(CONDA_ACTIVATE) adaptive_latents

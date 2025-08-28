@@ -5,8 +5,10 @@ include half_turn_plots/Makefile
 include dim_red_plots/Makefile
 include simulation_plots/Makefile
 include paralell_compare_plots/Makefile
+include benchmarking/Makefile
 
-all_generated: half_turn_plots dim_red_plots simulation_plots paralell_compare_plots
+all_generated: half_turn_plots dim_red_plots simulation_plots paralell_compare_plots benchmarking
+
 
 pdf: all_generated FORCE
 	cd $(pdf_path)
