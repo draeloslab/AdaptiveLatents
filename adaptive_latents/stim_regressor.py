@@ -34,7 +34,6 @@ class StimRegressor(Predictor):
         assert stim_delay >= 0
         self.stim_delay = stim_delay  # in units of time (wrt the data)
         self.error_on_missed_stim = error_on_missed_stim
-        self.s_hat_error_function = None # TODO: delete this, it's a hack
 
     def _partial_fit_transform(self, data, stream, return_output_stream):
         if self.input_streams[stream] == 'stim':
@@ -92,12 +91,6 @@ class StimRegressor(Predictor):
         super().log_for_partial_fit(data, stream, original_data=original_data)
 
         if self.log_level >= 2 and self.dt is not None:
-            if self.input_streams[stream] == 'X' and len(self.get_stim_to_correct_for(data.t)) and self.s_hat_error_function is not None:
-                key = 's_hat_error'
-                if key not in self.log:
-                    self.log[key] = []
-                self.log[key].append(ArrayWithTime.from_transformed_data(self.s_hat_error_function(self), data))
-
             if self.input_streams[stream] == 'stim':
                 real_time_offset = self.dt * self.n_steps_to_predict
                 assert self.n_steps_to_predict == 1

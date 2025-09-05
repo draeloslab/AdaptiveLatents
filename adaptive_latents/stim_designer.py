@@ -120,21 +120,23 @@ class StimDesigner:
         return u, {'s': u_to_s_function(u)}
 
 
-    @staticmethod
-    def design_stim_cheat(v, equivalent_projection_matrix):
-        return (equivalent_projection_matrix @ v).flatten(), {'s': numpy.nan * v}
-        # TODO: delete s here, it's mostly for compatibility with an old version of sim_stim
-
 
     def design_stim(self, v, **kwargs):
         start_time = time.time()
         assert len(v.shape) == 2
 
+        l = {}
         match self.optimization_method:
             case 'jaxopt':
                 u, l = self.design_stim_jaxopt(v, kwargs['u_dimension'], kwargs['u_to_s_function'])
-            case 'cheat':
-                u, l = self.design_stim_cheat(v, kwargs['equivalent_projection_matrix'])
+            case 'cheat_lowd_vec':
+                u = (kwargs['equivalent_projection_matrix'] @ v).flatten(),
+            case 'cheat_highd_vec_single_neurons':
+                u = numpy.zeros(kwargs['equivalent_projection_matrix'].shape[0])
+                u[self.rng.choice(kwargs['equivalent_projection_matrix'].shape[0])] = 1
+            case 'cheat_highd_vec_many_neurons':
+                u = numpy.zeros(kwargs['equivalent_projection_matrix'].shape[0])
+                u[self.rng.choice(kwargs['equivalent_projection_matrix'].shape[0], size=self.max_l0_norm, replace=False)] = 1
             case _:
                 raise ValueError()
 
@@ -144,6 +146,7 @@ class StimDesigner:
                 'optimization_time': time.time() - start_time,
                 'v':v,
                 'u':u,
+                's': numpy.nan * v
             } | l)
 
         return u

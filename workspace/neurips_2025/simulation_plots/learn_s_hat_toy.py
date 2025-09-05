@@ -18,6 +18,23 @@ noise_variance = 0.05
 stims_per_rotation = 2
 stim_magnitude = 10
 
+class StimRegressorWithExtraLogging(StimRegressor):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.s_hat_error_function = None
+
+    def pre_log(self, data, stream):
+        if self.log_level >= 2 and self.dt is not None:
+            if self.input_streams[stream] == 'X' and len(self.get_stim_to_correct_for(data.t)) and self.s_hat_error_function is not None:
+                key = 's_hat_error'
+                if key not in self.log:
+                    self.log[key] = []
+                self.log[key].append(ArrayWithTime.from_transformed_data(self.s_hat_error_function(self), data))
+
+    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
+        self.pre_log(data, stream)
+        return super().partial_fit_transform(data, stream=stream, return_output_stream=return_output_stream)
+
 
 def make_slices_tensor(sr):
     error = sr.log['pred_error']
@@ -104,9 +121,9 @@ def make_s_hat_error_function(rng, n_runs=10, n_points=200):
 def single_make_srs(rng):
     _, Y, stim = LDS.run_nest_dynamical_system(n_rotations, stims_per_rotation=stims_per_rotation, stim_magnitude=stim_magnitude, rng=rng, u_function='curvy', noise=noise_variance)
 
-    sr1 = StimRegressor(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True)
-    sr2 = StimRegressor(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True, attempt_correction=False)
-    sr3 = StimRegressor(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True, attempt_correction=False, heed_stimuli=False)
+    sr1 = StimRegressorWithExtraLogging(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True)
+    sr2 = StimRegressorWithExtraLogging(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True, attempt_correction=False)
+    sr3 = StimRegressorWithExtraLogging(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True, attempt_correction=False, heed_stimuli=False)
 
     sr3.stim_reg.observe(np.zeros(4), np.zeros(3))  # setting a zero prior for the manifold comparison
     s_hat_error_function = make_s_hat_error_function(rng)

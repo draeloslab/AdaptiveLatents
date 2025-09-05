@@ -98,7 +98,7 @@ def extract_metrics(srs, preq_cutoff=None):
                 proportions[-1][-1].append(proportion)
 
                 stim_reg: BaseKernelRegressor = l['stim_reg']
-                reg_i = l['observed_reg_inpt']
+                reg_i = l['observed_reg_input']
                 reg_o = l['observed_s_hat']
                 t_of_stim = l['time_of_stim']
                 equivalent_projection_matrix = l['equiv_proj_mat']

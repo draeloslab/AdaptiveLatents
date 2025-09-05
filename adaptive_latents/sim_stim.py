@@ -1,20 +1,27 @@
 import copy
 from collections import deque
+from types import SimpleNamespace
 import functools
 from itertools import cycle, chain
 import jax
 import warnings
+import time
 
-from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap, proSVD, CenteringTransformer, VJF, KernelSmoother, mmICA, sjPCA
-from adaptive_latents.regressions import BaseKernelRegressor
 import numpy as np
-from adaptive_latents.stim_designer import StimDesigner
 from tqdm.auto import tqdm
 from contextlib import nullcontext
 
-
-from adaptive_latents.transformer import StreamingTransformer
-
+from .timed_data_source import ArrayWithTime
+from .transformer import Pipeline, CenteringTransformer, KernelSmoother, StreamingTransformer
+from .stim_regressor import StimRegressor
+from .bubblewrap import Bubblewrap
+from .ica import mmICA
+from .jpca import sjPCA
+from .vjf import VJF
+from .prosvd import proSVD
+from .input_sources.kalman_filter import StreamingKalmanFilter
+from .regressions import BaseMultiKernelRegressor
+from .stim_designer import StimDesigner
 
 class SimulatedStimAdder(StreamingTransformer):
     def __init__(self, *, tau=1, true_S, static_S_seed, decay=.8, stim_time_delay=0, input_streams=None, output_streams=None, log_level=None):
@@ -89,7 +96,8 @@ def calculate_equivalent_projection_matrix(pro, last_dim_red_object):
     return equivalent_projection_matrix
 
 
-def design_stim(stim_designer, sr, stim_magnitude, desired_stim, equivalent_projection_matrix, current_t):
+def design_stim(stim_designer, sr, stim_magnitude, desired_stim, equivalent_projection_matrix,  current_t):
+    stim_designer: StimDesigner
     optimization_method = stim_designer.optimization_method
     u_to_s_model_type = stim_designer.u_to_s_model_type
     if u_to_s_model_type == 'kernel_regressed' and sr.stim_reg.n_observed <= stim_designer.n_identity_initialization:
@@ -106,7 +114,9 @@ def design_stim(stim_designer, sr, stim_magnitude, desired_stim, equivalent_proj
         def u_to_s_function(u):
             return stim_magnitude * equivalent_projection_matrix.T @ u
         designed_stim = stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
-    elif optimization_method == 'cheat' and u_to_s_model_type == 'identity':
+    elif optimization_method == 'cheat_lowd_vec' and u_to_s_model_type == 'identity':
+        designed_stim = stim_designer.design_stim(desired_stim, equivalent_projection_matrix=equivalent_projection_matrix)
+    elif optimization_method in {'cheat_highd_vec_single_neurons','cheat_highd_vec_many_neurons'} and u_to_s_model_type is None:
         designed_stim = stim_designer.design_stim(desired_stim, equivalent_projection_matrix=equivalent_projection_matrix)
     else:
         raise ValueError()
@@ -148,6 +158,19 @@ def make_sr(
         last_dim_red='prosvd',
         show_tqdm=False,
 ):
+    _init_time = time.time()
+    timing_log = SimpleNamespace()
+    timing_log.init_time = _init_time
+    timing_log.loop_time = 0
+    timing_log.stim_design = []
+    timing_log.dimension_reduction = []
+    timing_log.sr_update = []
+    timing_log.per_loop = []
+    timing_log.stim_reg_updated = []
+    timing_log.in_sim_time = []
+
+
+
     assert (regular_stim_iter is not None) + (stim_rate is not None) + (isi_generator is not None) == 1
     if stim_rate:
         isi_generator = cycle([1/stim_rate])
@@ -160,18 +183,20 @@ def make_sr(
     optimization_method, u_to_s_model_type = {
         'optimized learned u_to_s': ('jaxopt', 'kernel_regressed'),
         'optimized identity u_to_s': ('jaxopt', 'identity'),
-        'direct cheating': ('cheat', 'identity'),
+        'direct cheating': ('cheat_lowd_vec', 'identity'),
+        'single neurons': ('cheat_highd_vec_single_neurons', None),
+        'many neurons': ('cheat_highd_vec_many_neurons', None),
     }[design_method]
     # single neurons
     # many neurons
-    # del design_method
+    del design_method
 
     stim_time_rng, other_rng = rng.spawn(2)
 
 
     sr = StimRegressor(
         autoreg=autoreg(),
-        stim_reg=BaseKernelRegressor(length_scale=0.04, maxlen=stim_reg_maxlen),
+        stim_reg=BaseMultiKernelRegressor(length_scales=[0.04, 0.04, 0.04], maxlen=stim_reg_maxlen),
         log_level=2,
         check_dt=True,
         attempt_correction=attempt_correction,
@@ -220,16 +245,22 @@ def make_sr(
     decided_stims = []
     latents = []
     high_d_without_stim = []
+    high_d_with_stim = []
     high_d_stims = []
 
     pbar = nullcontext()
     if show_tqdm:
         pbar = tqdm(total=min(input_array.t[-1], exit_time))
 
+    timing_log.init_time = time.time() - timing_log.init_time
+    timing_log.loop_time = time.time()
     with pbar:
         for data in Pipeline().streaming_run_on(input_array):
-            log_stim_reg_after_stim = False
+            timing_log.in_sim_time.append(data.t)
+            timing_log.per_loop.append(time.time())
+            timing_log.stim_design.append(time.time())
 
+            log_stim_reg_after_stim = False
             stim_decision = stim_designer.decide_whether_to_stim(data.t, stim_time_rng=stim_time_rng, input_array_dt=input_array.dt)
             decided_stims.append(ArrayWithTime(stim_decision, data.t))
 
@@ -241,6 +272,7 @@ def make_sr(
                 instantaneous_stim = designed_stim * stim_magnitude
             else:
                 instantaneous_stim = np.zeros(input_array.shape[1])
+            timing_log.stim_design[-1] = time.time() - timing_log.stim_design[-1]
 
             true_stim_result = sim_stim_adder.true_stim_result(instantaneous_stim, equivalent_projection_matrix)
 
@@ -249,17 +281,24 @@ def make_sr(
             high_d_without_stim.append(data)
             pre_stim_data = data
             data = sim_stim_adder.partial_fit_transform(data, stream='X')
+            high_d_with_stim.append(data)
             high_d_stims.append(data - pre_stim_data)
 
+            timing_log.dimension_reduction.append(time.time())
             data = centerer.partial_fit_transform(data, stream= 'X')
             data = smoother.partial_fit_transform(data, stream= 'X')
             data = pro.partial_fit_transform(data, stream='X')
             if last_dim_red_object is not None:
                 data = last_dim_red_object.partial_fit_transform(data, stream='X')
+            timing_log.dimension_reduction[-1] = time.time() - timing_log.dimension_reduction[-1]
             latents.append(data)
 
+            timing_log.stim_reg_updated.append(sr.stim_reg.n_observed)
+            timing_log.sr_update.append(time.time())
             sr.partial_fit_transform(ArrayWithTime(true_stim_result, data.t), stream= 'stim')
             data = sr.partial_fit_transform(data, stream= 'X')
+            timing_log.sr_update[-1] = time.time() - timing_log.sr_update[-1]
+            timing_log.stim_reg_updated[-1] = timing_log.stim_reg_updated[-1] != sr.stim_reg.n_observed
 
             if log_stim_reg_after_stim and heed_stimuli:
                 overflow, to_grab_idx = divmod(sr.stim_reg.n_observed, sr.stim_reg.history.shape[0])
@@ -270,17 +309,26 @@ def make_sr(
 
             if show_tqdm:
                 pbar.update(round(float(data.t), 2) - pbar.n)
+
+            timing_log.per_loop[-1] = time.time() - timing_log.per_loop[-1]
             if data.t > exit_time:
                 break
 
+    timing_log.loop_time = time.time() - timing_log.loop_time
     log['high_d_stims'] = ArrayWithTime.from_list(high_d_stims, squeeze_type='to_2d', drop_early_nans=True)
     log['high_d_without_stim'] = ArrayWithTime.from_list(high_d_without_stim, squeeze_type='to_2d', drop_early_nans=True)
+    log['high_d_with_stim'] = ArrayWithTime.from_list(high_d_with_stim, squeeze_type='to_2d', drop_early_nans=True)
+    assert np.allclose(log['high_d_with_stim'], log['high_d_stims'] + log['high_d_without_stim'])
     log['latents'] = ArrayWithTime.from_list(latents, squeeze_type='to_2d', drop_early_nans=True)
     if (log['high_d_stims'] == 0).all():
         warnings.warn("No stims delivered in sim-stim.")
 
     stim_intended_samples = ArrayWithTime.from_list(decided_stims, squeeze_type='to_2d')
     log['stim_intended_samples'] = stim_intended_samples.slice((stim_intended_samples > 0).any(axis=1))
+    log['timing_log'] = timing_log
+
+    sr.log['pred_error'] = ArrayWithTime.from_list(sr.log['pred_error'])
+
 
 
     return sr, stim_designer, log

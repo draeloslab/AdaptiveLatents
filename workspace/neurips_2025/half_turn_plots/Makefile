@@ -1,4 +1,3 @@
-# NOTE: you should probably not use this makefile, but the one at the root of the project
 half_turn_plots: htps
 
 ROOT_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))

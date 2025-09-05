@@ -25,6 +25,6 @@ ifndef meta_dependency_graph_guard_variable
 meta_dependency_graph_guard_variable := true
 meta_dependency_graph:
 	#make -nd all_generated | make2graph | sed 's/label="[^"]*\/\([^"]*\)"/label="\1"/' | dot -Tpng -o makefile_graph.png
-	# make -nd all_generated | make2graph | sed 's/label="[^"]*\([^"]*\)"/label="\1"/' | dot -Tpng -o makefile_graph.png # no labels
-	 make -Bnd | make2graph | dot -Tsvg -o makefile_graph.svg  # full paths
+	 make -nd all_generated | make2graph | sed 's/label="[^"]*\([^"]*\)"/label="\1"/' | dot -Tpng -o makefile_graph.png # no labels
+	#make -Bnd | make2graph | dot -Tsvg -o makefile_graph.svg  # full paths
 endif
