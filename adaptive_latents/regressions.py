@@ -233,16 +233,13 @@ class BaseKernelRegressor(NonParametricRegressor):
 
 
 class BaseMultiKernelRegressor:
-    def __init__(self, length_scales=(1,1), kernel_weight_ratios=(1, 1), maxlen=100):
+    def __init__(self, length_scales=(1,1), maxlen=100):
         self.maxlen = maxlen
         self.input_histories = None
         self.output_history = None
         self.n_observed = 0
 
         self.length_scales = numpy.array(length_scales)
-        self.kernel_weight_ratios = numpy.array(kernel_weight_ratios)
-        self.kernel_weight_ratios = self.kernel_weight_ratios/self.kernel_weight_ratios.sum()
-        warnings.warn('kernel weights no longer used')
 
     def observe(self, x, y):
         if any([numpy.any(~numpy.isfinite(sub_x)) for sub_x in x]) or numpy.any(~numpy.isfinite(y)):
@@ -271,7 +268,7 @@ class BaseMultiKernelRegressor:
         else:
             input_histories = [jnp.array(h) for h in self.input_histories]
             output_history = jnp.array(self.output_history)
-            def f(x, length_scales=jnp.array(self.length_scales), kernel_weight_ratios=jnp.array(self.kernel_weight_ratios)):
+            def f(x, length_scales=jnp.array(self.length_scales)):
                 distances = [-length_scale * jnp.linalg.norm(history - jnp.squeeze(sub_x), axis=1) ** 2 for
                              (sub_x, history, length_scale) in zip(x, input_histories, length_scales)]
                 log_weights = jnp.array(distances).sum(axis=0)

@@ -129,57 +129,35 @@ def test_cross_validate_length_scale(rng, show_plots):
     diffs = np.diff(found_constants)
     assert np.allclose(diffs, diffs[0], atol=.001)
 
-def test_multi_kernel_consistent_with_single(rng):
-    reg1 = BaseKernelRegressor(length_scale=1)
-    reg2 = BaseMultiKernelRegressor(length_scales=[1], kernel_weight_ratios=[1])
-
-    for _ in range(10):
-        x = rng.normal(size=10)
-        y = rng.normal(size=10)
-        reg1.observe(x, y)
-        reg2.observe([x], y)
-
-    for _ in range(10):
-        x = rng.normal(size=10)
-        y = rng.normal(size=10)
-
-        import jax
-        jit_1 = jax.jit(reg1.make_jax_pred_f())
-        jit_2 = jax.jit(reg2.make_jax_pred_f())
-
-        assert np.allclose(reg1.predict(x), reg2.predict([x]))
-        assert np.allclose(jit_1(x), jit_2([x]))
-        assert np.allclose(reg2.predict([x]), jit_2([x]))
-
-        reg1.observe(x, y)
-        reg2.observe([x], y)
-
-
 def test_multi_kernel_inconsistent_with_single(rng):
+    # 1 ~ 2 ~ 3 != 4 ~ 4_jit
     reg1 = BaseKernelRegressor(length_scale=1)
-    reg2 = BaseMultiKernelRegressor(length_scales=[1,1], kernel_weight_ratios=[.5, .5])
-    reg3 = BaseMultiKernelRegressor(length_scales=[1,.1], kernel_weight_ratios=[.5, .5])
+    reg2 = BaseMultiKernelRegressor(length_scales=[1])
+    reg3 = BaseMultiKernelRegressor(length_scales=[1,1])
+    reg4 = BaseMultiKernelRegressor(length_scales=[1,.1])
 
     for _ in range(10):
         x1 = rng.normal(size=10)
         x2 = rng.normal(size=10)
         y = rng.normal(size=3)
         reg1.observe(np.hstack([x1, x2]), y)
-        reg2.observe([x1, x2], y)
+        reg2.observe([np.hstack([x1, x2])], y)
         reg3.observe([x1, x2], y)
+        reg4.observe([x1, x2], y)
 
     import jax
-    p3 = jax.jit(reg3.make_jax_pred_f())
+    p4 = jax.jit(reg4.make_jax_pred_f())
     for _ in range(10):
         x1 = rng.normal(size=10)
         x2 = rng.normal(size=10)
-        assert not np.allclose(reg2.predict([x1, x2]), reg1.predict(np.hstack([x1, x2])))
-        assert not np.allclose(reg2.predict([x1, x2]), reg3.predict([x1, x2]))
-        assert np.allclose(p3([x1, x2]), reg3.predict([x1, x2]))
+        assert np.allclose(reg2.predict([np.hstack([x1, x2])]), reg1.predict(np.hstack([x1, x2])))  # 1 ~ 2
+        assert np.allclose(reg3.predict([x1, x2]), reg1.predict(np.hstack([x1, x2])))  # 1 ~ 3
+        assert not np.allclose(reg3.predict([x1, x2]), reg4.predict([x1, x2])) # 3 != 4
+        assert np.allclose(p4([x1, x2]), reg4.predict([x1, x2]))  # 4_jit ~ 4
 
 
 def test_multi_kernel_length_scales(rng):
-    reg1 = BaseMultiKernelRegressor(length_scales=[1,1], kernel_weight_ratios=[.5, .5])
+    reg1 = BaseMultiKernelRegressor(length_scales=[1,1])
 
     for _ in range(100):
         x1 = rng.normal(size=2)
@@ -199,7 +177,6 @@ def test_multi_kernel_length_scales(rng):
         e1.append(reg1.predict([x1, x2]) - y)
         e2.append(reg2.predict([x1, x2]) - y)
 
-    breakpoint()
     assert np.linalg.norm(e2) < np.linalg.norm(e1)
 
 
