@@ -24,7 +24,7 @@ from .regressions import BaseMultiKernelRegressor
 from .stim_designer import StimDesigner
 
 class SimulatedStimAdder(StreamingTransformer):
-    def __init__(self, *, tau=1, true_S, static_S_seed, decay=.8, stim_time_delay=0, input_streams=None, output_streams=None, log_level=None):
+    def __init__(self, *, true_S='identity', static_S_seed=0, decay=.8, stim_time_delay=0, input_streams=None, output_streams=None, log_level=None):
         input_streams = input_streams or {0:'X'}
         super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
 

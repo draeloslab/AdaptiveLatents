@@ -14,7 +14,7 @@ from .stim_designer import StimDesigner
 class StimRegressor(Predictor):
     stream_to_update_log_on = 'stim'
     def __init__(self, autoreg=None, stim_reg=None, stim_designer=None, heed_stimuli=True, attempt_correction=True, error_on_missed_stim=True, input_streams=None, output_streams=None, log_level=None, check_dt=True, n_steps_to_predict=1, stim_delay=0):
-        input_streams = input_streams or {0: 'stim', 1: 'X', 2: 'dt_X'}
+        input_streams = input_streams or {0: 'X', 1: 'stim', 2: 'dt_X'}
         assert n_steps_to_predict == 1
         assert heed_stimuli or not attempt_correction  # correcting without learning doesn't make sense
         super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level, check_dt=check_dt, n_steps_to_predict=n_steps_to_predict)
@@ -167,7 +167,7 @@ class StimRegressor(Predictor):
         return corrected_f
 
     def get_params(self, deep=True):
-        return super().get_params(deep) | dict(autoreg=self.autoreg, stim_reg=self.stim_reg, attempt_correction=self.attempt_correction, heed_stimuli=self.heed_stimuli, stim_designer=self.stim_designer, stim_delay=self.stim_delay)
+        return super().get_params(deep) | dict(autoreg=self.autoreg, stim_reg=self.stim_reg, attempt_correction=self.attempt_correction, heed_stimuli=self.heed_stimuli, stim_designer=self.stim_designer, stim_delay=self.stim_delay, error_on_missed_stim=self.error_on_missed_stim)
 
     def __getstate__(self):
         # TODO: check for jax?

@@ -123,19 +123,20 @@ class Odoherty21Dataset(DandiDataset):
         self.beh_pos_vel = ArrayWithTime(np.hstack([self.finger_pos, self.finger_vel]), self.finger_t)
 
     def construct(self):
-        with warnings.catch_warnings(record=True) as warning_list:
-            with self.acquire("sub-Indy/sub-Indy_desc-train_behavior+ecephys.nwb") as fhan:
-                ds = fhan.read()
-                units = ds.units.to_dataframe()
-                finger_pos = ds.processing['behavior'].data_interfaces['finger_pos'].data[:]
-                finger_pos_t = np.arange(finger_pos.shape[0]) * ds.processing['behavior'].data_interfaces['finger_pos'].conversion
-                finger_vel = ds.processing['behavior'].data_interfaces['finger_vel'].data[:]
-                finger_vel_t = np.arange(finger_vel.shape[0]) * ds.processing['behavior'].data_interfaces['finger_vel'].conversion
+        # TODO: get the warnings to work again
+        # with warnings.catch_warnings(record=True) as warning_list:
+        with self.acquire("sub-Indy/sub-Indy_desc-train_behavior+ecephys.nwb") as fhan:
+            ds = fhan.read()
+            units = ds.units.to_dataframe()
+            finger_pos = ds.processing['behavior'].data_interfaces['finger_pos'].data[:]
+            finger_pos_t = np.arange(finger_pos.shape[0]) * ds.processing['behavior'].data_interfaces['finger_pos'].conversion
+            finger_vel = ds.processing['behavior'].data_interfaces['finger_vel'].data[:]
+            finger_vel_t = np.arange(finger_vel.shape[0]) * ds.processing['behavior'].data_interfaces['finger_vel'].conversion
 
-            for w in warning_list:
-                if self.supress_warnings and "Ignoring cached namespace" in str(w):
-                    continue
-                warnings.warn_explicit(message=w.message, category=w.category, filename=w.filename, lineno=w.lineno, source=w.source)
+            # for w in warning_list:
+            #     if self.supress_warnings and "Ignoring cached namespace" in str(w):
+            #         continue
+            #     warnings.warn_explicit(message=w.message, category=w.category, filename=w.filename, lineno=w.lineno, source=w.source)
 
         start_time = units.iloc[0, 2].min()
         end_time = units.iloc[0, 2].max()
