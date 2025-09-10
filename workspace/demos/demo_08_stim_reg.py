@@ -11,9 +11,11 @@ def main(show_plots=True):
     sr = StimRegressor(
         autoreg=StreamingKalmanFilter(steps_between_refits=5),
         stim_reg=BaseMultiKernelRegressor(maxlen=10),
+        log_level=2,
     )
 
     sr.offline_run_on([(observations, 'X'),  (stimulations, 'stim')])
+    # check out `sr.log`
 
 
 if __name__ == '__main__':

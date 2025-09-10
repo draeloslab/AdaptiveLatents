@@ -21,13 +21,14 @@ def main(show_plots=True):
     goal = np.zeros((3,1))
     goal[2] = 1
 
-    stim_designer_open_loop = StimDesigner(optimization_method='jaxopt')
+    stim_designer_open_loop = StimDesigner(optimization_method='jaxopt', should_log=True)
     u = stim_designer_open_loop.design_stim(
         goal,
         u_dimension=3,
         u_to_s_function=lambda u: u,
     )
     print(u)
+    # check out `stim_designer_open_loop.log`
 
 
     stim_designer_closed_loop = StimDesigner(optimization_method='jaxopt')
