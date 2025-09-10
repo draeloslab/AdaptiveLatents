@@ -18,8 +18,9 @@ from .jpca import sjPCA
 from .plotting_functions import AnimationManager
 from .pro_pls import proPLS
 from .prosvd import RandomProjection, proSVD
-from .regressions import VanillaOnlineRegressor
+from .regressions import VanillaOnlineRegressor, BaseMultiKernelRegressor
 from .stim_regressor import StimRegressor
 from .timed_data_source import ArrayWithTime
 from .transformer import CenteringTransformer, Concatenator, KernelSmoother, Pipeline, Tee, ZScoringTransformer
 from .vjf import VJF
+from . import sim_stim

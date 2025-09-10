@@ -12,9 +12,9 @@ from adaptive_latents.timed_data_source import ArrayWithTime
 class BaseVJF:
     def __init__(self, *, config=None, latent_d=6, take_U=False, rng=None):
         if rng is None:
-            rng = np.random.default_rng()
-        else:
-            self.set_torch_seeds(rng)
+            rng = np.random.default_rng(0)
+        self.set_torch_seeds(rng)
+
         self.rng = rng
         self.latent_d = latent_d
         self.take_U = take_U

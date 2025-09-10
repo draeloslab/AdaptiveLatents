@@ -9,18 +9,20 @@ Demo: Constructing latent variables
 
 
 def main(show_plots=True):
-    d = al.datasets.Odoherty21Dataset()
-    neural_data = d.neural_data
+    d = al.datasets.Odoherty21Dataset()  # load a dataset
+    neural_data = d.neural_data  # grab just the neural data
 
+    # define a sequence of processing steps
     p = Pipeline([
-        CenteringTransformer(),
-        KernelSmoother(),
-        proSVD(k=6),
-        sjPCA()
+        CenteringTransformer(),  # center the data
+        KernelSmoother(),  # smooth the data
+        proSVD(k=6),  # dimension reduce
+        sjPCA()  # define a additional dimension reduction step
     ])
 
-    latents = p.offline_run_on([neural_data])
+    latents = p.offline_run_on([neural_data])  # run the streaming pipeline over the neural data
 
+    # plot the results
     fig, ax = plt.subplots()
     ax.scatter(latents[:, 0], latents[:, 1], s=1)
     if show_plots:

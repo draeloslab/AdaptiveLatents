@@ -145,6 +145,12 @@ class LDS:
                 u = np.zeros(lds.B.shape[0])
                 u[2] = stim_magnitude * stim[i] * state[0] / np.linalg.norm(state[:2])
                 return u
+        elif u_function == 'curvy flips':
+            def u_function(lds, state, i, rng):
+                u = np.zeros(lds.B.shape[0])
+                u[2] = stim_magnitude * stim[i] * state[0] / np.linalg.norm(state[:2]) * (-1 if i > stim.shape[0]//2 else 1)
+                return u
+
         elif u_function == 'constant':
             def u_function(lds, state, i, rng):
                 u = np.zeros(lds.B.shape[0])

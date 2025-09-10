@@ -6,6 +6,7 @@ scripts/*
 *.sh
 *.mk
 *.pkl
+*.csv
 
 *.mp4
 *.db

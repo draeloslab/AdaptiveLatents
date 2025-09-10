@@ -4,7 +4,7 @@ import pytest
 import matplotlib.pyplot as plt
 import copy
 
-from adaptive_latents.regressions import BaseKNearestNeighborRegressor, BaseVanillaOnlineRegressor, VanillaOnlineRegressor, BaseKernelRegressor, auto_regression_decorator
+from adaptive_latents.regressions import BaseKNearestNeighborRegressor, BaseVanillaOnlineRegressor, VanillaOnlineRegressor, BaseKernelRegressor, auto_regression_decorator, BaseMultiKernelRegressor
 
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
@@ -129,6 +129,55 @@ def test_cross_validate_length_scale(rng, show_plots):
     diffs = np.diff(found_constants)
     assert np.allclose(diffs, diffs[0], atol=.001)
 
+def test_multi_kernel_inconsistent_with_single(rng):
+    # 1 ~ 2 ~ 3 != 4 ~ 4_jit
+    reg1 = BaseKernelRegressor(length_scale=1)
+    reg2 = BaseMultiKernelRegressor(length_scales=[1])
+    reg3 = BaseMultiKernelRegressor(length_scales=[1,1])
+    reg4 = BaseMultiKernelRegressor(length_scales=[1,.1])
+
+    for _ in range(10):
+        x1 = rng.normal(size=10)
+        x2 = rng.normal(size=10)
+        y = rng.normal(size=3)
+        reg1.observe(np.hstack([x1, x2]), y)
+        reg2.observe([np.hstack([x1, x2])], y)
+        reg3.observe([x1, x2], y)
+        reg4.observe([x1, x2], y)
+
+    import jax
+    p4 = jax.jit(reg4.make_jax_pred_f())
+    for _ in range(10):
+        x1 = rng.normal(size=10)
+        x2 = rng.normal(size=10)
+        assert np.allclose(reg2.predict([np.hstack([x1, x2])]), reg1.predict(np.hstack([x1, x2])))  # 1 ~ 2
+        assert np.allclose(reg3.predict([x1, x2]), reg1.predict(np.hstack([x1, x2])))  # 1 ~ 3
+        assert not np.allclose(reg3.predict([x1, x2]), reg4.predict([x1, x2])) # 3 != 4
+        assert np.allclose(p4([x1, x2]), reg4.predict([x1, x2]))  # 4_jit ~ 4
+
+
+def test_multi_kernel_length_scales(rng):
+    reg1 = BaseMultiKernelRegressor(length_scales=[1,1])
+
+    for _ in range(100):
+        x1 = rng.normal(size=2)
+        x2 = rng.normal(size=1)
+        y = np.hstack([np.sin(x1), 10]) + rng.normal(size=3)
+        reg1.observe([x1, x2], y)
+
+    reg2 = copy.deepcopy(reg1)
+    reg2.length_scales = np.array([1, 1e-8])
+
+    e1, e2 = [], []
+    for _ in range(50):
+        x1 = rng.normal(size=2)
+        x2 = rng.normal(size=1)
+        y = np.hstack([np.sin(x1), 10])
+
+        e1.append(reg1.predict([x1, x2]) - y)
+        e2.append(reg2.predict([x1, x2]) - y)
+
+    assert np.linalg.norm(e2) < np.linalg.norm(e1)
 
 
 

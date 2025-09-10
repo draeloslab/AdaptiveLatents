@@ -30,7 +30,7 @@ def main(show_plots=True):
         convinient_return=False,
         show_tqdm=True,
         exit_time=60
-        )
+    )
     predictions = ArrayWithTime.from_list(result[0], drop_early_nans=True, squeeze_type='to_2d')
 
     # TODO: passing the regression results should be easier; maybe something like PredictionEvaluation?

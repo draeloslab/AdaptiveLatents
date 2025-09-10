@@ -24,9 +24,9 @@ def main():
             break
         data, stream = centerer.partial_fit_transform(data, stream, return_output_stream=True)
 
-        # you can do what you want between steps, but be careful, it can be hard to reason about
-        # data = data + 1
-        # stream = 1-stream
+        # you can do whatever what you want between steps, but be careful, it can be hard to reason about
+        # e.g.: stream = 1-stream
+        # e.g.: data = data + 1
 
         data, stream = smoother.partial_fit_transform(data, stream, return_output_stream=True)
         data, stream = concat.partial_fit_transform(data, stream, return_output_stream=True)

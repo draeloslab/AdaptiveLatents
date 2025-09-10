@@ -11,7 +11,7 @@ conda env create --file=environment.yml
 
 # install the repo locally
 conda activate adaptive_latents
-pip install -e . --config-settings editable_mode=compat
+pip install -e .
 
 # run the following line if you want to use the GPU version of jax
 pip install -U "jax[cuda12]"

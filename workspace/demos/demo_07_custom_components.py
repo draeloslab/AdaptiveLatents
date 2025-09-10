@@ -40,7 +40,7 @@ class FlippingTransformer1(DecoupledTransformer):
 class FlippingTransformer2(TypicalTransformer):
     """
     TypicalTransformer encapsulates a lot of the routing and logging information shared between transformers.
-    Like most transformers will operate on one stream, which they treat as an X variable.
+    For example, most transformers will operate on one stream, which they treat as an X variable.
     """
 
     def __init__(self, input_streams=None, output_streams=None, log_level=None, on_nan_width=None):
