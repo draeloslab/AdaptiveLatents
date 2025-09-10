@@ -15,7 +15,7 @@ class StimDesigner:
             optimization_method='jaxopt',
             stim_timing_method='regular',
             initial_nostim_period=1,
-            u_to_s_model_type='identity',
+            u_to_s_model_type='identity', # TODO: remove
             n_identity_initialization=1,
     ):
         self.rng_seed = rng_seed
@@ -26,7 +26,6 @@ class StimDesigner:
         self.lam_1 = lam_1
 
         self.optimization_method = optimization_method
-        self.u_to_s_model_type = u_to_s_model_type
         self.n_identity_initialization = n_identity_initialization
         self.stim_timing_method = stim_timing_method
         self.initial_nostim_period = initial_nostim_period
