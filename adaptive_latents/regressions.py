@@ -233,11 +233,12 @@ class BaseKernelRegressor(NonParametricRegressor):
 
 
 class BaseMultiKernelRegressor:
-    def __init__(self, length_scales=(1,1), maxlen=100):
+    def __init__(self, length_scales=(1,1,1e-20), maxlen=100, input_names=('stim_location', 'stim_vector', 'stim_time')):
         self.maxlen = maxlen
         self.input_histories = None
         self.output_history = None
         self.n_observed = 0
+        self.input_names = input_names
 
         self.length_scales = numpy.array(length_scales)
 
@@ -280,17 +281,20 @@ class BaseMultiKernelRegressor:
         return f
 
     def predict(self, x):
-        # if self.input_histories is None:
-        #     return numpy.array([[numpy.nan]])
-        #
-        # distances = [-length_scale*jnp.linalg.norm(history - jnp.squeeze(sub_x), axis=1)**2 for (sub_x, history, length_scale) in zip(x, self.input_histories, self.length_scales)]
-        # log_weights = jnp.array(distances)
-        # log_weights = jnp.nan_to_num(log_weights,nan=-numpy.inf)
-        # log_sum = jax.scipy.special.logsumexp(log_weights, axis=1)
-        # log_weights = log_weights - log_sum[:,None]
-        # return numpy.array((self.kernel_weights@jnp.exp(log_weights)) @ self.output_history)
-
         return numpy.array(self.make_jax_pred_f()(x))
+
+    def get_obs(self, i=None, t=None):
+        """gets last by default"""
+        if t is not None: # use time
+            assert i is None
+            candidates = numpy.nonzero(t - self.input_histories[self.input_names.index('stim_time')].flatten() == 0)
+            assert len(candidates) == 1
+            assert len(candidates[0]) == 1
+            i = candidates[0][0]
+        else: # use i
+            if i is None: # get last obs
+                i = (self.n_observed - 1) % self.maxlen
+        return {k:v[i] for k, v in zip(self.input_names, self.input_histories)} | {'output': self.output_history[i]}
 
 
 

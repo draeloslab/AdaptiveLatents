@@ -175,8 +175,8 @@ class sjPCA(TypicalTransformer, BaseSJPCA):
         ax.set_title(f"Numerical change in the bases of the planes of sjPCA")
 
 
-def generate_circle_embedded_in_high_d(rng, m=1000, n=4, stddev=1):
-    lds = LDS.circular_lds(transitions_per_rotation=10, obs_d=n, process_noise=0, obs_noise=stddev, rng=rng)
+def generate_circle_embedded_in_high_d(rng, m=1000, n=4, stddev=1, transitions_per_rotation=10):
+    lds = LDS.circular_lds(transitions_per_rotation=transitions_per_rotation, obs_d=n, process_noise=0, obs_noise=stddev, rng=rng)
     _, X_all, _ = lds.simulate(m, initial_state=np.array([10,0]), rng=rng)
     X_dot = np.diff(X_all, axis=0)
     X = X_all[1:]

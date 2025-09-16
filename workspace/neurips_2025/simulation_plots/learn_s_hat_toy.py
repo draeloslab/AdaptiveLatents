@@ -189,8 +189,13 @@ if __name__ == '__main__':
                     line.set_color('#00000000')
 
 
-            h = srs['learning from stim'][0].stim_reg.history
-            h = h[~np.isnan(h).any(axis=1)]
+            stim_reg: BaseMultiKernelRegressor = srs['learning from stim'][0].stim_reg
+            stim_locations = stim_reg.input_histories[stim_reg.input_names.index('stim_location')]
+            s_hat_observations = stim_reg.output_history
+            _slice = (~np.isnan(s_hat_observations).any(axis=1)) & (~np.isnan(stim_locations).any(axis=1))
+            stim_locations = stim_locations[_slice]
+            s_hat_observations = s_hat_observations[_slice]
+
 
             def true_S(state):
                 u = np.zeros(3)
@@ -208,8 +213,8 @@ if __name__ == '__main__':
                 Z[i_x, i_y] = true_S([X[i_x, i_y], Y[i_x, i_y], None])[2]
             ax2.plot_surface(X, Y, Z, color='#C9C9C9')
 
-            errors = [np.linalg.norm(true_S(row[:3]) - row[-3:]) for row in h]
-            c = ax2.scatter(h[:,0], h[:,1], h[:,-1], c=errors, zorder=100, alpha=1, cmap='plasma', vmin=0)
+            errors = [np.linalg.norm(true_S(location) - estimated) for location, estimated in zip(stim_locations, s_hat_observations)]
+            c = ax2.scatter(stim_locations[:,0], stim_locations[:,1], s_hat_observations[:,-1], c=errors, zorder=100, alpha=1, cmap='plasma', vmin=0)
             fig2.colorbar(c)
 
             ax2.axis('equal')

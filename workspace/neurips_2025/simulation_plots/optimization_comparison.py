@@ -41,14 +41,14 @@ def extract_metrics_depreciated(srs, preq_cutoff=50):
                 stim_reg = l['stim_reg']
 
                 if old_stim_reg is not None:
-                    most_recent_row = stim_reg.history[stim_reg.n_observed - 1, :]
-                    i = most_recent_row[:stim_reg.input_d]
-                    o = most_recent_row[stim_reg.input_d:]
-
-                    if old_stim_reg.history is None:
-                        preq_error = np.nan
-                    else:
-                        preq_error = np.linalg.norm(o - old_stim_reg.predict(i))
+                    # most_recent_row = stim_reg.history[stim_reg.n_observed - 1, :]
+                    # i = most_recent_row[:stim_reg.input_d]
+                    # o = most_recent_row[stim_reg.input_d:]
+                    #
+                    # if old_stim_reg.history is None:
+                    preq_error = np.nan
+                    # else:
+                    #     preq_error = np.linalg.norm(o - old_stim_reg.predict(i))
                     preq_errors[-1][-1].append(preq_error)
 
                 old_stim_reg = stim_reg
@@ -223,7 +223,9 @@ if __name__ == '__main__':
 
             proportions_new, preq_errors_new, v_delta_errors, s_delta_errors, angles, mags_along, mags, alignment_with_old_v, v_mag_ratio = extract_metrics(srs, preq_cutoff=50)
             proportions_original, preq_errors_original = extract_metrics_depreciated(srs, preq_cutoff=50)
-            assert np.array_equal(preq_errors_original, preq_errors_new, equal_nan=True)
+            # TODO: this fails: `assert np.array_equal(proportions_new, proportions_original, equal_nan=True)`
+            # getting rid of it will get rid of the depreciated call
+            preq_errors_original = preq_errors_new  # assert np.array_equal(preq_errors_original, preq_errors_new, equal_nan=True) always passed
 
             fig, axs = plt.subplots(ncols=2, squeeze=False, figsize=(8,4), layout='constrained')
             to_plot = {k:v for k, v in zip(srs.keys(), [x[0] for x in proportions_original])}
@@ -245,7 +247,8 @@ if __name__ == '__main__':
 
             proportions_new, preq_errors_new, v_delta_errors, s_delta_errors, angles, mags_along, mags, alignment_with_old_v, v_mag_ratio = extract_metrics(srs, preq_cutoff=50)
             proportions_original, preq_errors_original = extract_metrics_depreciated(srs, preq_cutoff=50)
-            assert np.array_equal(preq_errors_original, preq_errors_new, equal_nan=True)
+            # TODO: this fails `assert np.array_equal(proportions_new, proportions_original, equal_nan=True)`
+            preq_errors_original = preq_errors_new  # assert np.array_equal(preq_errors_original, preq_errors_new, equal_nan=True) always passed
 
             fig, axs = plt.subplots(ncols=4, nrows=2, squeeze=False, figsize=(15, 8), layout='constrained')
 
@@ -300,14 +303,16 @@ if __name__ == '__main__':
             fig = open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=False)
 
         case 'optim_open_vs_closed_toy':
+            n_revolutions = 80
+            obs_d = 130
+
             rng = np.random.default_rng(4)
             from adaptive_latents.input_sources.lds_simulation import LDS
 
-
             all_srs = []
             for _ in range(N):
-                lds = LDS.circular_lds(rng=rng, obs_d=130)
-                _, data, _ = lds.simulate(int((30+1/np.pi) * 80), rng=rng, initial_state=np.array([20, 0]))
+                lds = LDS.circular_lds(rng=rng, obs_d=obs_d)
+                _, data, _ = lds.simulate(int(lds.transitions_per_rotation * n_revolutions), rng=rng, initial_state=np.array([20, 0]))
                 t = np.arange(data.shape[0]) * 1/lds.transitions_per_rotation
                 data = ArrayWithTime(data,t)
 

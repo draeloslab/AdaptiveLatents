@@ -1,8 +1,11 @@
 import time
 import numpy
+import jax
 import jax.numpy as jnp
 from jaxopt import ScipyBoundedMinimize
 import itertools
+import copy
+import warnings
 
 class StimDesigner:
     def __init__(
@@ -15,7 +18,7 @@ class StimDesigner:
             optimization_method='jaxopt',
             stim_timing_method='regular',
             initial_nostim_period=1,
-            u_to_s_model_type='identity', # TODO: remove
+            u_to_s_model_type='identity', # TODO: remove? it's used in sim_stim_design_stim
             n_identity_initialization=1,
     ):
         self.rng_seed = rng_seed
@@ -24,6 +27,7 @@ class StimDesigner:
         self.max_l0_norm = max_l0_norm
         self.should_log = should_log
         self.lam_1 = lam_1
+        self.u_to_s_model_type = u_to_s_model_type
 
         self.optimization_method = optimization_method
         self.n_identity_initialization = n_identity_initialization
@@ -149,3 +153,38 @@ class StimDesigner:
             } | l)
 
         return u
+
+    def sim_stim_design_stim(self, sr, stim_magnitude, desired_stim, equivalent_projection_matrix, current_t):
+        self: StimDesigner
+        optimization_method = self.optimization_method
+        u_to_s_model_type = self.u_to_s_model_type
+        if u_to_s_model_type == 'kernel_regressed' and sr.stim_reg.n_observed <= self.n_identity_initialization:
+            u_to_s_model_type = 'identity'
+
+
+        if optimization_method == 'jaxopt' and u_to_s_model_type == 'kernel_regressed':
+            f = sr.stim_reg.make_jax_pred_f()
+            pred = sr.autoreg.predict(n_steps=0)
+            def u_to_s_function(u):
+                return stim_magnitude * f(jax.numpy.hstack((pred, u)))
+            designed_stim = self.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
+        elif optimization_method == 'jaxopt' and u_to_s_model_type == 'identity':
+            def u_to_s_function(u):
+                return stim_magnitude * equivalent_projection_matrix.T @ u
+            designed_stim = self.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
+        elif optimization_method == 'cheat_lowd_vec' and u_to_s_model_type == 'identity':
+            designed_stim = self.design_stim(desired_stim, equivalent_projection_matrix=equivalent_projection_matrix)
+        elif optimization_method in {'cheat_highd_vec_single_neurons','cheat_highd_vec_many_neurons'} and u_to_s_model_type is None:
+            designed_stim = self.design_stim(desired_stim, equivalent_projection_matrix=equivalent_projection_matrix)
+        else:
+            raise ValueError()
+
+        self.log[-1]['stim_reg'] = copy.deepcopy(sr.stim_reg)
+        self.log[-1]['time_of_stim'] = current_t
+        self.log[-1]['equiv_proj_mat'] = equivalent_projection_matrix
+
+        if (designed_stim == 0).all():
+            designed_stim[0] = 1e-10
+            warnings.warn("Stimulus was all zero!")  # TODO: handle this better
+
+        return designed_stim

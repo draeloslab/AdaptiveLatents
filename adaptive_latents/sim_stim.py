@@ -96,36 +96,6 @@ def calculate_equivalent_projection_matrix(pro, last_dim_red_object):
     return equivalent_projection_matrix
 
 
-def design_stim(stim_designer, sr, stim_magnitude, desired_stim, equivalent_projection_matrix,  current_t):
-    stim_designer: StimDesigner
-    optimization_method = stim_designer.optimization_method
-    u_to_s_model_type = stim_designer.u_to_s_model_type
-    if u_to_s_model_type == 'kernel_regressed' and sr.stim_reg.n_observed <= stim_designer.n_identity_initialization:
-        u_to_s_model_type = 'identity'
-
-
-    if optimization_method == 'jaxopt' and u_to_s_model_type == 'kernel_regressed':
-        f = sr.stim_reg.make_jax_pred_f()
-        pred = sr.autoreg.predict(n_steps=0)
-        def u_to_s_function(u):
-            return stim_magnitude * f(jax.numpy.hstack((pred, u)))
-        designed_stim = stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
-    elif optimization_method == 'jaxopt' and u_to_s_model_type == 'identity':
-        def u_to_s_function(u):
-            return stim_magnitude * equivalent_projection_matrix.T @ u
-        designed_stim = stim_designer.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0])
-    elif optimization_method == 'cheat_lowd_vec' and u_to_s_model_type == 'identity':
-        designed_stim = stim_designer.design_stim(desired_stim, equivalent_projection_matrix=equivalent_projection_matrix)
-    elif optimization_method in {'cheat_highd_vec_single_neurons','cheat_highd_vec_many_neurons'} and u_to_s_model_type is None:
-        designed_stim = stim_designer.design_stim(desired_stim, equivalent_projection_matrix=equivalent_projection_matrix)
-    else:
-        raise ValueError()
-
-    stim_designer.log[-1]['stim_reg'] = copy.deepcopy(sr.stim_reg)
-    stim_designer.log[-1]['time_of_stim'] = current_t
-    stim_designer.log[-1]['equiv_proj_mat'] = equivalent_projection_matrix
-
-    return designed_stim
 
 
 def make_sr(
@@ -260,15 +230,13 @@ def make_sr(
             timing_log.per_loop.append(time.time())
             timing_log.stim_design.append(time.time())
 
-            log_stim_reg_after_stim = False
             stim_decision = stim_designer.decide_whether_to_stim(data.t, stim_time_rng=stim_time_rng, input_array_dt=input_array.dt)
             decided_stims.append(ArrayWithTime(stim_decision, data.t))
 
             equivalent_projection_matrix = calculate_equivalent_projection_matrix(pro, last_dim_red_object)
             if stim_decision and equivalent_projection_matrix is not None:
                 desired_stim = stim_designer.desired_stim_direction(equivalent_projection_matrix, stim_direction_type, other_rng)
-                designed_stim = design_stim(stim_designer, sr, stim_magnitude, desired_stim, equivalent_projection_matrix, current_t=data.t)
-                log_stim_reg_after_stim = True
+                designed_stim = stim_designer.sim_stim_design_stim(sr, stim_magnitude, desired_stim, equivalent_projection_matrix, current_t=data.t)
                 instantaneous_stim = designed_stim * stim_magnitude
             else:
                 instantaneous_stim = np.zeros(input_array.shape[1])
@@ -296,16 +264,23 @@ def make_sr(
             timing_log.stim_reg_updated.append(sr.stim_reg.n_observed)
             timing_log.sr_update.append(time.time())
             sr.partial_fit_transform(ArrayWithTime(true_stim_result, data.t), stream= 'stim')
+            stims_before_obs = set([stim.t for stim in sr.last_seen_stims])
             data = sr.partial_fit_transform(data, stream= 'X')
+            resolved_stim_ts = stims_before_obs - set([stim.t for stim in sr.last_seen_stims])
             timing_log.sr_update[-1] = time.time() - timing_log.sr_update[-1]
             timing_log.stim_reg_updated[-1] = timing_log.stim_reg_updated[-1] != sr.stim_reg.n_observed
 
-            if log_stim_reg_after_stim and heed_stimuli:
-                overflow, to_grab_idx = divmod(sr.stim_reg.n_observed, sr.stim_reg.history.shape[0])
-                newest_row = sr.stim_reg.history[to_grab_idx-1]
-                assert overflow or np.isnan(sr.stim_reg.history[to_grab_idx]).any()
-                stim_designer.log[-1]['observed_s_hat'] = newest_row[-sr.stim_reg.output_d:]
-                stim_designer.log[-1]['observed_reg_input'] = newest_row[:-sr.stim_reg.output_d]
+            if heed_stimuli and len(resolved_stim_ts):
+                assert len(resolved_stim_ts) == 1
+                stim_t = list(resolved_stim_ts)[0]
+                for l in reversed(stim_designer.log):
+                    if stim_t == l['time_of_stim']:
+                        obs = sr.stim_reg.get_obs(t=stim_t)
+                        l['observed_s_hat'] = obs.pop('output')
+                        l['observed_reg_input'] = [v for v in obs.values()]
+                        break
+                else:
+                    raise Exception('resolved stim is not in stim_designer log')
 
             if show_tqdm:
                 pbar.update(round(float(data.t), 2) - pbar.n)

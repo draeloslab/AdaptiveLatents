@@ -29,11 +29,6 @@ $(generated_path)/learn_s_hat_toy_1step.$(vector_output_filetype) $(generated_pa
 		--output $@ \
 	    --type-of-plot 1-step-prediction
 
-#$(generated_path)/learn_s_hat_table_toy.tex: $(script_path)/learn_s_hat_toy.py
-#	$(CONDA_ACTIVATE) adaptive_latents
-#	$(python_command) $(script_path)/learn_s_hat_toy.py \
-#		--output $@ \
-#	    --type-of-plot 1-step-prediction-table
 
 $(generated_path)/learn_s_hat_toy_manifold_error.$(vector_output_filetype): $(sim_script_path)/learn_s_hat_toy.py
 	$(CONDA_ACTIVATE) adaptive_latents
@@ -50,22 +45,6 @@ $(ss_1step_plots): $(ss_1step_prefix)%.$(raster_output_filetype): $(sim_script_p
 		--output $@ \
 	    --type-of-plot 1-step-prediction \
 		--type-of-predictor $*
-
-#$(generated_path)/learn_s_hat_ss_1step.$(vector_output_filetype): $(script_path)/learn_s_hat_ss.py $(script_path)/sim_stim.py
-#	$(CONDA_ACTIVATE) adaptive_latents
-#	$(python_command) $(script_path)/learn_s_hat_ss.py \
-#		--output $@ \
-#	    --type-of-plot 1-step-prediction
-
-
-
-#$(generated_path)/delay_table_ss.tex: $(script_path)/learn_s_hat_ss.py
-#	$(CONDA_ACTIVATE) adaptive_latents
-#	$(python_command) $(script_path)/learn_s_hat_ss.py \
-#		--output $@ \
-#	    --type-of-plot delay-table
-
-
 
 $(generated_path)/optim_col_vs_rand.$(vector_output_filetype): $(sim_script_path)/optimization_comparison.py $(sim_script_path)/sim_stim.py
 	$(CONDA_ACTIVATE) adaptive_latents
