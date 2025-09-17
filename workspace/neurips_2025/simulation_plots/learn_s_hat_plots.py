@@ -105,14 +105,3 @@ def plot_manifold_error(srs, comparison_keys=('learning from stim', 'unaware of 
     ax.legend()
 
     return fig
-
-def finalize_log(sr:StimRegressor, stim_intended_samples):
-    error = ArrayWithTime.from_list(sr.log['pred_error'], drop_early_nans=True, squeeze_type='to_2d')
-    sr.log['pred_error'] = error
-
-    # pred_error_with_origin_t = [ArrayWithTime(p,t) for p, t in zip(sr.log['pred_error'], sr.log['pred_origin_t'])]
-    # error_ot = ArrayWithTime.from_list(pred_error_with_origin_t, drop_early_nans=True, squeeze_type='to_2d')
-    # sr.log['pred_error_ot'] = error_ot
-
-    sr.log['stim_intended_samples'] = stim_intended_samples.slice((stim_intended_samples > 0).any(axis=1))
-    return sr

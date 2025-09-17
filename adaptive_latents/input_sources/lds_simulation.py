@@ -150,7 +150,18 @@ class LDS:
                 u = np.zeros(lds.B.shape[0])
                 u[2] = stim_magnitude * stim[i] * state[0] / np.linalg.norm(state[:2]) * (-1 if i > stim.shape[0]//2 else 1)
                 return u
+        elif u_function == 'curvy spins':
+            def u_function(lds, state, i, rng):
+                u = np.zeros(lds.B.shape[0])
 
+                halfway = stim.shape[0]//2
+                if i > halfway:
+                    rotation_angle = (i-halfway) * 2*np.pi / (10 * transitions_per_rotation)
+                    rotation_matrix = np.array([[np.cos(rotation_angle), -np.sin(rotation_angle)],
+                                                [np.sin(rotation_angle),  np.cos(rotation_angle)]])
+                    state[:2] = rotation_matrix @ state[:2]
+                u[2] = stim_magnitude * stim[i] * state[0] / np.linalg.norm(state[:2])
+                return u
         elif u_function == 'constant':
             def u_function(lds, state, i, rng):
                 u = np.zeros(lds.B.shape[0])

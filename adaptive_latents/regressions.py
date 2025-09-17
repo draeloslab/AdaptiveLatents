@@ -232,13 +232,19 @@ class BaseKernelRegressor(NonParametricRegressor):
         return length_scales[numpy.argmin(errors + error_stds / numpy.sqrt(depth))], (length_scales, errors, error_stds)
 
 
+
 class BaseMultiKernelRegressor:
-    def __init__(self, length_scales=(1,1,1e-20), maxlen=100, input_names=('stim_location', 'stim_vector', 'stim_time')):
+    def __init__(self, length_scales=(1e-9,1e-9,1e-9), maxlen=100, input_names=('stim_location', 'stim_vector', 'stim_time'), reweight_every=1, rng=None):
         self.maxlen = maxlen
         self.input_histories = None
         self.output_history = None
         self.n_observed = 0
         self.input_names = input_names
+        self.reweight_every = reweight_every
+        if rng is None:
+            rng = numpy.random.default_rng(0)
+        self.rng = rng
+        self.log = {'length_scales': []}
 
         self.length_scales = numpy.array(length_scales)
 
@@ -260,6 +266,53 @@ class BaseMultiKernelRegressor:
         self.output_history[index, :] = y
         self.n_observed += 1
 
+        if self.n_observed % self.reweight_every == 0:
+            self.reweight()
+
+    def reweight(self):
+        sample_size = min(self.n_observed, 15)
+        sample = self.rng.permutation(min(self.n_observed, self.maxlen))[:sample_size]
+        log_external_weight_vec = numpy.zeros(self.maxlen)
+        log_external_weight_vec[sample] = -numpy.inf
+        f = self.make_jax_pred_f()
+        def evaluate(length_scales):
+            if numpy.any(length_scales <= 1e-10) or numpy.any(length_scales > 1e6):
+                return numpy.inf
+
+            errors = numpy.zeros(sample_size)
+            for i, idx in enumerate(sample):
+                try:
+                    errors[i] = numpy.linalg.norm(f([h[idx] for h in self.input_histories], length_scales, log_external_weight_vec=log_external_weight_vec) - self.output_history[idx])**2
+                except (OverflowError, ZeroDivisionError):
+                    errors[i] = numpy.inf
+            return numpy.mean(errors)
+
+        current = evaluate(self.length_scales)
+        new_length_scales = numpy.array(self.length_scales)
+
+        coefs = numpy.logspace(-2, 2, 5)
+        for i in range(len(self.length_scales)):
+            errors = numpy.zeros(5)
+            for j, coef in enumerate(coefs):
+                if coef == 1:
+                    errors[j] = current
+                    continue
+                test_length_scales = numpy.array(self.length_scales)
+                test_length_scales[i] *= coef
+                errors[j] = evaluate(test_length_scales)
+            new_length_scales[i] *= coefs[numpy.argmin(errors)]
+
+        self.log['length_scales'].append(numpy.array(self.length_scales))
+        lr = 0.05
+        # self.length_scales = new_length_scales**lr * self.length_scales**(1-lr)
+
+        self.length_scales = numpy.exp(numpy.log(self.length_scales) * lr + numpy.log(new_length_scales) * (1-lr))
+
+    def plot_length_scales(self, ax):
+        for series, label in zip(numpy.array(self.log['length_scales']).T, self.input_names):
+            ax.plot(series, label=label + ' curvy')
+        ax.semilogy()
+
 
     def make_jax_pred_f(self):
         # TODO: precompute
@@ -269,11 +322,14 @@ class BaseMultiKernelRegressor:
         else:
             input_histories = [jnp.array(h) for h in self.input_histories]
             output_history = jnp.array(self.output_history)
-            def f(x, length_scales=jnp.array(self.length_scales)):
+            zeros = jnp.zeros(len(self.output_history))
+            def f(x, length_scales=jnp.array(self.length_scales), log_external_weight_vec=zeros):
+                # log_external_weight_vec is for cross-validation
                 distances = [-length_scale * jnp.linalg.norm(history - jnp.squeeze(sub_x), axis=1) ** 2 for
                              (sub_x, history, length_scale) in zip(x, input_histories, length_scales)]
                 log_weights = jnp.array(distances).sum(axis=0)
                 log_weights = jnp.nan_to_num(log_weights, nan=-numpy.inf)
+                log_weights = log_weights + log_external_weight_vec
                 log_sum = jax.scipy.special.logsumexp(log_weights)
                 log_weights = log_weights - log_sum
 

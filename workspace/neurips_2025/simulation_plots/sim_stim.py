@@ -12,7 +12,6 @@ import pandas as pd
 from adaptive_latents.stim_designer import StimDesigner
 from adaptive_latents.sim_stim import make_sr as new_make_sr
 
-from learn_s_hat_plots import finalize_log
 
 
 def make_sr(*args, **kwargs):

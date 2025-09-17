@@ -72,7 +72,6 @@ def make_slices_tensor(sr):
     outputs = pd.Series(outputs, index=[np.array(index_one), np.array(index_two)])
     return outputs
 
-from learn_s_hat_plots import finalize_log
 
 def make_ideal_nostim_srs(rng, n_runs=1, streaming=False, show_tqdm=False):
     ideal_srs = []
@@ -85,12 +84,12 @@ def make_ideal_nostim_srs(rng, n_runs=1, streaming=False, show_tqdm=False):
 
             sr_ideal = StimRegressor(autoreg=kf, log_level=2, check_dt=True)
             sr_ideal.offline_run_on([(Y, 'X'), (stim, 'stim')], convinient_return=False, show_tqdm=False)
-            ideal_srs.append(finalize_log(sr_ideal, stim))
+            ideal_srs.append(sr_ideal.finalize_log(stim))
         else:
             sr_ideal = StimRegressor(autoreg=StreamingKalmanFilter(), log_level=2, check_dt=True)
             _, Y, stim = LDS.run_nest_dynamical_system(n_rotations, stims_per_rotation=stims_per_rotation, stim_magnitude=0, rng=rng, u_function='curvy', noise=noise_variance)
             sr_ideal.offline_run_on([(Y, 'X'), (stim, 'stim')], convinient_return=False, show_tqdm=False)
-            ideal_srs.append(finalize_log(sr_ideal, stim))
+            ideal_srs.append(sr_ideal.finalize_log(stim))
 
 
     return ideal_srs
@@ -118,8 +117,8 @@ def make_s_hat_error_function(rng, n_runs=10, n_points=200):
 
     return s_hat_error_function
 
-def single_make_srs(rng):
-    _, Y, stim = LDS.run_nest_dynamical_system(n_rotations, stims_per_rotation=stims_per_rotation, stim_magnitude=stim_magnitude, rng=rng, u_function='curvy', noise=noise_variance)
+def single_make_srs(rng, u_function='curvy'):
+    _, Y, stim = LDS.run_nest_dynamical_system(n_rotations, stims_per_rotation=stims_per_rotation, stim_magnitude=stim_magnitude, rng=rng, u_function=u_function, noise=noise_variance)
 
     sr1 = StimRegressorWithExtraLogging(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True)
     sr2 = StimRegressorWithExtraLogging(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True, attempt_correction=False)
@@ -128,20 +127,20 @@ def single_make_srs(rng):
     sr3.stim_reg.observe(np.zeros(4), np.zeros(3))  # setting a zero prior for the manifold comparison
     s_hat_error_function = make_s_hat_error_function(rng)
     sr1.s_hat_error_function = s_hat_error_function
-    # sr2.s_hat_error_function = s_hat_error_function
+    # sr2.s_hat_error_function = s_hat_error_function  # this just slows things down, we don't use this comparison
     sr3.s_hat_error_function = s_hat_error_function
 
     pre_srs = {'learning from stim': sr1, 'ignoring stim samples':sr2, 'unaware of stim':sr3}
     for sr in pre_srs.values():
         sr.offline_run_on([(Y, 'X'), (stim, 'stim')], convinient_return=False, show_tqdm=False)
-        finalize_log(sr, stim)
+        sr.finalize_log(stim)
 
     return pre_srs
 
-def make_srs(rng, n_runs=1, show_tqdm=False):
+def make_srs(rng, n_runs=1, show_tqdm=False, **kwargs):
     srs = []
     for _ in tqdm.trange(n_runs, disable=not show_tqdm):
-        srs.append(single_make_srs(rng))
+        srs.append(single_make_srs(rng, **kwargs))
         assert set(srs[-1].keys()) == set(standard_kinds_of_sr)
 
     srs = {k:[run[k] for run in srs] for k in srs[0].keys()}

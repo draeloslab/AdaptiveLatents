@@ -166,6 +166,11 @@ class StimRegressor(Predictor):
             corrected_f = f
         return corrected_f
 
+    def finalize_log(self, stim_intended_samples=None):
+        self.log['pred_error'] = ArrayWithTime.from_list(self.log['pred_error'], drop_early_nans=True, squeeze_type='to_2d')
+        if stim_intended_samples is not None:
+            self.log['stim_intended_samples'] = stim_intended_samples.slice((stim_intended_samples > 0).any(axis=1))
+
     def get_params(self, deep=True):
         return super().get_params(deep) | dict(autoreg=self.autoreg, stim_reg=self.stim_reg, attempt_correction=self.attempt_correction, heed_stimuli=self.heed_stimuli, stim_designer=self.stim_designer, stim_delay=self.stim_delay, error_on_missed_stim=self.error_on_missed_stim)
 
