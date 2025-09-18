@@ -50,10 +50,10 @@ def save_to_cache(file, location=None, override_config_and_cache=False):
 
         return decorator
 
-    cache_index_file = location / f"{file}_index.pickle"
+    cache_index_file = (location / f"{file}_index.json").resolve()
     try:
-        with open(cache_index_file, 'rb') as fhan:
-            cache_index = pickle.load(fhan)
+        with open(cache_index_file, 'r') as fhan:
+            cache_index = json.load(fhan)
     except FileNotFoundError:
         cache_index = {}
 
@@ -64,27 +64,29 @@ def save_to_cache(file, location=None, override_config_and_cache=False):
             bound_args.apply_defaults()
 
             all_args = bound_args.arguments
-            all_args_as_key = make_hashable_and_hash(all_args)
+            all_args_as_key = str(make_hashable_and_hash(all_args))
 
-            if _recalculate_cache_value or all_args_as_key not in cache_index or not os.path.exists(location / cache_index[all_args_as_key]):
+
+            if _recalculate_cache_value or all_args_as_key not in cache_index or not (location/ cache_index[all_args_as_key]['cache_file']).exists():
                 result = original_function(**all_args)
 
                 hstring = str(all_args_as_key)[-15:]
-                cache_file = os.path.join(location, f"{file}_{hstring}.pickle")
+                cache_file = str((location/ f"{file}_{hstring}.pickle").resolve())
                 if CONFIG.verbose:
                     print(f"caching value in: {cache_file}")
                 with CONFIG.open_with_parents(cache_file, "wb") as fhan:
                     pickle.dump(result, fhan)
 
-                cache_index[all_args_as_key] = cache_file
-                with CONFIG.open_with_parents(cache_index_file, 'bw') as fhan:
-                    pickle.dump(cache_index, fhan)
+                cache_index[all_args_as_key] = {'cache_file': cache_file}
+                with CONFIG.open_with_parents(cache_index_file, 'w') as fhan:
+                    json.dump(cache_index, fhan, indent=4)
 
-            with open(location/ cache_index[all_args_as_key], 'rb') as fhan:
+            to_load_from = location/ cache_index[all_args_as_key]['cache_file']
+            with open(to_load_from, 'rb') as fhan:
                 if CONFIG.verbose:
                     # TODO: also log here
                     # TODO: have tests globally disable caching; you can recalculate, but that doesn't get inner caching
-                    print(f"retreiving cache from: {cache_index[all_args_as_key]}")
+                    print(f"retreiving cache from: {to_load_from}")
                 return pickle.load(fhan)
 
         return new_function

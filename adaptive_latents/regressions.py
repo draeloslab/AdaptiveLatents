@@ -234,7 +234,7 @@ class BaseKernelRegressor(NonParametricRegressor):
 
 
 class BaseMultiKernelRegressor:
-    def __init__(self, length_scales=(1e-9,1e-9,1e-9), maxlen=100, input_names=('stim_location', 'stim_vector', 'stim_time'), reweight_every=1, rng=None):
+    def __init__(self, length_scales=(1e-1,1e-1,1e-9), maxlen=100, input_names=('stim_location', 'stim_vector', 'stim_time'), reweight_every=1, rng=None):
         self.maxlen = maxlen
         self.input_histories = None
         self.output_history = None
@@ -290,7 +290,7 @@ class BaseMultiKernelRegressor:
         current = evaluate(self.length_scales)
         new_length_scales = numpy.array(self.length_scales)
 
-        coefs = numpy.logspace(-2, 2, 5)
+        coefs = numpy.logspace(-1, 1, 5)
         for i in range(len(self.length_scales)):
             errors = numpy.zeros(5)
             for j, coef in enumerate(coefs):
@@ -304,8 +304,6 @@ class BaseMultiKernelRegressor:
 
         self.log['length_scales'].append(numpy.array(self.length_scales))
         lr = 0.05
-        # self.length_scales = new_length_scales**lr * self.length_scales**(1-lr)
-
         self.length_scales = numpy.exp(numpy.log(self.length_scales) * lr + numpy.log(new_length_scales) * (1-lr))
 
     def plot_length_scales(self, ax):

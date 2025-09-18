@@ -1,6 +1,7 @@
 import jax
 import numpy as np
 import pytest
+import pickle
 
 import adaptive_latents
 from adaptive_latents import ArrayWithTime
@@ -148,3 +149,6 @@ def test_array_index_slice_by_time_works():
     b = a.slice_by_time(slice(1,None), slice(a.t[-1],None), all_axes=True)
     assert (b == a[1:, -1:]).all()
     assert (b.t == a.t[1:]).all()
+
+def test_pickles():
+    assert hasattr(pickle.loads(pickle.dumps(ArrayWithTime([1], [1]))), 't')

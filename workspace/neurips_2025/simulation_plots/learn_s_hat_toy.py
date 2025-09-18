@@ -24,7 +24,7 @@ class StimRegressorWithExtraLogging(StimRegressor):
         self.s_hat_error_function = None
 
     def pre_log(self, data, stream):
-        if self.log_level >= 2 and self.dt is not None:
+        if self.log_level >= 2 and self.dt is not None and self.s_hat_error_function is not None:
             if self.input_streams[stream] == 'X' and len(self.get_stim_to_correct_for(data.t)) and self.s_hat_error_function is not None:
                 key = 's_hat_error'
                 if key not in self.log:
@@ -117,18 +117,19 @@ def make_s_hat_error_function(rng, n_runs=10, n_points=200):
 
     return s_hat_error_function
 
-def single_make_srs(rng, u_function='curvy'):
+def single_make_srs(rng, u_function='curvy', add_s_hat_error_function=False, n_rotations=n_rotations):
     _, Y, stim = LDS.run_nest_dynamical_system(n_rotations, stims_per_rotation=stims_per_rotation, stim_magnitude=stim_magnitude, rng=rng, u_function=u_function, noise=noise_variance)
 
     sr1 = StimRegressorWithExtraLogging(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True)
     sr2 = StimRegressorWithExtraLogging(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True, attempt_correction=False)
     sr3 = StimRegressorWithExtraLogging(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True, attempt_correction=False, heed_stimuli=False)
 
-    sr3.stim_reg.observe(np.zeros(4), np.zeros(3))  # setting a zero prior for the manifold comparison
-    s_hat_error_function = make_s_hat_error_function(rng)
-    sr1.s_hat_error_function = s_hat_error_function
-    # sr2.s_hat_error_function = s_hat_error_function  # this just slows things down, we don't use this comparison
-    sr3.s_hat_error_function = s_hat_error_function
+    if add_s_hat_error_function:
+        sr3.stim_reg.observe(np.zeros(4), np.zeros(3))  # setting a zero prior for the manifold comparison
+        s_hat_error_function = make_s_hat_error_function(rng)
+        sr1.s_hat_error_function = s_hat_error_function
+        # sr2.s_hat_error_function = s_hat_error_function  # this just slows things down, we don't use this comparison
+        sr3.s_hat_error_function = s_hat_error_function
 
     pre_srs = {'learning from stim': sr1, 'ignoring stim samples':sr2, 'unaware of stim':sr3}
     for sr in pre_srs.values():
@@ -145,6 +146,37 @@ def make_srs(rng, n_runs=1, show_tqdm=False, **kwargs):
 
     srs = {k:[run[k] for run in srs] for k in srs[0].keys()}
     return srs
+
+def draw_curvy_surface(true_S=true_S, stim_locations=(), s_hat_observations=()):
+    fig2, ax2 = plt.subplots(subplot_kw={'projection': '3d', 'computed_zorder': False}, layout='constrained')
+
+    extent = 20
+    depth = 14
+    X, Y = np.meshgrid(np.linspace(-extent, extent, depth), np.linspace(-extent, extent, depth))
+    Z = 0 * X
+    for i_x, i_y in itertools.product(range(depth), range(depth)):
+        Z[i_x, i_y] = true_S([X[i_x, i_y], Y[i_x, i_y], None])[2]
+    ax2.plot_surface(X, Y, Z, color='#C9C9C9')
+
+    errors = [np.linalg.norm(true_S(location) - estimated) for location, estimated in
+              zip(stim_locations, s_hat_observations)]
+    c = ax2.scatter(stim_locations[:, 0], stim_locations[:, 1], s_hat_observations[:, -1], c=errors, zorder=100,
+                    alpha=1, cmap='plasma', vmin=0)
+    fig2.colorbar(c)
+
+    ax2.axis('equal')
+    ax2.view_init(elev=24, azim=147, roll=0)
+    # ax2.axis((np.float64(-24.059680968092277), np.float64(27.5328712068437), np.float64(-26.059286658753816), np.float64(27.257531995356583), np.float64(-12.057545210133634), np.float64(11.79530183372015)))
+    ax2.axis((np.float64(-15 * 3 / 2), np.float64(15 * 3 / 2), np.float64(-15 * 3 / 2), np.float64(15 * 3 / 2),
+              np.float64(-15), np.float64(15)))
+
+    ax2.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax2.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax2.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax2.xaxis._axinfo["grid"]['color'] = (1, 1, 1, 0)
+    ax2.yaxis._axinfo["grid"]['color'] = (1, 1, 1, 0)
+    ax2.zaxis._axinfo["grid"]['color'] = (1, 1, 1, 0)
+    return fig2
 
 
 from learn_s_hat_plots import plot_onestep_pred_error_decreasing, make_table, plot_manifold_error
@@ -164,7 +196,7 @@ if __name__ == '__main__':
     fig = None
     match args.type_of_plot:
         case '1-step-prediction':
-            srs = make_srs(rng, n_runs=1, show_tqdm=True)
+            srs = make_srs(rng, n_runs=1, show_tqdm=True, add_s_hat_error_function=True)
 
             standard_kinds_of_sr = ['learning from stim', 'ignoring stim samples', 'unaware of stim']
             row_info = [
@@ -201,34 +233,22 @@ if __name__ == '__main__':
                 u[2] = stim_magnitude * state[0] / np.linalg.norm(state[:2])
                 return u
 
-
-            fig2, ax2 = plt.subplots(subplot_kw={'projection': '3d', 'computed_zorder':False}, layout='constrained')
-
-            extent = 20
-            depth = 14
-            X, Y = np.meshgrid(np.linspace(-extent, extent, depth), np.linspace(-extent, extent, depth))
-            Z = 0 * X
-            for i_x, i_y in itertools.product(range(depth), range(depth)):
-                Z[i_x, i_y] = true_S([X[i_x, i_y], Y[i_x, i_y], None])[2]
-            ax2.plot_surface(X, Y, Z, color='#C9C9C9')
-
-            errors = [np.linalg.norm(true_S(location) - estimated) for location, estimated in zip(stim_locations, s_hat_observations)]
-            c = ax2.scatter(stim_locations[:,0], stim_locations[:,1], s_hat_observations[:,-1], c=errors, zorder=100, alpha=1, cmap='plasma', vmin=0)
-            fig2.colorbar(c)
-
-            ax2.axis('equal')
-            ax2.view_init(elev=24, azim=147, roll=0)
-            # ax2.axis((np.float64(-24.059680968092277), np.float64(27.5328712068437), np.float64(-26.059286658753816), np.float64(27.257531995356583), np.float64(-12.057545210133634), np.float64(11.79530183372015)))
-            ax2.axis((np.float64(-15*3/2), np.float64(15*3/2), np.float64(-15*3/2), np.float64(15*3/2), np.float64(-15), np.float64(15)))
-
-            ax2.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-            ax2.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-            ax2.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-            ax2.xaxis._axinfo["grid"]['color'] =  (1,1,1,0)
-            ax2.yaxis._axinfo["grid"]['color'] =  (1,1,1,0)
-            ax2.zaxis._axinfo["grid"]['color'] =  (1,1,1,0)
-
+            fig2 = draw_curvy_surface(true_S=true_S, stim_locations=stim_locations, s_hat_observations=s_hat_observations)
             fig2.savefig(args.output.with_stem('toy_curvy'), bbox_inches="tight")
+
+            def spun_true_S(state):
+                state = np.array(state)
+
+                theta = 2*np.pi / 12
+                rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],
+                                            [np.sin(theta),  np.cos(theta)]])
+                state[:2] = rotation_matrix @ state[:2]
+
+                u = np.zeros(3)
+                u[2] = stim_magnitude * state[0] / np.linalg.norm(state[:2])
+                return u
+            fig2 = draw_curvy_surface(true_S=spun_true_S, stim_locations=stim_locations, s_hat_observations=s_hat_observations)
+            fig2.savefig(args.output.with_stem('toy_curvy_spun'), bbox_inches="tight")
 
 
         case '1-step-prediction-table':

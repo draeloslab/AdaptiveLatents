@@ -97,17 +97,16 @@ class ArrayWithTime(np.ndarray):
         if hasattr(obj, 't'):
             self.t = obj.t
 
-        # if hasattr(obj, '_new_t_index'):
-        #     self.t = self.t[obj._new_t_index]
+    def __reduce__(self):
+        return self.__class__, (np.asarray(self), np.asarray(self.t))
 
-    # def __getitem__(self, item):
+    # def __getstate__(self):
+    #     return super().__getstate__(), self.t
     #
-    #     if isinstance(item, (slice, int)):
-    #         self._new_t_index = item
-    #     else:
-    #         self._new_t_index = item[0]
-    #
-    #     return super().__getitem__(item)
+    # def __setstate__(self, state):
+    #     print(state)
+    #     self.t = state[1]
+    #     self.__setstate__(state[0])
 
     def __iter__(self):
         if hasattr(self.t, "__len__") and len(self.t) > 1 and len(self.t) == self.shape[0]:

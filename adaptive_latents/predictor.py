@@ -38,6 +38,7 @@ class Predictor(StreamingTransformer):
 
     @abstractmethod
     def get_arbitrary_dynamics_parameter(self):
+        """returns nan if unitialized"""
         pass
 
     @abstractmethod

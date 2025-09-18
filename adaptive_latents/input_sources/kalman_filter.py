@@ -160,10 +160,11 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
             if semantic_stream == 'X' and self.A is not None:
                 self.step(X)
 
+            assert len(self.latent_state_history[-1]) == len(self.observation_history[-1])
+            n_seen = sum(len(x) if len(x) > 1 else 0 for x in self.observation_history)
             if (
-                    len(self.latent_state_history[-1]) == len(self.observation_history[-1])
+                    n_seen % self.steps_between_refits == 0
                     and len(self.observation_history[-1]) > 1
-                    and len(self.observation_history[-1]) % self.steps_between_refits == 0
                     and self.parameter_fitting
             ):
                 self.fit(X=self.latent_state_history, Y=self.observation_history)
@@ -171,7 +172,7 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
                 obs = np.squeeze(self.observation_history[-1])
 
                 while sum([len(x) for x in self.observation_history]) > self.max_history_length:
-                    if len(self.observation_history) > 1:
+                    if len(self.observation_history) == 0:
                         self.observation_history.pop(0)
                         self.latent_state_history.pop(0)
                     else:
@@ -207,6 +208,9 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
         return super().get_params(deep) | dict(use_steady_state_k=self.use_steady_state_K, subtract_means=self.subtract_means, steps_between_refits=self.steps_between_refits)
 
     def get_arbitrary_dynamics_parameter(self):
+        if self.A is None:
+            return np.nan
+
         return self.A
 
 

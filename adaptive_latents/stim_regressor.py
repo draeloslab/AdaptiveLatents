@@ -64,7 +64,7 @@ class StimRegressor(Predictor):
     def trim_last_seen_stims(self, current_t):
         saftey_margin = self.dt if self.dt else self.stim_delay
         while self.last_seen_stims and (current_t - self.last_seen_stims[0].t) > (self.stim_delay + saftey_margin):
-            if self.error_on_missed_stim and self.heed_stimuli:
+            if self.error_on_missed_stim and self.heed_stimuli and np.isfinite(self.autoreg.get_arbitrary_dynamics_parameter()).all():
                 raise Exception("Missed stim.")
             self.last_seen_stims.popleft()
 

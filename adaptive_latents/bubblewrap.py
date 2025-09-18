@@ -586,6 +586,8 @@ class Bubblewrap(Predictor, BaseBubblewrap):
             return numpy.array(self.alpha)
 
     def get_arbitrary_dynamics_parameter(self):
+        if self.A is None:
+            return numpy.nan
         return self.A
 
     def unevaluated_log_pred_p(self, n_steps):
