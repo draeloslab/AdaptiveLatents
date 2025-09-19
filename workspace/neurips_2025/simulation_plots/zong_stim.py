@@ -1,6 +1,6 @@
 import numpy as np
 from adaptive_latents import datasets
-from sim_stim import get_presets
+from adaptive_latents.stim_regressor import StimAutoReg
 from adaptive_latents.sim_stim import *
 import tqdm.autonotebook as tqdm
 import copy
@@ -89,6 +89,8 @@ def new_make_sr(
         heed_stimuli=heed_stimuli,
         stim_delay=regressor_stim_delay,
     )
+    sr.stim_autoreg = StimAutoReg(n_steps_to_consider=6)
+
     stim_designer = StimDesigner(
         max_l0_norm=max_l0_norm,
         rng_seed=other_rng.integers(2 ** 32),
@@ -114,7 +116,6 @@ def new_make_sr(
     ])
 
     log = {}
-
 
     centerer = CenteringTransformer(init_size=centerer_init_size, nan_when_uninitialized=True)
     if smoothing_tau is not None:
@@ -151,7 +152,7 @@ def new_make_sr(
             if data.t > 304 and not has_changed:
                 print(f'delay is now {amount_to_add * input_array.dt}')
                 sim_stim_adder.stim_delay_queue = deque([0] * amount_to_add)
-                sr.stim_delay = sr.dt * amount_to_add
+                sr.stim_delay = sr.stim_delay + sr.dt * amount_to_add
                 has_changed = True
 
             timing_log.in_sim_time.append(data.t)
@@ -204,7 +205,7 @@ def new_make_sr(
                 stim_t = list(resolved_stim_ts)[0]
                 for l in reversed(stim_designer.log):
                     if stim_t == l['time_of_stim']:
-                        obs = sr.stim_reg.get_obs(t=stim_t + sr.dt * len(sim_stim_adder.stim_delay_queue))
+                        obs = sr.stim_reg.get_obs(t=stim_t + sr.stim_delay)
                         l['observed_s_hat'] = obs.pop('output')
                         l['observed_reg_input'] = [v for v in obs.values()]
                         break
@@ -251,7 +252,13 @@ def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False, overr
     if overrides is None:
         overrides = {}
 
-    to_run = get_presets(comparison_preset)
+    common = dict(stim_magnitude = 10, design_method = 'optimized identity u_to_s', exit_time = np.inf, stim_rate = None, smoothing_tau = 1, centerer_init_size = 8 * 25, initial_nostim_period = 30, regular_stim_iter = cycle([1 / 10, 1 / 3]), stim_timing_method = 'regular', autoreg=functools.partial(StreamingKalmanFilter, steps_between_refits=5))
+
+    to_run = {
+        'learning from stim': common | dict(attempt_correction=True, heed_stimuli=True),
+        # 'ignoring stim': common | dict(attempt_correction=False, heed_stimuli=True),
+        'unaware of stim': common | dict(attempt_correction=False, heed_stimuli=False),
+    }
 
     srs = {}
     with tqdm.tqdm(total=len(to_run) * n_runs, disable=not show_tqdm) as pbar:
@@ -265,27 +272,11 @@ def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False, overr
 
     return srs
 
-
-def main():
-    @save_to_cache('zong_f')
-    def f():
-        rng = np.random.default_rng(0)
-        d = datasets.Zong22Dataset()
-        data = d.neural_data
-
-        srs = make_srs(data, rng, comparison_preset='visualization', n_runs=1, show_tqdm=True, overrides=dict(stim_magnitude=9.85))
-        return srs
-
-    srs = f(_recalculate_cache_value=True)
-
-
-    # i= 16
-    # i= 34
-    # i= 38
-    i= 40
+def plot_1(srs):
+    i = 40
     sr = srs['learning from stim'][0]
 
-    fig, axs = plt.subplots(ncols=2, figsize=(10,4), sharex=False, sharey=False, layout='constrained')
+    fig_1, axs = plt.subplots(ncols=2, figsize=(10,4), sharex=False, sharey=False, layout='constrained')
 
     latents = sr.log['latents'].slice_by_time(slice(30,None))
     axs[0].plot(latents[:, 0], latents[:, 1], alpha=.1, color='k')
@@ -303,11 +294,11 @@ def main():
 
     for arrow_index in [17, 50]:
         axs[0].annotate('',
-                         xytext=(latents[arrow_index, 0], latents[arrow_index, 1]),
-                         xy=(latents[arrow_index+1, 0], latents[arrow_index+1, 1]),
-                         arrowprops=dict(arrowstyle="simple", color='C0'),
-                         size=11
-                         )
+                        xytext=(latents[arrow_index, 0], latents[arrow_index, 1]),
+                        xy=(latents[arrow_index+1, 0], latents[arrow_index+1, 1]),
+                        arrowprops=dict(arrowstyle="simple", color='C0'),
+                        size=11
+                        )
 
 
     u = sr.stim_designer.log[i]['u']
@@ -321,8 +312,58 @@ def main():
     axs[1].set_xticks([302, 304, 306,308])
     for stim_t in stim_s:
         axs[1].axvline(stim_t, color='r')
+    return fig_1
+
+
+
+from sim_stim import make_slices_tensor
+from learn_s_hat_plots import plot_onestep_pred_error_decreasing
+def plot_2(srs):
+    row_info = [
+        dict(time_slice_type='all', space_slice_type='stim-d', time_slice=slice(None, None)),
+        dict(time_slice_type='post-stim', space_slice_type='stim-d', time_slice=slice(None, None),
+             last_half_average=True),
+        # dict(time_slice_type='all', space_slice_type='non-stim-d', time_slice=slice(None, None)),
+        # dict(time_slice_type='post-stim', space_slice_type='non-stim-d', time_slice=slice(None, None))
+    ]
+    fig = plot_onestep_pred_error_decreasing(srs, row_info, make_slices_tensor)
+    for ax in fig.axes:
+        ax.set_ylim(0, 3)
+
+    for lines in fig.axes[1].get_lines():
+        ydata = lines.get_ydata()
+        if len(ydata) == 2:
+            fig.axes[0].axhline(ydata[0], color=lines.get_color(), linestyle='--')
+
+    for line in fig.axes[0].get_lines():
+        color = line.get_color()
+        if color == 'C0':
+            line.set_color('#ca1469ff')
+        elif color == 'C1':
+            line.set_color('#4d4d4dff')
+
+    plt.show()
 
     return fig
+
+def main():
+    @save_to_cache('zong_f')
+    def f():
+        rng = np.random.default_rng(0)
+        d = datasets.Zong22Dataset()
+        data = d.neural_data
+
+        srs = make_srs(data, rng, comparison_preset='visualization', n_runs=1, show_tqdm=True, overrides=dict(stim_magnitude=9.85, regressor_stim_delay=0*data.dt))
+        return srs
+
+    srs = f(_recalculate_cache_value=True)
+
+    print(srs.keys())
+
+    fig_1 = plot_1(srs)
+    fig_2 = plot_2(srs)
+
+    return fig_1, fig_2
 
 
 if __name__ == '__main__':
@@ -333,7 +374,7 @@ if __name__ == '__main__':
     parser.add_argument("-o", "--output", type=pathlib.Path, required=True)
     args = parser.parse_args()
 
-    fig = main()
+    fig_1, fig_2 = main()
 
-
-    fig.savefig(args.output, bbox_inches="tight")
+    fig_1.savefig(args.output, bbox_inches="tight")
+    fig_2.savefig(args.output.with_stem('zong_1step'), bbox_inches="tight")

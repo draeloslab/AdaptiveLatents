@@ -42,6 +42,8 @@ def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False, overr
 
 
 def get_presets(comparison_preset):
+    default_common = dict(stim_magnitude=10, design_method='optimized identity u_to_s', exit_time=np.inf, stim_rate=None, smoothing_tau=1, centerer_init_size=8 * 25, initial_nostim_period=30, regular_stim_iter=cycle([1 / 10, 1 / 3]), stim_timing_method='regular', autoreg=functools.partial(StreamingKalmanFilter, steps_between_refits=5), )
+
     match comparison_preset:
         case 'pred methods':
             to_run = {
@@ -104,39 +106,18 @@ def get_presets(comparison_preset):
                     to_run[f'({i}, {j})'] = common | dict(stim_time_delay=i, regressor_stim_delay=j)
 
         case 'default':
-            stim_magnitude = 10
-            design_method = 'optimized identity u_to_s'
-            exit_time = np.inf
-            stim_rate = None
-            smoothing_tau = 1
-            centerer_init_size = 8 * 25
-            initial_nostim_period = 30
-            regular_stim_iter = cycle([1 / 10, 1 / 3])
-            stim_timing_method = 'regular'
-            autoreg=functools.partial(StreamingKalmanFilter, steps_between_refits=5)
-
+            common = default_common
             to_run = {
-                'learning from stim': dict(attempt_correction=True, heed_stimuli=True, exit_time=exit_time, stim_magnitude=stim_magnitude, design_method=design_method, stim_rate=stim_rate, smoothing_tau=smoothing_tau, centerer_init_size=centerer_init_size, initial_nostim_period=initial_nostim_period,regular_stim_iter=regular_stim_iter,stim_timing_method=stim_timing_method, autoreg=autoreg,),
-                'ignoring stim samples':dict(attempt_correction=False, heed_stimuli=True, exit_time=exit_time,stim_magnitude=stim_magnitude, design_method=design_method,stim_rate=stim_rate, smoothing_tau=smoothing_tau,centerer_init_size=centerer_init_size,initial_nostim_period=initial_nostim_period,regular_stim_iter=regular_stim_iter,stim_timing_method=stim_timing_method, autoreg=autoreg,),
-                'unaware of stim':dict(attempt_correction=False, heed_stimuli=False, exit_time=exit_time, stim_magnitude=stim_magnitude,design_method=design_method,stim_rate=stim_rate, smoothing_tau=smoothing_tau,centerer_init_size=centerer_init_size,initial_nostim_period=initial_nostim_period,regular_stim_iter=regular_stim_iter,stim_timing_method=stim_timing_method, autoreg=autoreg,)
+                'learning from stim': common | dict(attempt_correction=True, heed_stimuli=True),
+                'ignoring stim samples': common | dict(attempt_correction=False, heed_stimuli=True),
+                'unaware of stim': common | dict(attempt_correction=False, heed_stimuli=False),
             }
         case 'visualization':
-            stim_magnitude = 10
-            design_method = 'optimized identity u_to_s'
-            exit_time = np.inf
-            stim_rate = None
-            smoothing_tau = 1
-            centerer_init_size = 8 * 25
-            initial_nostim_period = 30
-            regular_stim_iter = cycle([1 / 10, 1 / 3])
-            stim_timing_method = 'regular'
+            common = default_common
+            del common[autoreg]
 
             to_run = {
-                'learning from stim': dict(attempt_correction=True, heed_stimuli=True, exit_time=exit_time,
-                                           stim_magnitude=stim_magnitude, design_method=design_method, stim_rate=stim_rate,
-                                           smoothing_tau=smoothing_tau, centerer_init_size=centerer_init_size,
-                                           initial_nostim_period=initial_nostim_period,
-                                           regular_stim_iter =regular_stim_iter, stim_timing_method=stim_timing_method),
+                'learning from stim': common | dict(attempt_correction=True, heed_stimuli=True),
             }
 
         case _:

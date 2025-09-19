@@ -275,7 +275,7 @@ def make_sr(
                 stim_t = list(resolved_stim_ts)[0]
                 for l in reversed(stim_designer.log):
                     if stim_t == l['time_of_stim']:
-                        obs = sr.stim_reg.get_obs(t=stim_t)
+                        obs = sr.stim_reg.get_obs(t=stim_t + sr.stim_delay)
                         # TODO: is this correct?
                         # obs = sr.stim_reg.get_obs(t=stim_t + sr.dt * len(sim_stim_adder.stim_delay_queue))
 
