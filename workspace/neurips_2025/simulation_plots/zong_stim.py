@@ -10,6 +10,10 @@ from adaptive_latents.utils import save_to_cache
 def invert(x):
     return 1 / x
 
+zero_thresh = 0.05
+amount_to_add = 4
+
+
 def new_make_sr(
         input_array,
         rng,
@@ -145,7 +149,7 @@ def new_make_sr(
         for data in Pipeline().streaming_run_on(input_array):
 
             if data.t > 304 and not has_changed:
-                amount_to_add = 4
+                print(f'delay is now {amount_to_add * input_array.dt}')
                 sim_stim_adder.stim_delay_queue = deque([0] * amount_to_add)
                 sr.stim_delay = sr.dt * amount_to_add
                 has_changed = True
@@ -162,7 +166,7 @@ def new_make_sr(
                 desired_stim = stim_designer.desired_stim_direction(equivalent_projection_matrix, stim_direction_type, other_rng)
                 designed_stim = stim_designer.sim_stim_design_stim(sr, stim_magnitude, desired_stim, equivalent_projection_matrix, current_t=data.t)
                 instantaneous_stim = designed_stim * stim_magnitude
-                # instantaneous_stim[np.abs(instantaneous_stim) < 0.05] = 0
+                instantaneous_stim[np.abs(instantaneous_stim) < zero_thresh] = 0
             else:
                 instantaneous_stim = np.zeros(input_array.shape[1])
             timing_log.stim_design[-1] = time.time() - timing_log.stim_design[-1]
@@ -269,7 +273,7 @@ def main():
         d = datasets.Zong22Dataset()
         data = d.neural_data
 
-        srs = make_srs(data, rng, comparison_preset='visualization', n_runs=1, show_tqdm=True)
+        srs = make_srs(data, rng, comparison_preset='visualization', n_runs=1, show_tqdm=True, overrides=dict(stim_magnitude=9.85))
         return srs
 
     srs = f(_recalculate_cache_value=True)
@@ -288,7 +292,7 @@ def main():
     stim_s = sr.log['stim_intended_samples'].t - latents.dt
 
     l = 1
-    r = 5.1
+    r = 4.7
     ax_n = 0
     center_t = sr.log['stim_intended_samples'].t[i]
     latents = sr.log['latents'].slice_by_time(slice(center_t-l,center_t+r))
@@ -309,7 +313,7 @@ def main():
     u = sr.stim_designer.log[i]['u']
     idx = np.argsort(np.abs(u))[::-1]
     # n_nonzero = np.linalg.norm(u,ord=0)
-    n_nonzero = (np.abs(u) > 0).sum()
+    n_nonzero = (np.abs(u) > zero_thresh).sum()
     print(n_nonzero)
 
     high_d = sr.log['high_d_with_stim'].slice_by_time(slice(center_t-l,center_t+r))
