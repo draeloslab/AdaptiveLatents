@@ -15,12 +15,12 @@ from adaptive_latents.timed_data_source import ArrayWithTime
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, np.ndarray):
-            if obj.shape[0] > 1000:
-                n_samples = 200
-                row_samples = [round(x * (obj.shape[0] - 1)) for x in np.linspace(0, 1, n_samples)]
-                obj = obj[row_samples]
+        if isinstance(obj, ArrayWithTime):
+            return [obj.tolist(), obj.t.tolist()]
+        elif isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif isinstance(obj, np.random.Generator):
+            return (obj.bit_generator.__class__, obj.bit_generator.state)
         return json.JSONEncoder.default(self, obj)
 
 

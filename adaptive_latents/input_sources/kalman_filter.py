@@ -172,7 +172,7 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
                 obs = np.squeeze(self.observation_history[-1])
 
                 while sum([len(x) for x in self.observation_history]) > self.max_history_length:
-                    if len(self.observation_history) == 0:
+                    if len(self.observation_history[0]) == 0:
                         self.observation_history.pop(0)
                         self.latent_state_history.pop(0)
                     else:

@@ -276,6 +276,9 @@ def make_sr(
                 for l in reversed(stim_designer.log):
                     if stim_t == l['time_of_stim']:
                         obs = sr.stim_reg.get_obs(t=stim_t)
+                        # TODO: is this correct?
+                        # obs = sr.stim_reg.get_obs(t=stim_t + sr.dt * len(sim_stim_adder.stim_delay_queue))
+
                         l['observed_s_hat'] = obs.pop('output')
                         l['observed_reg_input'] = [v for v in obs.values()]
                         break

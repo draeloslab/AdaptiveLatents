@@ -341,7 +341,7 @@ class BaseMultiKernelRegressor:
         """gets last by default"""
         if t is not None: # use time
             assert i is None
-            candidates = numpy.nonzero(t - self.input_histories[self.input_names.index('stim_time')].flatten() == 0)
+            candidates = numpy.nonzero(numpy.abs(t - self.input_histories[self.input_names.index('stim_time')].flatten()) < 1e-12)
             assert len(candidates) == 1
             assert len(candidates[0]) == 1
             i = candidates[0][0]
