@@ -12,6 +12,13 @@ def invert(x):
 
 zero_thresh = 0.05
 amount_to_add = 4
+switch_time = 304
+colors = ['#ca1469ff','#4d4d4dff']
+
+
+#         line.set_color()
+#     elif color == 'C1':
+#         line.set_color('#4d4d4dff')
 
 
 def new_make_sr(
@@ -149,7 +156,7 @@ def new_make_sr(
     with pbar:
         for data in Pipeline().streaming_run_on(input_array):
 
-            if data.t > 304 and not has_changed:
+            if data.t > switch_time and not has_changed:
                 print(f'delay is now {amount_to_add * input_array.dt}')
                 sim_stim_adder.stim_delay_queue = deque([0] * amount_to_add)
                 sr.stim_delay = sr.stim_delay + sr.dt * amount_to_add
@@ -304,8 +311,8 @@ def plot_1(srs):
     u = sr.stim_designer.log[i]['u']
     idx = np.argsort(np.abs(u))[::-1]
     # n_nonzero = np.linalg.norm(u,ord=0)
-    n_nonzero = (np.abs(u) > zero_thresh).sum()
-    print(n_nonzero)
+    n_nonzero = (np.abs(u) > zero_thresh).sum() # these were actually zeroed out with a custom line, this isn't a threshold
+    print(f'{n_nonzero=}')
 
     high_d = sr.log['high_d_with_stim'].slice_by_time(slice(center_t-l,center_t+r))
     axs[1].plot(high_d.t, high_d[:,idx[:int(n_nonzero)]], color='k', lw=1)
@@ -317,30 +324,100 @@ def plot_1(srs):
 
 
 from sim_stim import make_slices_tensor
-from learn_s_hat_plots import plot_onestep_pred_error_decreasing
+
+def plot_onestep_pred_error_decreasing(srs, row_info, make_slices_tensor):
+    fig, axs = plt.subplots(nrows=len(row_info), layout='tight', figsize=(8, 2*len(row_info)+1), sharex=True, sharey=True)
+
+    def p(ax, time_slice_type, space_slice_type, xlabel='time', sr_kind_keys=None, title=None, time_slice=None, last_half_average=False):
+        if time_slice is  None:
+            time_slice = slice(None, None)
+
+        if sr_kind_keys is None:
+            sr_kind_keys = srs.keys()
+        for idx, sr_kind_key in reversed(list(enumerate(sr_kind_keys))):
+            all_to_plot = []
+            for sr in srs[sr_kind_key]:
+                run_to_plot = make_slices_tensor(sr)
+                sub_to_plot = run_to_plot[time_slice_type][space_slice_type].slice_by_time(time_slice)
+                sub_to_plot = ArrayWithTime(np.linalg.norm(sub_to_plot, axis=1), sub_to_plot.t)
+                all_to_plot.append(sub_to_plot)
+            to_plot = ArrayWithTime(np.hstack(all_to_plot), np.hstack([p.t for p in all_to_plot])) # TODO: sort by time
+            # TODO: you could do smoothing here
+            ax.plot(to_plot.t, to_plot, '.-', color=f'C{idx}', label=sr_kind_key)
+            if last_half_average:
+                halfway = (to_plot.t.max() + to_plot.t.min()) / 2
+                mean = float(to_plot.slice_by_time(slice(halfway, None)).mean())
+                ax.axhline(mean, linestyle='--', color=f'C{idx}')
+        # ax.legend(loc='upper right')
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel('error norm')
+        if title is None:
+            title = f"time:'{time_slice_type}' space:'{space_slice_type}' norm error"
+        ax.set_title(title)
+
+    for idx, values in enumerate(row_info):
+        p(ax=axs[idx], **values)
+
+    return fig
+
 def plot_2(srs):
-    row_info = [
-        dict(time_slice_type='all', space_slice_type='stim-d', time_slice=slice(None, None)),
-        dict(time_slice_type='post-stim', space_slice_type='stim-d', time_slice=slice(None, None),
-             last_half_average=True),
-        # dict(time_slice_type='all', space_slice_type='non-stim-d', time_slice=slice(None, None)),
-        # dict(time_slice_type='post-stim', space_slice_type='non-stim-d', time_slice=slice(None, None))
-    ]
-    fig = plot_onestep_pred_error_decreasing(srs, row_info, make_slices_tensor)
+
+    fig, axs = plt.subplots(nrows=2, figsize=(10,8), squeeze=False, layout='constrained', sharex=True, sharey=True)
+
+    ax = axs[0,0]
+    error = srs['unaware of stim'][0].log['pred_error']
+    norm_error = np.linalg.norm(error, axis=(1,2))
+    ax.plot(error.t, norm_error, '.-', color=colors[1], label='unaware of stim')
+
+    error = srs['learning from stim'][0].log['pred_error']
+    norm_error = np.linalg.norm(error, axis=(1,2))
+    ax.plot(error.t, norm_error, '.-', color=colors[0], label='learning from stim')
+
+    ax = axs[1,0]
+    sr = srs['unaware of stim'][0]
+    error = sr.log['pred_error']
+    stim_intended_samples = sr.log['stim_intended_samples']
+    stim_intended_samples.t[stim_intended_samples.t > switch_time] += amount_to_add * error.dt
+    sliced_error, _ = ArrayWithTime.align_indices(error, stim_intended_samples)
+    bin_slice = np.array([int(t in sliced_error.t) for t in error.t])
+    bin_slice = np.convolve(bin_slice, np.array([0,0,0,0,1,1,1,1,1,1]), mode='same').astype(bool)
+    sliced_error = error.slice(bin_slice)
+    error_norms = np.linalg.norm(sliced_error, axis=(1,2))
+    ax.plot(sliced_error.t, error_norms, '.-', color='C1', label='unaware of stim')
+    ax.axhline(np.nanmean(error_norms), linestyle='--', color='C1')
+    axs[0,0].axhline(np.nanmean(error_norms), linestyle='--', color=colors[1])
+    print(f'unaware mean stim-centered error:  {np.nanmean(error_norms):.3f}')
+
+    sr = srs['learning from stim'][0]
+    error = sr.log['pred_error']
+    stim_intended_samples = sr.log['stim_intended_samples']
+    stim_intended_samples.t[stim_intended_samples.t > switch_time] += amount_to_add * error.dt
+    sliced_error, _ = ArrayWithTime.align_indices(error, stim_intended_samples)
+    bin_slice = np.array([int(t in sliced_error.t) for t in error.t])
+    bin_slice = np.convolve(bin_slice, np.array([0,0,0,0,1,1,1,1,1,1]), mode='same').astype(bool)
+    sliced_error = error.slice(bin_slice)
+    error_norms = np.linalg.norm(sliced_error, axis=(1,2))
+    ax.plot(sliced_error.t, error_norms, '.-', color='C0', label='learning from stim')
+    ax.axhline(np.nanmean(error_norms), linestyle='--', color='C0')
+    axs[0,0].axhline(np.nanmean(error_norms), linestyle='--', color=colors[0])
+    print(f'learning mean stim-centered error: {np.nanmean(error_norms):.3f}')
+
+
+
+
     for ax in fig.axes:
         ax.set_ylim(0, 3)
-
-    for lines in fig.axes[1].get_lines():
-        ydata = lines.get_ydata()
-        if len(ydata) == 2:
-            fig.axes[0].axhline(ydata[0], color=lines.get_color(), linestyle='--')
-
-    for line in fig.axes[0].get_lines():
-        color = line.get_color()
-        if color == 'C0':
-            line.set_color('#ca1469ff')
-        elif color == 'C1':
-            line.set_color('#4d4d4dff')
+    # for lines in fig.axes[1].get_lines():
+    #     ydata = lines.get_ydata()
+    #     if len(ydata) == 2:
+    #         fig.axes[0].axhline(ydata[0], color=lines.get_color(), linestyle='--')
+    #
+    # for line in fig.axes[0].get_lines():
+    #     color = line.get_color()
+    #     if color == 'C0':
+    #         line.set_color('#ca1469ff')
+    #     elif color == 'C1':
+    #         line.set_color('#4d4d4dff')
 
     plt.show()
 
@@ -356,9 +433,8 @@ def main():
         srs = make_srs(data, rng, comparison_preset='visualization', n_runs=1, show_tqdm=True, overrides=dict(stim_magnitude=9.85, regressor_stim_delay=0*data.dt))
         return srs
 
-    srs = f(_recalculate_cache_value=True)
+    srs = f(_recalculate_cache_value=False)
 
-    print(srs.keys())
 
     fig_1 = plot_1(srs)
     fig_2 = plot_2(srs)
