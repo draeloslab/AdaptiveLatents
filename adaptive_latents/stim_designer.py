@@ -6,6 +6,14 @@ from jaxopt import ScipyBoundedMinimize
 import itertools
 import copy
 import warnings
+from enum import Enum
+
+class OptimizationMethod(str, Enum):
+    JAXOPT = 'jaxopt'
+    CHEAT_LOWD_VEC = 'cheat_lowd_vec'
+    CHEAT_HIGHD_VEC_SINGLE_NEURONS = 'cheat_highd_vec_single_neurons'
+    CHEAT_HIGHD_VEC_MANY_NEURONS = 'cheat_highd_vec_many_neurons'
+
 
 class StimDesigner:
     def __init__(
@@ -15,7 +23,7 @@ class StimDesigner:
             should_log=False,
             lam_1=0.001,
             inter_stim_interval_generator=None,
-            optimization_method='jaxopt',
+            optimization_method=OptimizationMethod.JAXOPT,
             stim_timing_method='regular',
             initial_nostim_period=1,
             u_to_s_model_type='identity', # TODO: remove? it's used in sim_stim_design_stim
@@ -29,7 +37,7 @@ class StimDesigner:
         self.lam_1 = lam_1
         self.u_to_s_model_type = u_to_s_model_type
 
-        self.optimization_method = optimization_method
+        self.optimization_method: OptimizationMethod = optimization_method
         self.n_identity_initialization = n_identity_initialization
         self.stim_timing_method = stim_timing_method
         self.initial_nostim_period = initial_nostim_period
@@ -130,14 +138,14 @@ class StimDesigner:
 
         l = {}
         match self.optimization_method:
-            case 'jaxopt':
+            case OptimizationMethod.JAXOPT:
                 u, l = self.design_stim_jaxopt(v, kwargs['u_dimension'], kwargs['u_to_s_function'])
-            case 'cheat_lowd_vec':
+            case OptimizationMethod.CHEAT_LOWD_VEC:
                 u = (kwargs['equivalent_projection_matrix'] @ v).flatten(),
-            case 'cheat_highd_vec_single_neurons':
+            case OptimizationMethod.CHEAT_HIGHD_VEC_SINGLE_NEURONS:
                 u = numpy.zeros(kwargs['equivalent_projection_matrix'].shape[0])
                 u[self.rng.choice(kwargs['equivalent_projection_matrix'].shape[0])] = 1
-            case 'cheat_highd_vec_many_neurons':
+            case OptimizationMethod.CHEAT_HIGHD_VEC_MANY_NEURONS:
                 u = numpy.zeros(kwargs['equivalent_projection_matrix'].shape[0])
                 u[self.rng.choice(kwargs['equivalent_projection_matrix'].shape[0], size=self.max_l0_norm, replace=False)] = 1
             case _:

@@ -6,6 +6,7 @@ from sim_stim import make_srs, make_slices_tensor
 from adaptive_latents import datasets, ArrayWithTime
 from adaptive_latents.regressions import BaseKernelRegressor
 import matplotlib.pyplot as plt
+from adaptive_latents.utils import save_to_cache
 
 
 def proportion_in_space(desired, designed):
@@ -87,8 +88,6 @@ def extract_metrics(srs, preq_cutoff=None):
             v_mag_ratio[-1].append([])
             proportions[-1].append([])
 
-            high_d_without_stim = sr.log['high_d_without_stim']
-            high_d_stims = sr.log['high_d_stims']
             latents: ArrayWithTime = sr.log['latents']
 
             for l in sr.stim_designer.log:
@@ -120,6 +119,7 @@ def extract_metrics(srs, preq_cutoff=None):
                 mags[-1][-1].append(np.linalg.norm(reg_o))
                 alignment_with_old_v[-1][-1].append(np.acos((this_v / np.linalg.norm(this_v)) @ old_v_direction))
                 v_mag_ratio[-1][-1].append(np.linalg.norm(this_v) / np.linalg.norm(old_v))
+
 
             # best_scale = stim_reg.cross_validate_length_scale(length_scales=np.logspace(-3,2, 20), depth=100)[0]
             # print(f"{k=} {best_scale=}")
@@ -203,6 +203,81 @@ def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_er
 
     return fig
 N = 10
+
+def plot_optim_col_vs_rand_with_high_d_rand():
+    @save_to_cache('optim_col_vs_rand_with_high_d_rand')
+    def to_cache(n_runs=2):
+        d = datasets.Odoherty21Dataset()
+        data = d.neural_data
+        srs = make_srs(data=data, rng=rng, comparison_preset='optim_col_vs_rand_with_high_d_rand', n_runs=n_runs, show_tqdm=True)
+        return srs
+
+    srs = to_cache(n_runs=N, _recalculate_cache_value=False)
+
+
+    fig, axs = plt.subplots(ncols=6, nrows=3, squeeze=False, figsize=(6*4, 4*3), layout='constrained', sharey='col')
+
+    for row, stim_direction_type in enumerate(['first', 'col', 'random']):
+        sub_srs = {k.split(' ')[0] :v for k, v in srs.items() if stim_direction_type in k}
+        proportions_new, preq_errors_new, v_delta_errors, s_delta_errors, angles, mags_along, mags, alignment_with_old_v, v_mag_ratio = extract_metrics(sub_srs, preq_cutoff=50)
+
+        sub_srs['normal'] = sub_srs.pop('normal')
+        sub_srs['normal, shuf'] = sub_srs.pop('shuffled')
+        sub_srs['rand 30'] = sub_srs.pop('many')
+        sub_srs['rand 1'] = sub_srs.pop('single')
+
+        ax: plt.Axes = axs[row, 0]
+        to_plot = {k: np.array(v).flatten() * 180 / np.pi for k, v in zip(sub_srs.keys(), angles)}
+        sns.violinplot(to_plot, orient='v', ax=ax)
+        sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
+        ax.set_title(f's_obs angle from v={{{stim_direction_type}}}')
+        ax.set_ylabel('cosine angle (degrees)')
+
+        ax: plt.Axes = axs[row, 1]
+        to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), mags_along)}
+        sns.violinplot(to_plot, orient='v', ax=ax)
+        sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
+        ax.set_title(f's_obs magnitude along v={{{stim_direction_type}}}')
+        ax.set_ylabel('magnitude (a.u.)')
+
+        ax: plt.Axes = axs[row, 2]
+        to_plot = {k: np.array(v)[:,10:].flatten() for k, v in zip(sub_srs.keys(), v_delta_errors)}
+        sns.violinplot(to_plot, orient='v', ax=ax)
+        sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
+        # ax.plot(np.array(v_delta_errors).mean(axis=1).T, label=sub_srs.keys())
+        # ax.legend()
+        ax.set_title(f's_obs prop. in v={{{stim_direction_type}}} (4b) (10:)')
+
+        ax: plt.Axes = axs[row, 3]
+        to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), mags)}
+        sns.violinplot(to_plot, orient='v', ax=ax)
+        sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
+        ax.set_title('s_obs total magnitude')
+        ax.set_ylabel('magnitude (a.u.)')
+
+        ax: plt.Axes = axs[row, 4]
+        to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), proportions_new)}
+        to_plot = {'normal': to_plot['normal']}
+        sns.violinplot(to_plot, orient='v', ax=ax)
+        sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
+        ax.set_title(f's_des proportion in v={{{stim_direction_type}}} (4a)')
+
+        ax: plt.Axes = axs[row, 5]
+        s_des_prop = np.array(proportions_new[0])
+        s_obs_prop = np.array(v_delta_errors[0])
+        ax.scatter(s_des_prop.flatten(), s_obs_prop.flatten())
+        ax.set_title(f'scatter')
+
+
+        # ax: plt.Axes = axs[row, 4]
+        # to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), proportions_new)}
+        # sns.violinplot(to_plot, orient='v', ax=ax)
+        # sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
+        # ax.set_title('metric 1 from paper')
+
+    return fig
+
+
 if __name__ == '__main__':
     import argparse
     import pathlib
@@ -241,59 +316,7 @@ if __name__ == '__main__':
             axs[0, 1].semilogy()
 
         case 'optim_col_vs_rand_with_high_d_rand':
-            d = datasets.Odoherty21Dataset()
-            data = d.neural_data
-            srs = make_srs(data=data, rng=rng, comparison_preset='optim_col_vs_rand_with_high_d_rand', n_runs=2, show_tqdm=True)
-
-            proportions_new, preq_errors_new, v_delta_errors, s_delta_errors, angles, mags_along, mags, alignment_with_old_v, v_mag_ratio = extract_metrics(srs, preq_cutoff=50)
-            proportions_original, preq_errors_original = extract_metrics_depreciated(srs, preq_cutoff=50)
-            # TODO: this fails `assert np.array_equal(proportions_new, proportions_original, equal_nan=True)`
-            preq_errors_original = preq_errors_new  # assert np.array_equal(preq_errors_original, preq_errors_new, equal_nan=True) always passed
-
-            fig, axs = plt.subplots(ncols=4, nrows=2, squeeze=False, figsize=(15, 8), layout='constrained')
-
-            to_plot = {k: np.array(v).flatten() * 180/np.pi for k, v in zip(srs.keys(), angles)}
-            sns.violinplot(to_plot, orient='v', ax=axs[0, 0])
-            sns.swarmplot(to_plot, orient='v', ax=axs[0, 0], size=3, edgecolor='white')
-            axs[0,0].set_title('angle from desired vector ($Q_1$)')
-            axs[0,0].set_ylabel('cosine angle (degrees)')
-
-            print('mags along')
-            to_plot = {k: np.array(v).flatten() for k, v in zip(srs.keys(), mags_along)}
-            sns.violinplot(to_plot, orient='v', ax=axs[0, 1])
-            sns.swarmplot(to_plot, orient='v', ax=axs[0, 1], size=3, edgecolor='white')
-            for k in to_plot:
-                print(f"\t{to_plot[k].mean() = } {to_plot[k].std() = }")
-            axs[0,1].set_title('magnitude along desired vector ($Q_1$)')
-            axs[0,1].set_ylabel('magnitude (a.u.)')
-
-            print('mags')
-            to_plot = {k: np.array(v).flatten() for k, v in zip(srs.keys(), mags)}
-            sns.violinplot(to_plot, orient='v', ax=axs[0, 2])
-            sns.swarmplot(to_plot, orient='v', ax=axs[0, 2], size=3, edgecolor='white')
-            for k in to_plot:
-                print(f"\t{to_plot[k].mean() = } {to_plot[k].std() = }")
-            axs[0,2].set_title('total magnitude')
-            axs[0,2].set_ylabel('magnitude (a.u.)')
-
-            print('angle with old v')
-            to_plot = {k: np.array(v).flatten() * 180/np.pi for k, v in zip(srs.keys(), alignment_with_old_v)}
-            sns.violinplot(to_plot, orient='v', ax=axs[0, 3])
-            sns.swarmplot(to_plot, orient='v', ax=axs[0, 3], size=3, edgecolor='white')
-            for k in to_plot:
-                print(f"\t{to_plot[k].mean() = } {to_plot[k].std() = }")
-            axs[0,3].set_title('Angle with old direction of movement')
-            axs[0,3].set_ylabel('angle')
-
-            print('v_mag_ratio')
-            to_plot = {k: np.array(v).flatten() for k, v in zip(srs.keys(), v_mag_ratio)}
-            sns.violinplot(to_plot, orient='v', ax=axs[1, 0])
-            sns.swarmplot(to_plot, orient='v', ax=axs[1, 0], size=3, edgecolor='white')
-            for k in to_plot:
-                print(f"\t{to_plot[k].mean() = } {to_plot[k].std() = }")
-            axs[1,0].semilogy()
-            axs[1,0].set_title('Step velocity ratio')
-            axs[1,0].set_ylabel(r' $\log \frac{z_t - z_{t-1}}{z_{t-1} - z_{t-2}}$')
+            fig = plot_optim_col_vs_rand_with_high_d_rand()
 
         case 'optim_open_vs_closed':
             data = datasets.Odoherty21Dataset().neural_data

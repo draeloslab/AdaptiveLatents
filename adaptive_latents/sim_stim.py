@@ -114,9 +114,10 @@ def make_sr(
         heed_stimuli=True,
         stim_time_delay=0,
         regressor_stim_delay=0,
-        design_method='optimized identity u_to_s', # TODO: refactor out
+        design_method=None, # TODO: refactor out
+        optimization_method='jaxopt',
+        u_to_s_model_type='identity',
         design_type=None,
-        u_to_s_model_type=None,
         true_S='identity',
         stim_timing_method='random',
         n_identity_prior=10,
@@ -150,16 +151,21 @@ def make_sr(
         stim_timing_method = 'isi'
     del regular_stim_iter, stim_rate
 
-    optimization_method, u_to_s_model_type = {
+    _optimization_method, _u_to_s_model_type = {
         'optimized learned u_to_s': ('jaxopt', 'kernel_regressed'),
         'optimized identity u_to_s': ('jaxopt', 'identity'),
         'direct cheating': ('cheat_lowd_vec', 'identity'),
         'single neurons': ('cheat_highd_vec_single_neurons', None),
         'many neurons': ('cheat_highd_vec_many_neurons', None),
+        None: (optimization_method, u_to_s_model_type),
     }[design_method]
     # single neurons
     # many neurons
     del design_method
+    if optimization_method is not None:
+        assert optimization_method == _optimization_method
+    if _u_to_s_model_type is not None:
+        assert u_to_s_model_type == _u_to_s_model_type
 
     stim_time_rng, other_rng = rng.spawn(2)
 
