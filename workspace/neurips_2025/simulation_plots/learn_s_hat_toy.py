@@ -1,3 +1,4 @@
+import functools
 import itertools
 
 import matplotlib.pyplot as plt
@@ -7,6 +8,7 @@ import pandas as pd
 from adaptive_latents.input_sources.lds_simulation import LDS
 from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap
 from adaptive_latents.regressions import BaseMultiKernelRegressor
+from adaptive_latents.utils import save_to_cache
 import tqdm.auto as tqdm
 
 standard_kinds_of_sr = ['learning from stim', 'ignoring stim samples', 'unaware of stim']
@@ -35,6 +37,9 @@ class StimRegressorWithExtraLogging(StimRegressor):
         self.pre_log(data, stream)
         return super().partial_fit_transform(data, stream=stream, return_output_stream=return_output_stream)
 
+def rotation_matrix(theta):
+    return np.array([[np.cos(theta), -np.sin(theta)],
+              [np.sin(theta), np.cos(theta)]])
 
 def make_slices_tensor(sr):
     error = sr.log['pred_error']
@@ -147,12 +152,17 @@ def make_srs(rng, n_runs=1, show_tqdm=False, **kwargs):
     srs = {k:[run[k] for run in srs] for k in srs[0].keys()}
     return srs
 
-def draw_curvy_surface(true_S=true_S, stim_locations=(), s_hat_observations=()):
+def draw_curvy_surface(true_S=true_S, stim_locations=(), s_hat_observations=(), surface_theta=0, vmin=0, vmax=None):
     fig2, ax2 = plt.subplots(subplot_kw={'projection': '3d', 'computed_zorder': False}, layout='constrained')
 
     extent = 20
     depth = 14
+
     X, Y = np.meshgrid(np.linspace(-extent, extent, depth), np.linspace(-extent, extent, depth))
+    X, Y = rotation_matrix(surface_theta) @ np.vstack([X.flatten(), Y.flatten()])
+    X = X.reshape((depth, depth))
+    Y = Y.reshape((depth, depth))
+
     Z = 0 * X
     for i_x, i_y in itertools.product(range(depth), range(depth)):
         Z[i_x, i_y] = true_S([X[i_x, i_y], Y[i_x, i_y], None])[2]
@@ -161,8 +171,8 @@ def draw_curvy_surface(true_S=true_S, stim_locations=(), s_hat_observations=()):
     errors = [np.linalg.norm(true_S(location) - estimated) for location, estimated in
               zip(stim_locations, s_hat_observations)]
     c = ax2.scatter(stim_locations[:, 0], stim_locations[:, 1], s_hat_observations[:, -1], c=errors, zorder=100,
-                    alpha=1, cmap='plasma', vmin=0)
-    fig2.colorbar(c)
+                    alpha=1, cmap='plasma', vmin=vmin, vmax=vmax)
+    cbar = fig2.colorbar(c)
 
     ax2.axis('equal')
     ax2.view_init(elev=24, azim=147, roll=0)
@@ -176,7 +186,7 @@ def draw_curvy_surface(true_S=true_S, stim_locations=(), s_hat_observations=()):
     ax2.xaxis._axinfo["grid"]['color'] = (1, 1, 1, 0)
     ax2.yaxis._axinfo["grid"]['color'] = (1, 1, 1, 0)
     ax2.zaxis._axinfo["grid"]['color'] = (1, 1, 1, 0)
-    return fig2
+    return fig2, ax2, (cbar.mappable.norm. vmin,cbar.mappable.norm.vmax)
 
 
 from learn_s_hat_plots import plot_onestep_pred_error_decreasing, make_table, plot_manifold_error
@@ -228,27 +238,23 @@ if __name__ == '__main__':
             s_hat_observations = s_hat_observations[_slice]
 
 
-            def true_S(state):
-                u = np.zeros(3)
-                u[2] = stim_magnitude * state[0] / np.linalg.norm(state[:2])
-                return u
-
-            fig2 = draw_curvy_surface(true_S=true_S, stim_locations=stim_locations, s_hat_observations=s_hat_observations)
-            fig2.savefig(args.output.with_stem('toy_curvy'), bbox_inches="tight")
-
-            def spun_true_S(state):
+            def spun_true_S(state, theta):
                 state = np.array(state)
 
-                theta = 2*np.pi / 12
-                rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],
-                                            [np.sin(theta),  np.cos(theta)]])
-                state[:2] = rotation_matrix @ state[:2]
+                state[:2] = rotation_matrix(theta) @ state[:2]
 
                 u = np.zeros(3)
                 u[2] = stim_magnitude * state[0] / np.linalg.norm(state[:2])
                 return u
-            fig2 = draw_curvy_surface(true_S=spun_true_S, stim_locations=stim_locations, s_hat_observations=s_hat_observations)
+
+            fig2, ax2, (vmin, vmax) = draw_curvy_surface(true_S=functools.partial(spun_true_S, theta=np.pi/8), stim_locations=stim_locations, s_hat_observations=s_hat_observations, surface_theta=-np.pi/8)
             fig2.savefig(args.output.with_stem('toy_curvy_spun'), bbox_inches="tight")
+
+            fig2, ax2, c1 = draw_curvy_surface(true_S=functools.partial(spun_true_S, theta=0), stim_locations=stim_locations, s_hat_observations=s_hat_observations, vmin=vmin, vmax=vmax)
+            fig2.savefig(args.output.with_stem('toy_curvy'), bbox_inches="tight")
+            ax2.cla()
+
+
 
 
         case '1-step-prediction-table':
