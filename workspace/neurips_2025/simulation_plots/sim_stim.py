@@ -60,9 +60,10 @@ def get_presets(comparison_preset):
             }
 
         case 'optim_col_vs_rand_with_high_d_rand':
-            common = dict(stim_direction_type='random', stim_rate=1/2, stim_magnitude=10, exit_time=130)
+            common = dict(stim_rate=1/2, stim_magnitude=10, exit_time=130)
             to_run = {}
-            for stim_direction_type in ('first', 'col', 'random'):
+            stim_direction_types = ('first', 'col', 'random', 'ones', '-ones', 'random+')
+            for stim_direction_type in stim_direction_types:
                 inner_common = common | dict(stim_direction_type=stim_direction_type)
                 to_run.update({
                     f'normal {stim_direction_type}': inner_common | dict(true_S='identity', optimization_method=OptimizationMethod.JAXOPT, u_to_s_model_type='identity',),

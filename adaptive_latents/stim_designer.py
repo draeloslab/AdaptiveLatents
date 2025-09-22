@@ -92,6 +92,21 @@ class StimDesigner:
         elif stim_direction_type == 'random':
             desired_stim = rng.normal(size=(equivalent_projection_matrix.shape[1], 1))
             desired_stim = desired_stim / numpy.linalg.norm(desired_stim)
+        elif stim_direction_type == 'random+':
+            desired_stim_high_d = rng.normal(size=(equivalent_projection_matrix.shape[0], 1))
+            desired_stim_high_d = desired_stim_high_d / numpy.linalg.norm(desired_stim_high_d)
+            desired_stim_high_d = numpy.abs(desired_stim_high_d)
+
+            desired_stim = equivalent_projection_matrix.T @ desired_stim_high_d
+            desired_stim = desired_stim / numpy.linalg.norm(desired_stim)
+        elif stim_direction_type == 'ones':
+            desired_stim_high_d = numpy.ones((equivalent_projection_matrix.shape[0], 1))
+            desired_stim = equivalent_projection_matrix.T @ desired_stim_high_d
+            desired_stim = desired_stim / numpy.linalg.norm(desired_stim)
+        elif stim_direction_type == '-ones':
+            desired_stim_high_d = numpy.ones((equivalent_projection_matrix.shape[0], 1))
+            desired_stim = equivalent_projection_matrix.T @ desired_stim_high_d
+            desired_stim = desired_stim / numpy.linalg.norm(desired_stim)
         else:
             raise ValueError()
         return desired_stim

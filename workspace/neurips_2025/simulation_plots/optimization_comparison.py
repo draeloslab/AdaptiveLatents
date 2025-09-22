@@ -7,6 +7,7 @@ from adaptive_latents import datasets, ArrayWithTime
 from adaptive_latents.regressions import BaseKernelRegressor
 import matplotlib.pyplot as plt
 from adaptive_latents.utils import save_to_cache
+import pandas
 
 
 def proportion_in_space(desired, designed):
@@ -21,7 +22,29 @@ def proportion_in_space(desired, designed):
     return ratio
 
 def make_unit(x):
+    x = np.squeeze(x)
+    assert len(x.shape) == 1
     return x / np.linalg.norm(x)
+
+def angle(a,b):
+    return np.acos(make_unit(a) @ make_unit(b).flatten()) * 180/np.pi
+
+def srs_to_l_df(srs):
+    records = []
+    for k, sr_list in srs.items():
+        for sr_i, sr in enumerate(sr_list):
+            latents: ArrayWithTime = sr.log['latents']
+            for l_i, l in enumerate(sr.stim_designer.log):
+                t_of_stim = l['time_of_stim']
+                stim_sample = latents.time_to_sample(t_of_stim)
+                old_v = latents[stim_sample-1] - latents[stim_sample-2]
+                this_v = latents[stim_sample] - latents[stim_sample-1]
+                l['old_v'] = old_v
+                l['this_v'] = this_v
+
+                records.append(dict(sr_key=k, sr_i=sr_i, l_i=l_i, l=l))
+    return pandas.DataFrame(records)
+
 
 def extract_metrics(srs, preq_cutoff=None, metric_functions=None):
     if metric_functions is None:
@@ -30,10 +53,10 @@ def extract_metrics(srs, preq_cutoff=None, metric_functions=None):
             'preq_errors': lambda l: np.linalg.norm(l['observed_s_hat'] - l['stim_reg'].predict(l['observed_reg_input'])) if l['stim_reg'] is not None else np.nan,
             'v_delta_errors': lambda l: proportion_in_space(l['v'], l['observed_s_hat']),
             's_delta_errors': lambda l: np.linalg.norm(l['s'] - l['observed_s_hat']),
-            'angles': lambda l: np.acos(make_unit(l['observed_s_hat']) @ make_unit(l['v'])),
+            'angles': lambda l: angle(l['observed_s_hat'], l['v']),
             'mags_along': lambda l: l['observed_s_hat'] @ make_unit(l['v']),
             'mags': lambda l: np.linalg.norm(l['observed_s_hat']),
-            'alignment_with_old_v': lambda l: np.acos(make_unit(l['this_v']) @ make_unit(l['old_v'])),
+            'alignment_with_old_v': lambda l: angle(l['this_v'], l['old_v']),
             'v_mag_ratio': lambda l: np.linalg.norm(l['this_v']) / np.linalg.norm(l['old_v']),
         }
     metrics = {name: [] for name in metric_functions}
@@ -66,7 +89,7 @@ def extract_metrics(srs, preq_cutoff=None, metric_functions=None):
 
     if preq_cutoff is None:
         preq_cutoff = np.inf
-        for a in metrics['proportions']:
+        for a in list(metrics.values())[0]:
             for b in a:
                 if len(b) < preq_cutoff:
                     preq_cutoff = len(b)
@@ -76,6 +99,8 @@ def extract_metrics(srs, preq_cutoff=None, metric_functions=None):
 
     return metrics
 
+def apply_lambda(srs, f, preq_cutoff=None):
+    return extract_metrics(srs, preq_cutoff=preq_cutoff, metric_functions={'custom': f})['custom']
 
 def unpack_metrics(metrics):
     if isinstance(metrics, dict):
@@ -140,61 +165,56 @@ def plot_optim_col_vs_rand_with_high_d_rand():
         srs = make_srs(data=data, rng=rng, comparison_preset='optim_col_vs_rand_with_high_d_rand', n_runs=n_runs, show_tqdm=True)
         return srs
 
-    srs = to_cache(n_runs=N, _recalculate_cache_value=False)
+    srs = to_cache(n_runs=1, _recalculate_cache_value=False)
+    stim_direction_types = ('first', 'col', 'random', 'ones', '-ones', 'random+')
+    ncols = 6
+    fig, axs = plt.subplots(ncols=ncols, nrows=len(stim_direction_types), squeeze=False, figsize=(4*ncols, 4*len(stim_direction_types)), layout='constrained', sharey='col')
 
+    l_df = srs_to_l_df(srs)
+    l_df[['optim_method', 'stim_direction_type']] = l_df['sr_key'].str.split(' ', expand=True)
 
-    fig, axs = plt.subplots(ncols=6, nrows=3, squeeze=False, figsize=(6*4, 4*3), layout='constrained', sharey='col')
+    for row, stim_direction_type in enumerate(stim_direction_types):
+        sub_df = pandas.DataFrame(l_df[l_df['stim_direction_type'] == stim_direction_type])
+        # sub_srs = {k.split(' ')[0] :v for k, v in srs.items() if stim_direction_type in k}
+        # metrics = extract_metrics(sub_srs)
 
-    for row, stim_direction_type in enumerate(['first', 'col', 'random']):
-        sub_srs = {k.split(' ')[0] :v for k, v in srs.items() if stim_direction_type in k}
-        metrics = extract_metrics(sub_srs)
-
-        sub_srs['normal'] = sub_srs.pop('normal')
-        sub_srs['normal, shuf'] = sub_srs.pop('shuffled')
-        sub_srs['rand 30'] = sub_srs.pop('many')
-        sub_srs['rand 1'] = sub_srs.pop('single')
+        # sub_srs['normal'] = sub_srs.pop('normal')
+        # sub_srs['normal, shuf'] = sub_srs.pop('shuffled')
+        # sub_srs['rand 30'] = sub_srs.pop('many')
+        # sub_srs['rand 1'] = sub_srs.pop('single')
 
         ax: plt.Axes = axs[row, 0]
-        to_plot = {k: np.array(v).flatten() * 180 / np.pi for k, v in zip(sub_srs.keys(), metrics['angles'])}
-        sns.violinplot(to_plot, orient='v', ax=ax)
-        sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
+        sub_df['angles(s_obs,v)'] = sub_df.l.apply(lambda l: angle(l['observed_s_hat'], l['v']))
+        sns.violinplot(sub_df, x='optim_method', y='angles(s_obs,v)', orient='v', ax=ax)
+        sns.swarmplot(sub_df, x='optim_method', y='angles(s_obs,v)', orient='v', ax=ax, size=1, edgecolor='white')
         ax.set_title(f's_obs angle from v={{{stim_direction_type}}}')
         ax.set_ylabel('cosine angle (degrees)')
 
-        ax: plt.Axes = axs[row, 1]
-        to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), metrics['mags_along'])}
-        sns.violinplot(to_plot, orient='v', ax=ax)
-        sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
-        ax.set_title(f's_obs magnitude along v={{{stim_direction_type}}}')
-        ax.set_ylabel('magnitude (a.u.)')
+        # ax: plt.Axes = axs[row, 2]
+        # sub_df['angles(s_obs,v)'] = sub_df.l.apply(lambda l: proportion_in_space(l['v'], l['observed_s_hat']))
+        # to_plot = {k: np.array(v)[:,10:].flatten() for k, v in zip(sub_srs.keys(), metrics['v_delta_errors'])}
+        # sns.violinplot(to_plot, orient='v', ax=ax)
+        # sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
+        # ax.set_title(f's_obs prop. in v={{{stim_direction_type}}} (4b) (10:)')
 
-        ax: plt.Axes = axs[row, 2]
-        to_plot = {k: np.array(v)[:,10:].flatten() for k, v in zip(sub_srs.keys(), metrics['v_delta_errors'])}
-        sns.violinplot(to_plot, orient='v', ax=ax)
-        sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
-        # ax.plot(np.array(v_delta_errors).mean(axis=1).T, label=sub_srs.keys())
-        # ax.legend()
-        ax.set_title(f's_obs prop. in v={{{stim_direction_type}}} (4b) (10:)')
-
-        ax: plt.Axes = axs[row, 3]
-        to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), metrics['mags'])}
-        sns.violinplot(to_plot, orient='v', ax=ax)
-        sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
-        ax.set_title('s_obs total magnitude')
-        ax.set_ylabel('magnitude (a.u.)')
+        # ax: plt.Axes = axs[row, 3]
+        # to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), metrics['mags'])}
+        # sns.violinplot(to_plot, orient='v', ax=ax)
+        # sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
+        # ax.set_title('s_obs total magnitude')
+        # ax.set_ylabel('magnitude (a.u.)')
 
         ax: plt.Axes = axs[row, 4]
-        to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), metrics['proportions'])}
-        to_plot = {'normal': to_plot['normal']}
-        sns.violinplot(to_plot, orient='v', ax=ax)
-        sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
-        ax.set_title(f's_des proportion in v={{{stim_direction_type}}} (4a)')
+        metric_name = 'angles(s_designed,v)'
+        sub_df[metric_name] = sub_df.l.apply(lambda l: angle(l['s'], l['v']))
+        just_normal_sub_df = sub_df[(sub_df['optim_method'] == 'normal')]
+        sns.violinplot(just_normal_sub_df, x='sr_key', y=metric_name, orient='v', ax=ax)
+        sns.swarmplot(just_normal_sub_df, x='sr_key', y=metric_name, orient='v', ax=ax, size=1, edgecolor='white')
+        ax.set_title(f's_designed angle with v={{{stim_direction_type}}}')
 
         ax: plt.Axes = axs[row, 5]
-        s_des_prop = np.array(metrics['proportions'][0])
-        s_obs_prop = np.array(metrics['v_delta_errors'][0])
-        ax.scatter(s_des_prop.flatten(), s_obs_prop.flatten())
-        ax.set_title(f'scatter')
+        sns.scatterplot(just_normal_sub_df, x='angles(s_obs,v)', y='angles(s_designed,v)', ax=ax)
+        ax.axis('equal')
 
 
         # ax: plt.Axes = axs[row, 4]
@@ -203,7 +223,7 @@ def plot_optim_col_vs_rand_with_high_d_rand():
         # sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
         # ax.set_title('metric 1 from paper')
 
-    return fig
+    return fig, fig
 
 
 if __name__ == '__main__':
@@ -241,7 +261,8 @@ if __name__ == '__main__':
             axs[0, 1].semilogy()
 
         case 'optim_col_vs_rand_with_high_d_rand':
-            fig = plot_optim_col_vs_rand_with_high_d_rand()
+            fig, fig2 = plot_optim_col_vs_rand_with_high_d_rand()
+            fig2.savefig(args.output.with_stem('optim_col_vs_rand_with_high_d_rand_T'), bbox_inches="tight")
 
         case 'optim_open_vs_closed':
             data = datasets.Odoherty21Dataset().neural_data

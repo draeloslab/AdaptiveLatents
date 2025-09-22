@@ -6,6 +6,7 @@ import os
 import pickle
 import warnings
 from collections import namedtuple
+import time
 
 import numpy as np
 
@@ -68,7 +69,9 @@ def save_to_cache(file, location=None, override_config_and_cache=False):
 
 
             if _recalculate_cache_value or all_args_as_key not in cache_index or not (location/ cache_index[all_args_as_key]['cache_file']).exists():
+                start = time.time()
                 result = original_function(**all_args)
+                execute_time = time.time() - start
 
                 hstring = str(all_args_as_key)[-15:]
                 cache_file = str((location/ f"{file}_{hstring}.pickle").resolve())
@@ -77,7 +80,7 @@ def save_to_cache(file, location=None, override_config_and_cache=False):
                 with CONFIG.open_with_parents(cache_file, "wb") as fhan:
                     pickle.dump(result, fhan)
 
-                cache_index[all_args_as_key] = {'cache_file': cache_file}
+                cache_index[all_args_as_key] = {'cache_file': cache_file, 'execute_time': execute_time, 'args': str(all_args)}
                 with CONFIG.open_with_parents(cache_index_file, 'w') as fhan:
                     json.dump(cache_index, fhan, indent=4)
 
