@@ -165,23 +165,21 @@ def plot_optim_col_vs_rand_with_high_d_rand():
         srs = make_srs(data=data, rng=rng, comparison_preset='optim_col_vs_rand_with_high_d_rand', n_runs=n_runs, show_tqdm=True)
         return srs
 
-    srs = to_cache(n_runs=1, _recalculate_cache_value=False)
-    stim_direction_types = ('first', 'col', 'random', 'ones', '-ones', 'random+')
-    ncols = 6
-    fig, axs = plt.subplots(ncols=ncols, nrows=len(stim_direction_types), squeeze=False, figsize=(4*ncols, 4*len(stim_direction_types)), layout='constrained', sharey='col')
+    srs = to_cache(n_runs=10, _recalculate_cache_value=True)
 
     l_df = srs_to_l_df(srs)
     l_df[['optim_method', 'stim_direction_type']] = l_df['sr_key'].str.split(' ', expand=True)
 
+    l_df.drop(index=l_df.index[(l_df.stim_direction_type == 'random+')], inplace=True)
+    l_df.drop(index=l_df.index[(l_df.stim_direction_type == 'col')], inplace=True)
+    stim_direction_types = l_df.stim_direction_type.unique()
+
+    ncols = 3
+    fig, axs = plt.subplots(ncols=ncols, nrows=len(stim_direction_types), squeeze=False, figsize=(4*ncols, 4*len(stim_direction_types)), layout='constrained', sharey='col')
+
+
     for row, stim_direction_type in enumerate(stim_direction_types):
         sub_df = pandas.DataFrame(l_df[l_df['stim_direction_type'] == stim_direction_type])
-        # sub_srs = {k.split(' ')[0] :v for k, v in srs.items() if stim_direction_type in k}
-        # metrics = extract_metrics(sub_srs)
-
-        # sub_srs['normal'] = sub_srs.pop('normal')
-        # sub_srs['normal, shuf'] = sub_srs.pop('shuffled')
-        # sub_srs['rand 30'] = sub_srs.pop('many')
-        # sub_srs['rand 1'] = sub_srs.pop('single')
 
         ax: plt.Axes = axs[row, 0]
         sub_df['angles(s_obs,v)'] = sub_df.l.apply(lambda l: angle(l['observed_s_hat'], l['v']))
@@ -190,40 +188,44 @@ def plot_optim_col_vs_rand_with_high_d_rand():
         ax.set_title(f's_obs angle from v={{{stim_direction_type}}}')
         ax.set_ylabel('cosine angle (degrees)')
 
-        # ax: plt.Axes = axs[row, 2]
-        # sub_df['angles(s_obs,v)'] = sub_df.l.apply(lambda l: proportion_in_space(l['v'], l['observed_s_hat']))
-        # to_plot = {k: np.array(v)[:,10:].flatten() for k, v in zip(sub_srs.keys(), metrics['v_delta_errors'])}
-        # sns.violinplot(to_plot, orient='v', ax=ax)
-        # sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
-        # ax.set_title(f's_obs prop. in v={{{stim_direction_type}}} (4b) (10:)')
-
-        # ax: plt.Axes = axs[row, 3]
-        # to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), metrics['mags'])}
-        # sns.violinplot(to_plot, orient='v', ax=ax)
-        # sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
-        # ax.set_title('s_obs total magnitude')
-        # ax.set_ylabel('magnitude (a.u.)')
-
-        ax: plt.Axes = axs[row, 4]
+        ax: plt.Axes = axs[row, 1]
         metric_name = 'angles(s_designed,v)'
         sub_df[metric_name] = sub_df.l.apply(lambda l: angle(l['s'], l['v']))
         just_normal_sub_df = sub_df[(sub_df['optim_method'] == 'normal')]
-        sns.violinplot(just_normal_sub_df, x='sr_key', y=metric_name, orient='v', ax=ax)
-        sns.swarmplot(just_normal_sub_df, x='sr_key', y=metric_name, orient='v', ax=ax, size=1, edgecolor='white')
+        sns.violinplot(just_normal_sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax)
+        sns.swarmplot(just_normal_sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax, size=1, edgecolor='white')
         ax.set_title(f's_designed angle with v={{{stim_direction_type}}}')
 
-        ax: plt.Axes = axs[row, 5]
-        sns.scatterplot(just_normal_sub_df, x='angles(s_obs,v)', y='angles(s_designed,v)', ax=ax)
+        ax: plt.Axes = axs[row, 2]
+        sns.scatterplot(just_normal_sub_df, x='angles(s_designed,v)', y='angles(s_obs,v)', ax=ax)
+        ax.plot([0,120], [0,120], 'k')
+        ax.set_xlim([0, 120])
+        ax.set_ylim([0, 120])
         ax.axis('equal')
 
 
-        # ax: plt.Axes = axs[row, 4]
-        # to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), proportions_new)}
-        # sns.violinplot(to_plot, orient='v', ax=ax)
-        # sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
-        # ax.set_title('metric 1 from paper')
 
-    return fig, fig
+    fig2, ax2 = plt.subplots(ncols=2, nrows=4, figsize=(6 * 2, 4 * 4), squeeze=False, layout='constrained')
+
+    for row, optim_method in enumerate(('normal', 'shuffled', 'many', 'single')):
+        sub_df = l_df[(l_df['optim_method'] == optim_method)]
+
+        if optim_method == 'normal':
+            ax: plt.Axes = ax2[row, 0]
+            metric_name = 'angles(s_designed,v)'
+            sub_df[metric_name] = sub_df.l.apply(lambda l: angle(l['s'], l['v']))
+            sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax)
+            sns.swarmplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax, size=1, edgecolor='white')
+            ax.set_title(f'{optim_method=}')
+
+        ax: plt.Axes = ax2[row, 1]
+        metric_name = 'angles(s_obs,v)'
+        sub_df[metric_name] = sub_df.l.apply(lambda l: angle(l['observed_s_hat'], l['v']))
+        sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax)
+        sns.swarmplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax, size=1, edgecolor='white')
+        ax.set_title(f'{optim_method=}')
+
+    return fig, fig2
 
 
 if __name__ == '__main__':
