@@ -20,140 +20,68 @@ def proportion_in_space(desired, designed):
         ratio = in_norm / total_norm
     return ratio
 
+def make_unit(x):
+    return x / np.linalg.norm(x)
 
-def extract_metrics_depreciated(srs, preq_cutoff=50):
-    proportions = []
-    preq_errors = []
+def extract_metrics(srs, preq_cutoff=None, metric_functions=None):
+    if metric_functions is None:
+        metric_functions = {
+            'proportions': lambda l: proportion_in_space(l['v'], l['s']),
+            'preq_errors': lambda l: np.linalg.norm(l['observed_s_hat'] - l['stim_reg'].predict(l['observed_reg_input'])) if l['stim_reg'] is not None else np.nan,
+            'v_delta_errors': lambda l: proportion_in_space(l['v'], l['observed_s_hat']),
+            's_delta_errors': lambda l: np.linalg.norm(l['s'] - l['observed_s_hat']),
+            'angles': lambda l: np.acos(make_unit(l['observed_s_hat']) @ make_unit(l['v'])),
+            'mags_along': lambda l: l['observed_s_hat'] @ make_unit(l['v']),
+            'mags': lambda l: np.linalg.norm(l['observed_s_hat']),
+            'alignment_with_old_v': lambda l: np.acos(make_unit(l['this_v']) @ make_unit(l['old_v'])),
+            'v_mag_ratio': lambda l: np.linalg.norm(l['this_v']) / np.linalg.norm(l['old_v']),
+        }
+    metrics = {name: [] for name in metric_functions}
+
     for k, sr_list in srs.items():
-        preq_errors.append([])
-        proportions.append([])
+        for m in metrics.values():
+            m.append([])
 
         for sr in sr_list:
-            preq_errors[-1].append([])
-            proportions[-1].append([])
-
-            old_stim_reg = None
-            for l in sr.stim_designer.log:
-                s = l['s']
-                v = l['v']
-                proportion = proportion_in_space(v, s)
-                proportions[-1][-1].append(proportion)
-
-                stim_reg = l['stim_reg']
-
-                if old_stim_reg is not None:
-                    # most_recent_row = stim_reg.history[stim_reg.n_observed - 1, :]
-                    # i = most_recent_row[:stim_reg.input_d]
-                    # o = most_recent_row[stim_reg.input_d:]
-                    #
-                    # if old_stim_reg.history is None:
-                    preq_error = np.nan
-                    # else:
-                    #     preq_error = np.linalg.norm(o - old_stim_reg.predict(i))
-                    preq_errors[-1][-1].append(preq_error)
-
-                old_stim_reg = stim_reg
-            assert len(preq_errors[-1][ -1]) >= preq_cutoff, f"to make the array non-ragged, we need to have at least {preq_cutoff} preq errors (not {len(preq_errors[-1][-1])})"
-            preq_errors[-1][-1] = np.array(preq_errors[-1][-1][:preq_cutoff])
-    return proportions, preq_errors
-
-def extract_metrics(srs, preq_cutoff=None):
-    proportions = []
-    preq_errors = []
-    v_delta_errors = []
-    s_delta_errors = []
-    angles = []
-    mags_along = []
-    mags = []
-    alignment_with_old_v = []
-    v_mag_ratio = []
-    for k, sr_list in srs.items():
-        preq_errors.append([])
-        v_delta_errors.append([])
-        s_delta_errors.append([])
-        angles.append([])
-        mags_along.append([])
-        mags.append([])
-        alignment_with_old_v.append([])
-        v_mag_ratio.append([])
-        proportions.append([])
-        for sr in sr_list:
-            preq_errors[-1].append([])
-            v_delta_errors[-1].append([])
-            s_delta_errors[-1].append([])
-            angles[-1].append([])
-            mags_along[-1].append([])
-            mags[-1].append([])
-            alignment_with_old_v[-1].append([])
-            v_mag_ratio[-1].append([])
-            proportions[-1].append([])
+            for m in metrics.values():
+                m[-1].append([])
 
             latents: ArrayWithTime = sr.log['latents']
 
             for l in sr.stim_designer.log:
-                s = l['s']
-                v = l['v']
-                proportion = proportion_in_space(v, s)
-                proportions[-1][-1].append(proportion)
-
-                stim_reg: BaseKernelRegressor = l['stim_reg']
-                reg_i = l['observed_reg_input']
-                reg_o = l['observed_s_hat']
                 t_of_stim = l['time_of_stim']
-                equivalent_projection_matrix = l['equiv_proj_mat']
                 stim_sample = latents.time_to_sample(t_of_stim)
                 old_v = latents[stim_sample-1] - latents[stim_sample-2]
                 this_v = latents[stim_sample] - latents[stim_sample-1]
-                old_v_direction = old_v / np.linalg.norm(old_v)
+                l['old_v'] = old_v
+                l['this_v'] = this_v
 
+                for name, m in metrics.items():
+                    m[-1][-1].append(metric_functions[name](l))
 
-                if stim_reg is not None:
-                    preq_error = np.linalg.norm(reg_o - stim_reg.predict(reg_i))
-                else:
-                    preq_error = np.nan
-                preq_errors[-1][-1].append(preq_error)
-                v_delta_errors[-1][-1].append(proportion_in_space(v, reg_o))
-                s_delta_errors[-1][-1].append(np.linalg.norm(s - reg_o))
-                angles[-1][-1].append(np.acos((reg_o / np.linalg.norm(reg_o)) @ (v / np.linalg.norm(v))))
-                mags_along[-1][-1].append(reg_o @ (v / np.linalg.norm(v)))
-                mags[-1][-1].append(np.linalg.norm(reg_o))
-                alignment_with_old_v[-1][-1].append(np.acos((this_v / np.linalg.norm(this_v)) @ old_v_direction))
-                v_mag_ratio[-1][-1].append(np.linalg.norm(this_v) / np.linalg.norm(old_v))
-
-
-            # best_scale = stim_reg.cross_validate_length_scale(length_scales=np.logspace(-3,2, 20), depth=100)[0]
-            # print(f"{k=} {best_scale=}")
 
             if preq_cutoff is not None:
-                assert len(preq_errors[-1][-1]) >= preq_cutoff, f"to make the array non-ragged, we need to have at least {preq_cutoff} preq errors (not {len(preq_errors[-1][-1])})"
-                preq_errors[-1][-1] = np.array(preq_errors[-1][-1][:preq_cutoff])
-                v_delta_errors[-1][-1] = np.array(v_delta_errors[-1][-1][:preq_cutoff])
-                s_delta_errors[-1][-1] = np.array(s_delta_errors[-1][-1][:preq_cutoff])
-                angles[-1][-1] = np.array(angles[-1][-1][:preq_cutoff])
-                mags_along[-1][-1] = np.array(mags_along[-1][-1][:preq_cutoff])
-                mags[-1][-1] = np.array(mags[-1][-1][:preq_cutoff])
-                alignment_with_old_v[-1][-1] = np.array(alignment_with_old_v[-1][-1][:preq_cutoff])
-                v_mag_ratio[-1][-1] = np.array(v_mag_ratio[-1][-1][:preq_cutoff])
-                proportions[-1][-1] = np.array(proportions[-1][-1][:preq_cutoff])
+                for m in metrics.values():
+                    m[-1][-1] = m[-1][-1][:preq_cutoff]
 
     if preq_cutoff is None:
         preq_cutoff = np.inf
-        for a in preq_errors:
+        for a in metrics['proportions']:
             for b in a:
                 if len(b) < preq_cutoff:
                     preq_cutoff = len(b)
-        for i in range(len(preq_errors)):
-            for j in range(len(preq_errors[i])):
-                preq_errors[i][j] = preq_errors[i][j][:preq_cutoff]
-                v_delta_errors[i][j] = v_delta_errors[i][j][:preq_cutoff]
-                s_delta_errors[i][j] = s_delta_errors[i][j][:preq_cutoff]
-                angles[i][j] = angles[i][j][:preq_cutoff]
-                mags_along[i][j] = mags_along[i][j][:preq_cutoff]
-                mags[i][j] = mags[i][j][:preq_cutoff]
-                alignment_with_old_v[i][j] = alignment_with_old_v[i][j][:preq_cutoff]
-                v_mag_ratio[i][j] = v_mag_ratio[i][j][:preq_cutoff]
-                proportions[i][j] = proportions[i][j][:preq_cutoff]
-    return proportions, preq_errors, v_delta_errors, s_delta_errors, angles, mags_along, mags, alignment_with_old_v, v_mag_ratio
+
+        for k in metrics:
+            metrics[k] = [[b[:preq_cutoff] for b in a] for a in metrics[k]]
+
+    return metrics
+
+
+def unpack_metrics(metrics):
+    if isinstance(metrics, dict):
+        return metrics['proportions'], metrics['preq_errors'], metrics['v_delta_errors'], metrics['s_delta_errors'], metrics['angles'], metrics['mags_along'], metrics['mags'], metrics['alignment_with_old_v'], metrics['v_mag_ratio']
+    else:
+        return metrics
 
 
 def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=True):
@@ -219,7 +147,7 @@ def plot_optim_col_vs_rand_with_high_d_rand():
 
     for row, stim_direction_type in enumerate(['first', 'col', 'random']):
         sub_srs = {k.split(' ')[0] :v for k, v in srs.items() if stim_direction_type in k}
-        proportions_new, preq_errors_new, v_delta_errors, s_delta_errors, angles, mags_along, mags, alignment_with_old_v, v_mag_ratio = extract_metrics(sub_srs, preq_cutoff=50)
+        metrics = extract_metrics(sub_srs)
 
         sub_srs['normal'] = sub_srs.pop('normal')
         sub_srs['normal, shuf'] = sub_srs.pop('shuffled')
@@ -227,21 +155,21 @@ def plot_optim_col_vs_rand_with_high_d_rand():
         sub_srs['rand 1'] = sub_srs.pop('single')
 
         ax: plt.Axes = axs[row, 0]
-        to_plot = {k: np.array(v).flatten() * 180 / np.pi for k, v in zip(sub_srs.keys(), angles)}
+        to_plot = {k: np.array(v).flatten() * 180 / np.pi for k, v in zip(sub_srs.keys(), metrics['angles'])}
         sns.violinplot(to_plot, orient='v', ax=ax)
         sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
         ax.set_title(f's_obs angle from v={{{stim_direction_type}}}')
         ax.set_ylabel('cosine angle (degrees)')
 
         ax: plt.Axes = axs[row, 1]
-        to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), mags_along)}
+        to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), metrics['mags_along'])}
         sns.violinplot(to_plot, orient='v', ax=ax)
         sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
         ax.set_title(f's_obs magnitude along v={{{stim_direction_type}}}')
         ax.set_ylabel('magnitude (a.u.)')
 
         ax: plt.Axes = axs[row, 2]
-        to_plot = {k: np.array(v)[:,10:].flatten() for k, v in zip(sub_srs.keys(), v_delta_errors)}
+        to_plot = {k: np.array(v)[:,10:].flatten() for k, v in zip(sub_srs.keys(), metrics['v_delta_errors'])}
         sns.violinplot(to_plot, orient='v', ax=ax)
         sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
         # ax.plot(np.array(v_delta_errors).mean(axis=1).T, label=sub_srs.keys())
@@ -249,22 +177,22 @@ def plot_optim_col_vs_rand_with_high_d_rand():
         ax.set_title(f's_obs prop. in v={{{stim_direction_type}}} (4b) (10:)')
 
         ax: plt.Axes = axs[row, 3]
-        to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), mags)}
+        to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), metrics['mags'])}
         sns.violinplot(to_plot, orient='v', ax=ax)
         sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
         ax.set_title('s_obs total magnitude')
         ax.set_ylabel('magnitude (a.u.)')
 
         ax: plt.Axes = axs[row, 4]
-        to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), proportions_new)}
+        to_plot = {k: np.array(v).flatten() for k, v in zip(sub_srs.keys(), metrics['proportions'])}
         to_plot = {'normal': to_plot['normal']}
         sns.violinplot(to_plot, orient='v', ax=ax)
         sns.swarmplot(to_plot, orient='v', ax=ax, size=1, edgecolor='white')
         ax.set_title(f's_des proportion in v={{{stim_direction_type}}} (4a)')
 
         ax: plt.Axes = axs[row, 5]
-        s_des_prop = np.array(proportions_new[0])
-        s_obs_prop = np.array(v_delta_errors[0])
+        s_des_prop = np.array(metrics['proportions'][0])
+        s_obs_prop = np.array(metrics['v_delta_errors'][0])
         ax.scatter(s_des_prop.flatten(), s_obs_prop.flatten())
         ax.set_title(f'scatter')
 
@@ -296,21 +224,18 @@ if __name__ == '__main__':
             data = d.neural_data
             srs = make_srs(data=data, rng=rng, comparison_preset='optim_col_vs_rand', n_runs=N, show_tqdm=True)
 
-            proportions_new, preq_errors_new, v_delta_errors, s_delta_errors, angles, mags_along, mags, alignment_with_old_v, v_mag_ratio = extract_metrics(srs, preq_cutoff=50)
-            proportions_original, preq_errors_original = extract_metrics_depreciated(srs, preq_cutoff=50)
-            # TODO: this fails: `assert np.array_equal(proportions_new, proportions_original, equal_nan=True)`
-            # getting rid of it will get rid of the depreciated call
-            preq_errors_original = preq_errors_new  # assert np.array_equal(preq_errors_original, preq_errors_new, equal_nan=True) always passed
+
+            proportions, preq_errors, v_delta_errors, s_delta_errors, angles, mags_along, mags, alignment_with_old_v, v_mag_ratio = unpack_metrics(extract_metrics(srs, preq_cutoff=50))
 
             fig, axs = plt.subplots(ncols=2, squeeze=False, figsize=(8,4), layout='constrained')
-            to_plot = {k:v for k, v in zip(srs.keys(), [x[0] for x in proportions_original])}
+            to_plot = {k:v for k, v in zip(srs.keys(), [x[0] for x in proportions])}
             sns.violinplot(to_plot, orient='v', ax=axs[0,0])
             sns.swarmplot(to_plot, orient='v', ax=axs[0,0])
 
-            for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors_original)):
+            for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors)):
                 for j, e in enumerate(errors):
                     axs[0,1].plot(e, color=f'C{i}', alpha=0.1)
-            for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors_original)):
+            for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors)):
                 trendline = np.mean(errors, axis=0)
                 axs[0,1].plot(trendline, color=f'C{i}', lw=1.5)
             axs[0, 1].semilogy()
@@ -322,7 +247,7 @@ if __name__ == '__main__':
             data = datasets.Odoherty21Dataset().neural_data
             srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed', n_runs=N, show_tqdm=True, overrides=dict(last_dim_red=args.type_of_dim_red))
 
-            proportions, preq_errors, v_delta_errors, s_delta_errors, angles, mags_along, mags, alignment_with_old_v, v_mag_ratio = extract_metrics(srs, preq_cutoff=None)
+            proportions, preq_errors, v_delta_errors, s_delta_errors, angles, mags_along, mags, alignment_with_old_v, v_mag_ratio = unpack_metrics(extract_metrics(srs, preq_cutoff=None))
             fig = open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=False)
 
         case 'optim_open_vs_closed_toy':
@@ -342,7 +267,7 @@ if __name__ == '__main__':
                 srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed_toy', n_runs=1, show_tqdm=True, overrides=dict(last_dim_red=args.type_of_dim_red))
                 all_srs.append(srs)
             srs = {k: [sub_srs[k][0] for sub_srs in all_srs] for k in srs.keys()}
-            proportions, preq_errors, v_delta_errors, s_delta_errors, angles, mags_along, mags, alignment_with_old_v, v_mag_ratio = extract_metrics(srs, preq_cutoff=None)
+            proportions, preq_errors, v_delta_errors, s_delta_errors, angles, mags_along, mags, alignment_with_old_v, v_mag_ratio = unpack_metrics(extract_metrics(srs, preq_cutoff=None))
             fig = open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=False)
         case _:
             raise ValueError()
