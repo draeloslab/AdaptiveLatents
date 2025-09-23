@@ -125,9 +125,9 @@ def make_s_hat_error_function(rng, n_runs=10, n_points=200):
 def single_make_srs(rng, u_function='curvy', add_s_hat_error_function=False, n_rotations=n_rotations):
     _, Y, stim = LDS.run_nest_dynamical_system(n_rotations, stims_per_rotation=stims_per_rotation, stim_magnitude=stim_magnitude, rng=rng, u_function=u_function, noise=noise_variance)
 
-    sr1 = StimRegressorWithExtraLogging(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True)
-    sr2 = StimRegressorWithExtraLogging(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True, attempt_correction=False)
-    sr3 = StimRegressorWithExtraLogging(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(), log_level=2, check_dt=True, attempt_correction=False, heed_stimuli=False)
+    sr1 = StimRegressorWithExtraLogging(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(**(dict(length_scales=[1.12201845e-02, 1.12201845e-02, 1.12201845e-10], reweight_every=np.inf) if add_s_hat_error_function else dict())), log_level=2, check_dt=True)
+    sr2 = StimRegressorWithExtraLogging(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(**(dict(length_scales=[1.12201845e-02, 1.12201845e-02, 1.12201845e-10], reweight_every=np.inf) if add_s_hat_error_function else dict())), log_level=2, check_dt=True, attempt_correction=False)
+    sr3 = StimRegressorWithExtraLogging(autoreg=StreamingKalmanFilter(), stim_reg=BaseMultiKernelRegressor(**(dict(length_scales=[1.12201845e-02, 1.12201845e-02, 1.12201845e-10], reweight_every=np.inf) if add_s_hat_error_function else dict())), log_level=2, check_dt=True, attempt_correction=False, heed_stimuli=False)
 
     if add_s_hat_error_function:
         sr3.stim_reg.observe(np.zeros(4), np.zeros(3))  # setting a zero prior for the manifold comparison
@@ -206,7 +206,7 @@ if __name__ == '__main__':
     fig = None
     match args.type_of_plot:
         case '1-step-prediction':
-            srs = make_srs(rng, n_runs=1, show_tqdm=True, add_s_hat_error_function=True)
+            srs = make_srs(rng, n_runs=1, show_tqdm=True, )
 
             standard_kinds_of_sr = ['learning from stim', 'ignoring stim samples', 'unaware of stim']
             row_info = [
@@ -270,7 +270,7 @@ if __name__ == '__main__':
             #     fhan.write(to_tex_command(key='s_hat_toy_rmse_comparison_table', value=table_text))
 
         case 'manifold-error':
-            srs = make_srs(rng, n_runs=1, show_tqdm=False)
+            srs = make_srs(np.random.default_rng(2), n_runs=1, show_tqdm=False, add_s_hat_error_function=True)
             fig = plot_manifold_error(srs)
         case _:
             raise ValueError()

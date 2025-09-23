@@ -97,9 +97,12 @@ def plot_manifold_error(srs, comparison_keys=('learning from stim', 'unaware of 
     for k in comparison_keys:
         for sr in srs[k]:
             she = ArrayWithTime.from_list(sr.log['s_hat_error'])
-            ax.plot(she.t, she, label=k)
+            stim_samples = sr.log['stim_intended_samples']
+            she, _ = ArrayWithTime.align_indices(she, stim_samples)
+            ax.plot(she, label=k)
 
-    ax.set_xlabel('time (rotations)')
+    ax.set_xlim([0, 50])
+    ax.set_xlabel('# of stimuli')
     ax.set_ylabel(r'~$\mathbb{E}\Vert \hat S - S \Vert$')
     ax.set_ylim(bottom=0)
     ax.legend()

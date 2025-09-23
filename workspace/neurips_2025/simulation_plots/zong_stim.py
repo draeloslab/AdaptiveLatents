@@ -362,7 +362,7 @@ def plot_onestep_pred_error_decreasing(srs, row_info, make_slices_tensor):
 
 def plot_2(srs):
 
-    fig, axs = plt.subplots(nrows=2, figsize=(10,8), squeeze=False, layout='constrained', sharex=True, sharey=True)
+    fig, axs = plt.subplots(nrows=1, figsize=np.array((9,6)), squeeze=False, layout='constrained', sharex=False, sharey=True)
 
     ax = axs[0,0]
     error = srs['unaware of stim'][0].log['pred_error']
@@ -373,7 +373,6 @@ def plot_2(srs):
     norm_error = np.linalg.norm(error, axis=(1,2))
     ax.plot(error.t, norm_error, '.-', color=colors[0], label='learning from stim')
 
-    ax = axs[1,0]
     sr = srs['unaware of stim'][0]
     error = sr.log['pred_error']
     stim_intended_samples = sr.log['stim_intended_samples']
@@ -383,8 +382,6 @@ def plot_2(srs):
     bin_slice = np.convolve(bin_slice, np.array([0,0,0,0,1,1,1,1,1,1]), mode='same').astype(bool)
     sliced_error = error.slice(bin_slice)
     error_norms = np.linalg.norm(sliced_error, axis=(1,2))
-    ax.plot(sliced_error.t, error_norms, '.-', color='C1', label='unaware of stim')
-    ax.axhline(np.nanmean(error_norms), linestyle='--', color='C1')
     axs[0,0].axhline(np.nanmean(error_norms), linestyle='--', color=colors[1])
     print(f'unaware mean stim-centered error:  {np.nanmean(error_norms):.3f}')
 
@@ -397,29 +394,10 @@ def plot_2(srs):
     bin_slice = np.convolve(bin_slice, np.array([0,0,0,0,1,1,1,1,1,1]), mode='same').astype(bool)
     sliced_error = error.slice(bin_slice)
     error_norms = np.linalg.norm(sliced_error, axis=(1,2))
-    ax.plot(sliced_error.t, error_norms, '.-', color='C0', label='learning from stim')
-    ax.axhline(np.nanmean(error_norms), linestyle='--', color='C0')
     axs[0,0].axhline(np.nanmean(error_norms), linestyle='--', color=colors[0])
-    print(f'learning mean stim-centered error: {np.nanmean(error_norms):.3f}')
 
-
-
-
-    for ax in fig.axes:
-        ax.set_ylim(0, 3)
-    # for lines in fig.axes[1].get_lines():
-    #     ydata = lines.get_ydata()
-    #     if len(ydata) == 2:
-    #         fig.axes[0].axhline(ydata[0], color=lines.get_color(), linestyle='--')
-    #
-    # for line in fig.axes[0].get_lines():
-    #     color = line.get_color()
-    #     if color == 'C0':
-    #         line.set_color('#ca1469ff')
-    #     elif color == 'C1':
-    #         line.set_color('#4d4d4dff')
-
-    plt.show()
+    ax.set_ylim(0, .8)
+    ax.axvline(switch_time, linestyle='--', color='gray')
 
     return fig
 
