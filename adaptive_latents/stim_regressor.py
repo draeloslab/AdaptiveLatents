@@ -11,6 +11,8 @@ from .stim_designer import StimDesigner
 
 # TODO: make the time comparisons more uniform
 
+dt_epsilon = 1e-8
+
 class StimAutoReg():
     def __init__(self, n_steps_to_consider):
         self.n_steps_to_consider = n_steps_to_consider
@@ -22,7 +24,7 @@ class StimAutoReg():
         new_correction = 0
         for correction in reversed(self.previous_corrections):
             steps = (current_t - correction.t) / dt
-            assert abs(steps - round(steps)) < 1e-10
+            assert abs(steps - round(steps)) < dt_epsilon
             steps = int(round(steps))
 
             if steps >= self.n_steps_to_consider:
@@ -39,7 +41,7 @@ class StimAutoReg():
             return
 
         steps = (X.t - self.previous_corrections[-1].t)/dt
-        assert abs(steps - round(steps)) < 1e-10
+        assert abs(steps - round(steps)) < dt_epsilon
         steps = int(round(steps))
         if steps >= self.n_steps_to_consider + 1:
             return

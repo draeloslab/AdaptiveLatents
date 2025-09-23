@@ -1,4 +1,4 @@
-simulation_plots: toy_dataset learn_s_hat_toy learn_s_hat_toy_spin learn_s_hat_ss optim zong_stim $(generated_path)/optim_col_vs_rand_with_high_d_rand.$(vector_output_filetype)
+simulation_plots: toy_dataset learn_s_hat_toy learn_s_hat_toy_spin learn_s_hat_ss optim zong_stim $(generated_path)/optim_col_vs_rand_with_high_d_rand.$(vector_output_filetype) $(generated_path)/optim_col_vs_rand_with_high_d_rand_closed.$(vector_output_filetype)
 
 ROOT_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 include $(realpath $(ROOT_DIR)/../common.mk)
@@ -58,6 +58,12 @@ $(generated_path)/optim_col_vs_rand_with_high_d_rand.$(vector_output_filetype): 
 	$(python_command) $(sim_script_path)/optimization_comparison.py \
 		--output $@ \
 	    --type-of-plot optim_col_vs_rand_with_high_d_rand
+
+$(generated_path)/optim_col_vs_rand_with_high_d_rand_closed.$(vector_output_filetype): $(sim_script_path)/optimization_comparison.py $(sim_script_path)/sim_stim.py
+	$(CONDA_ACTIVATE) adaptive_latents
+	$(python_command) $(sim_script_path)/optimization_comparison.py \
+		--output $@ \
+	    --type-of-plot optim_col_vs_rand_with_high_d_rand_closed
 
 
 #$(generated_path)/optim_open_vs_closed.$(vector_output_filetype): $(script_path)/optimization_comparison.py $(script_path)/sim_stim.py
