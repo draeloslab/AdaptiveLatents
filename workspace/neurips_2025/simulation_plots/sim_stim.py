@@ -62,7 +62,7 @@ def get_presets(comparison_preset):
         case 'optim_col_vs_rand_with_high_d_rand':
             common = dict(stim_rate=1/2, stim_magnitude=10, exit_time=130)
             to_run = {}
-            stim_direction_types = ('first', 'ones', 'random+', 'col', 'random', '-ones')
+            stim_direction_types = ('random_feasible', 'first', 'ones', 'random+', 'col', 'random', '-ones')
             for stim_direction_type in stim_direction_types:
                 inner_common = common | dict(stim_direction_type=stim_direction_type)
                 to_run.update({

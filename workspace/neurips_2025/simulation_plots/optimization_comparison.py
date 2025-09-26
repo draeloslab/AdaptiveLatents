@@ -5,9 +5,16 @@ import seaborn as sns
 from sim_stim import make_srs, make_slices_tensor
 from adaptive_latents import datasets, ArrayWithTime
 from adaptive_latents.regressions import BaseKernelRegressor
+from matplotlib.path import Path
 import matplotlib.pyplot as plt
 from adaptive_latents.utils import save_to_cache
 import pandas
+
+_vh = .5
+verts = [ (-1., -_vh), (-1., _vh), (1., _vh), (1., -_vh), (-1., -_vh), ]
+codes = [ Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO, Path.CLOSEPOLY, ]
+white_bar_path = Path(verts, codes)
+violinplot_inner_kws = {'marker': white_bar_path, 'markersize': 3, 'markerfacecolor': 'white', }
 
 
 def proportion_in_space(desired, designed):
@@ -111,6 +118,7 @@ def unpack_metrics(metrics):
 
 def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=True):
     fig, axs = plt.subplots(ncols=2, nrows=1, squeeze=False, layout='constrained', figsize=(2*4, 1*4))
+    breakpoint()
 
     ax: plt.Axes = axs[0,0]
     if show_individuals:
@@ -131,7 +139,7 @@ def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_er
     for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors)):
         trendline = np.mean(errors, axis=0)
         ax.plot(trendline, color=f'C{i}', lw=1.5)
-    ax.set_title('$\\Vert \\hat s_n - \\hat S_{n-1}(x_n, u_n) \\Vert$')
+    ax.set_title('$\\Vert \\hat s_obs - \\hat S_{i-1}(x_i, u_i, t_i) \\Vert$')
 
     return fig
 
@@ -145,13 +153,21 @@ def plot_optim_col_vs_rand_with_high_d_rand():
         srs = make_srs(data=data, rng=rng, comparison_preset='optim_col_vs_rand_with_high_d_rand', n_runs=n_runs, show_tqdm=True)
         return srs
 
-    srs = to_cache(n_runs=10, _recalculate_cache_value=False)
+    srs = to_cache(n_runs=N, _recalculate_cache_value=False)
 
     l_df = srs_to_l_df(srs)
     l_df[['optim_method', 'stim_direction_type']] = l_df['sr_key'].str.split(' ', expand=True)
 
-    l_df.drop(index=l_df.index[(l_df.stim_direction_type == 'random+')], inplace=True)
-    l_df.drop(index=l_df.index[(l_df.stim_direction_type == 'col')], inplace=True)
+    for stim_direction_type_to_drop in [
+        'random+',
+        'col'
+    ]:
+        l_df.drop(index=l_df.index[(l_df.stim_direction_type == stim_direction_type_to_drop)], inplace=True)
+
+
+    order = ('-ones', 'ones', 'random', 'random_feasible', 'first')
+    l_df.sort_values(by='stim_direction_type', inplace=True, key=lambda x: x.apply(order.index))
+
     stim_direction_types = l_df.stim_direction_type.unique()
 
     ncols = 3
@@ -167,14 +183,17 @@ def plot_optim_col_vs_rand_with_high_d_rand():
         ax: plt.Axes = axs[row, 0]
         sub_df['angles(s_obs,v)'] = sub_df.l.apply(lambda l: angle(l['observed_s_hat'], l['v']))
         if make_whole_plots:
-            sns.violinplot(sub_df, x='optim_method', y='angles(s_obs,v)', orient='v', ax=ax)
+            sns.violinplot(sub_df, x='optim_method', y='angles(s_obs,v)', orient='v', ax=ax, width=1, density_norm='width',inner_kws = violinplot_inner_kws)
             sns.swarmplot(sub_df, x='optim_method', y='angles(s_obs,v)', orient='v', ax=ax, size=1, edgecolor='white')
         ax.set_title(f's_obs angle from v={{{stim_direction_type}}}')
         ax.set_ylabel('cosine angle (degrees)')
 
-        if row == 0:
+        if stim_direction_type == 'first':
+            order = ('single', 'many', 'shuffled', 'normal')
+            sub_df.sort_values(by='optim_method', inplace=True, key=lambda x: x.apply(order.index))
+
             fig4, ax4 = plt.subplots(figsize=(8, 8))
-            sns.violinplot(sub_df, x='optim_method', y='angles(s_obs,v)', orient='v', ax=ax4)
+            sns.violinplot(sub_df, x='optim_method', y='angles(s_obs,v)', orient='v', ax=ax4, width=1, density_norm='width',inner_kws = violinplot_inner_kws)
             # sns.swarmplot(sub_df, x='optim_method', y='angles(s_obs,v)', orient='v', ax=ax4, size=1, edgecolor='white')
             ax4.set_title(f's_obs angle from v={{{stim_direction_type}}}')
 
@@ -184,7 +203,7 @@ def plot_optim_col_vs_rand_with_high_d_rand():
         sub_df[metric_name] = sub_df.l.apply(lambda l: angle(l['s'], l['v']))
         just_normal_sub_df = sub_df[(sub_df['optim_method'] == 'normal')]
         if make_whole_plots:
-            sns.violinplot(just_normal_sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax)
+            sns.violinplot(just_normal_sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax, width=1, density_norm='width',inner_kws = violinplot_inner_kws)
             sns.swarmplot(just_normal_sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax, size=1, edgecolor='white')
         ax.set_title(f's_designed angle with v={{{stim_direction_type}}}')
 
@@ -197,12 +216,17 @@ def plot_optim_col_vs_rand_with_high_d_rand():
         ax.axis('equal')
 
         sns.scatterplot(just_normal_sub_df, x='angles(s_designed,v)', y='angles(s_obs,v)', zorder=10-row, ax=ax5, label=stim_direction_type)
+        print((just_normal_sub_df['angles(s_designed,v)'] > just_normal_sub_df['angles(s_obs,v)']).sum())
+        print((just_normal_sub_df['angles(s_designed,v)'] == just_normal_sub_df['angles(s_obs,v)']).sum())
+        print((just_normal_sub_df['angles(s_designed,v)'] < just_normal_sub_df['angles(s_obs,v)']).sum())
+        breakpoint()
         ax5.plot([0,120], [0,120], 'k')
         ax5.set_xlim([0, 120])
         ax5.set_ylim([0, 120])
     ax5.legend()
 
-
+    order = ('first', '-ones', 'ones', 'random', 'random_feasible')
+    l_df.sort_values(by='stim_direction_type', inplace=True, key=lambda x: x.apply(order.index))
 
     fig2, ax2 = plt.subplots(ncols=2, nrows=4, figsize=(6 * 2, 4 * 4), squeeze=False, layout='constrained')
 
@@ -214,12 +238,12 @@ def plot_optim_col_vs_rand_with_high_d_rand():
             metric_name = 'angles(s_designed,v)'
             sub_df[metric_name] = sub_df.l.apply(lambda l: angle(l['s'], l['v']))
             if make_whole_plots:
-                sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax)
+                sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax, width=1, density_norm='width',inner_kws = violinplot_inner_kws)
                 sns.swarmplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax, size=1, edgecolor='white')
             ax.set_title(f'{optim_method=}')
 
             fig3, ax3 = plt.subplots(figsize=(8, 8))
-            sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax3, scale='width')
+            sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax3, scale='width', width=1, density_norm='width',inner_kws = violinplot_inner_kws)
             # sns.swarmplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax3, size=2, edgecolor='white', color='C0')
 
 
@@ -227,7 +251,7 @@ def plot_optim_col_vs_rand_with_high_d_rand():
         metric_name = 'angles(s_obs,v)'
         sub_df[metric_name] = sub_df.l.apply(lambda l: angle(l['observed_s_hat'], l['v']))
         if make_whole_plots:
-            sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax)
+            sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax, width=1, density_norm='width',inner_kws = violinplot_inner_kws)
             sns.swarmplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax, size=1, edgecolor='white')
         ax.set_title(f'{optim_method=}')
 
@@ -268,14 +292,14 @@ def plot_optim_col_vs_rand_with_high_d_rand_closed():
         ax: plt.Axes = axs[row, 0]
         sub_df['angles(s_obs,v)'] = sub_df.l.apply(lambda l: angle(l['observed_s_hat'], l['v']))
         if make_whole_plots:
-            sns.violinplot(sub_df, x='optim_method', y='angles(s_obs,v)', orient='v', ax=ax)
+            sns.violinplot(sub_df, x='optim_method', y='angles(s_obs,v)', orient='v', ax=ax, width=1, density_norm='width',inner_kws = violinplot_inner_kws)
             sns.swarmplot(sub_df, x='optim_method', y='angles(s_obs,v)', orient='v', ax=ax, size=1, edgecolor='white')
         ax.set_title(f's_obs angle from v={{{stim_direction_type}}}')
         ax.set_ylabel('cosine angle (degrees)')
 
         if row == 0:
             fig4, ax4 = plt.subplots(figsize=(8, 8))
-            sns.violinplot(sub_df, x='optim_method', y='angles(s_obs,v)', orient='v', ax=ax4)
+            sns.violinplot(sub_df, x='optim_method', y='angles(s_obs,v)', orient='v', ax=ax4, width=1, density_norm='width',inner_kws = violinplot_inner_kws)
             # sns.swarmplot(sub_df, x='optim_method', y='angles(s_obs,v)', orient='v', ax=ax4, size=1, edgecolor='white')
             ax4.set_title(f's_obs angle from v={{{stim_direction_type}}}')
 
@@ -285,7 +309,7 @@ def plot_optim_col_vs_rand_with_high_d_rand_closed():
         sub_df[metric_name] = sub_df.l.apply(lambda l: angle(l['s'], l['v']))
         just_normal_sub_df = sub_df[(sub_df['optim_method'] == 'normal')]
         if make_whole_plots:
-            sns.violinplot(just_normal_sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax)
+            sns.violinplot(just_normal_sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax, width=1, density_norm='width',inner_kws = violinplot_inner_kws)
             sns.swarmplot(just_normal_sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax, size=1, edgecolor='white')
         ax.set_title(f's_designed angle with v={{{stim_direction_type}}}')
 
@@ -315,12 +339,12 @@ def plot_optim_col_vs_rand_with_high_d_rand_closed():
             metric_name = 'angles(s_designed,v)'
             sub_df[metric_name] = sub_df.l.apply(lambda l: angle(l['s'], l['v']))
             if make_whole_plots:
-                sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax)
+                sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax, width=1, density_norm='width',inner_kws = violinplot_inner_kws)
                 sns.swarmplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax, size=1, edgecolor='white')
             ax.set_title(f'{optim_method=}')
 
             fig3, ax3 = plt.subplots(figsize=(8, 8))
-            sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax3, scale='width')
+            sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax3, scale='width', width=1, density_norm='width',inner_kws = violinplot_inner_kws)
             # sns.swarmplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax3, size=2, edgecolor='white', color='C0')
 
 
@@ -328,7 +352,7 @@ def plot_optim_col_vs_rand_with_high_d_rand_closed():
         metric_name = 'angles(s_obs,v)'
         sub_df[metric_name] = sub_df.l.apply(lambda l: angle(l['observed_s_hat'], l['v']))
         if make_whole_plots:
-            sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax)
+            sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax, width=1, density_norm='width',inner_kws = violinplot_inner_kws)
             sns.swarmplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax, size=1, edgecolor='white')
         ax.set_title(f'{optim_method=}')
 
@@ -351,13 +375,16 @@ def plot_optim_open_vs_closed():
 
 
     l_df = srs_to_l_df(srs)
-    fig2, axs = plt.subplots(ncols=2, squeeze=False, layout='constrained')
+    fig2, axs = plt.subplots(ncols=2, squeeze=False, figsize=(10,4), layout='constrained')
     l_df[['open_closed', 'true_s']] = l_df['sr_key'].str.split(' ', expand=True)
 
     l_df['angle(s_obs,v)'] = l_df.l.apply(lambda l: angle(l['observed_s_hat'], l['v']))
     l_df['s_obs along v'] = l_df.l.apply(lambda l: proportion_in_space(l['v'], l['observed_s_hat']))
-    sns.violinplot(data=l_df[l_df['l_i'] > 20], x='sr_key', y='angle(s_obs,v)', ax=axs[0,0])
-    sns.violinplot(data=l_df[l_df['l_i'] > 20], x='sr_key', y='s_obs along v', ax=axs[0,1])
+
+
+    sns.violinplot(data=l_df[l_df['l_i'] > 20], x='sr_key', y='angle(s_obs,v)', ax=axs[0,0], density_norm='width',inner_kws = violinplot_inner_kws) #  density_norm='width',
+    sns.violinplot(data=l_df[l_df['l_i'] > 20], x='sr_key', y='s_obs along v', ax=axs[0,1], density_norm='width',inner_kws = violinplot_inner_kws)
+
 
 
     return fig, [fig2]
@@ -398,8 +425,8 @@ def plot_optim_open_vs_closed_toy():
 
     l_df['angle(s_obs,v)'] = l_df.l.apply(lambda l: angle(l['observed_s_hat'], l['v']))
     l_df['s_obs along v'] = l_df.l.apply(lambda l: proportion_in_space(l['v'], l['observed_s_hat']))
-    sns.violinplot(data=l_df[l_df['l_i'] > 20], x='sr_key', y='angle(s_obs,v)', ax=axs[0,0])
-    sns.violinplot(data=l_df[l_df['l_i'] > 20], x='sr_key', y='s_obs along v', ax=axs[0,1])
+    sns.violinplot(data=l_df[l_df['l_i'] > 20], x='sr_key', y='angle(s_obs,v)', ax=axs[0,0], width=1, density_norm='width',inner_kws = violinplot_inner_kws)
+    sns.violinplot(data=l_df[l_df['l_i'] > 20], x='sr_key', y='s_obs along v', ax=axs[0,1], width=1, density_norm='width',inner_kws = violinplot_inner_kws)
 
     return fig, [fig2]
 
@@ -426,8 +453,8 @@ if __name__ == '__main__':
 
             fig, axs = plt.subplots(ncols=2, squeeze=False, figsize=(8,4), layout='constrained')
             to_plot = {k:v for k, v in zip(srs.keys(), [x[0] for x in proportions])}
-            sns.violinplot(to_plot, orient='v', ax=axs[0,0])
-            sns.swarmplot(to_plot, orient='v', ax=axs[0,0])
+            sns.violinplot(to_plot, orient='v', ax=axs[0,0], width=1, density_norm='width',inner_kws = violinplot_inner_kws)
+            sns.swarmplot(to_plot, orient='v', ax=axs[0,0], width=1, density_norm='width',inner_kws = violinplot_inner_kws)
 
             for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors)):
                 for j, e in enumerate(errors):

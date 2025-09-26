@@ -77,8 +77,7 @@ class StimDesigner:
             raise ValueError()
 
 
-    @staticmethod
-    def desired_stim_direction(equivalent_projection_matrix, stim_direction_type, rng):  # TODO: use built-in rng
+    def desired_stim_direction(self, equivalent_projection_matrix, stim_direction_type, rng):  # TODO: use built-in rng
         if stim_direction_type == 'first':
             desired_stim = numpy.zeros((equivalent_projection_matrix.shape[1], 1))
             desired_stim[0] = 1
@@ -96,9 +95,17 @@ class StimDesigner:
             desired_stim_high_d = rng.normal(size=(equivalent_projection_matrix.shape[0], 1))
             desired_stim_high_d = desired_stim_high_d / numpy.linalg.norm(desired_stim_high_d)
             desired_stim_high_d = numpy.abs(desired_stim_high_d)
-
             desired_stim = equivalent_projection_matrix.T @ desired_stim_high_d
             desired_stim = desired_stim / numpy.linalg.norm(desired_stim)
+        elif stim_direction_type == 'random_feasible':
+            desired_stim_high_d = rng.normal(size=(equivalent_projection_matrix.shape[0], 1))
+            desired_stim_high_d = desired_stim_high_d / numpy.linalg.norm(desired_stim_high_d)
+            desired_stim_high_d = numpy.abs(desired_stim_high_d).flatten()
+            while (desired_stim_high_d > 0).sum() > self.max_l0_norm:
+                desired_stim_high_d[rng.choice(len(desired_stim_high_d))] = 0
+            desired_stim = equivalent_projection_matrix.T @ desired_stim_high_d
+            desired_stim = desired_stim / numpy.linalg.norm(desired_stim)
+            desired_stim = desired_stim.reshape([-1,1])
         elif stim_direction_type == 'ones':
             desired_stim_high_d = numpy.ones((equivalent_projection_matrix.shape[0], 1))
             desired_stim = equivalent_projection_matrix.T @ desired_stim_high_d
