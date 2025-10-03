@@ -1097,6 +1097,7 @@ class Zong22Dataset(Dataset):
 
         iscell = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'iscell.npy')
         F_all = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'F.npy')
+        self.F_all = F_all
         n_cells = int(sum(iscell[:, 0]))
 
         stat = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'stat.npy', allow_pickle=True)

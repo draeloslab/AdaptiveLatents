@@ -118,7 +118,6 @@ def unpack_metrics(metrics):
 
 def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=True):
     fig, axs = plt.subplots(ncols=2, nrows=1, squeeze=False, layout='constrained', figsize=(2*4, 1*4))
-    breakpoint()
 
     ax: plt.Axes = axs[0,0]
     if show_individuals:

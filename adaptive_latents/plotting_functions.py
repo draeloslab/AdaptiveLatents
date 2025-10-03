@@ -38,7 +38,7 @@ class AnimationManager:
 
         if filename_stem is None:
             time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-            filename_stem = f"movie_{time_string}-{str(hash(id(self)))[-3:]}.gif"
+            filename_stem = f"movie_{time_string}-{str(hash(id(self)))[-3:]}"
 
         self.filetype = filetype
         self.outfile = pathlib.Path(outdir).resolve() / f"{filename_stem}.{filetype}"
