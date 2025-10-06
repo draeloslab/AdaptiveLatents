@@ -11,32 +11,12 @@ def plot_stim_metrics(
     save_path=None,
     dpi=120
 ):
-    """
-    Plot metrics logged in your JSONL.
-
-    Parameters
-    ----------
-    jsonl_path : str or Path
-        Path to the metrics JSONL file.
-    row_start : int or None
-        First row (0-based, inclusive) to plot. If None, start at 0.
-    row_end : int or None
-        Last row (0-based, exclusive) to plot. If None, go to end.
-    alignment_metric : {"angle","proj"}
-        Which alignment metric to plot in the middle panel.
-        - "angle": uses 'angle_deg' (degrees; lower is better).
-        - "proj" : uses 'align_proj' (unnormalized projection; higher is better).
-    save_path : str or Path or None
-        If provided, saves the figure to this path.
-    dpi : int
-        Figure DPI for saving/showing.
-    """
 
     jsonl_path = Path(jsonl_path)
     if not jsonl_path.exists():
         raise FileNotFoundError(f"No such file: {jsonl_path}")
 
-    # Load rows
+    # Loading the rows
     rows = []
     with open(jsonl_path, "r", encoding="utf-8") as f:
         for line in f:
@@ -52,7 +32,7 @@ def plot_stim_metrics(
     if not rows:
         raise ValueError("JSONL file has no valid rows.")
 
-    # Slice by row indices
+    # get each row index , slice
     n = len(rows)
     i0 = 0 if row_start is None else max(0, int(row_start))
     i1 = n if row_end is None else min(n, int(row_end))
@@ -60,7 +40,6 @@ def plot_stim_metrics(
         raise ValueError(f"Invalid row range: start={i0}, end={i1}, total_rows={n}")
     data = rows[i0:i1]
 
-    # Extract series with safe fallbacks
     def get_series(key, default=np.nan):
         vals = []
         for d in data:
@@ -68,7 +47,6 @@ def plot_stim_metrics(
         return np.array(vals, dtype=float)
 
     eval_steps = get_series("eval")
-    # If "eval" is missing, fall back to the slice index
     if np.isnan(eval_steps).all():
         eval_steps = np.arange(i0, i1)
 
@@ -84,7 +62,7 @@ def plot_stim_metrics(
     else:
         raise ValueError("alignment_metric must be 'angle' or 'proj'")
 
-    # Plot
+    # Plotting it
     fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=True, constrained_layout=True)
     ax1, ax2, ax3 = axes
 
