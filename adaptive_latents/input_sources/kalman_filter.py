@@ -45,9 +45,9 @@ class KalmanFilter:
                 return
             origin = np.vstack([np.vstack(x[:-1]) for x in _X])
             destination = np.vstack([np.vstack(x[1:]) for x in _X])
-        A, _, _, _ = np.linalg.lstsq(origin, destination)
+        A, _, _, _ = np.linalg.lstsq(origin, destination) # rcond = None
 
-        C, _, _, _ = np.linalg.lstsq(X, Y)
+        C, _, _, _ = np.linalg.lstsq(X, Y) # rcond = None
 
         w = X[1:] - X[:-1] @ A
         W = (w.T @ w) / (X.shape[1] - 1)
