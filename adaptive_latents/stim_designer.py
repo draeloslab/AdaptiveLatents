@@ -136,10 +136,10 @@ class StimDesigner:
             s_norm = jnp.linalg.norm(s)
             loss = self.lam_1 * (self.max_l0_norm - jnp.sum(jnp.abs(u)))
             loss += jnp.dot(s, v) / (s_norm + 1e-10)
-            # new: loss += jnp.linalg.norm(jnp.dot(s, v))**2 / (s_norm + 1e-10)
             return -loss.reshape()
 
-        runner = ScipyBoundedMinimize(fun=objective, method='l-bfgs-b')
+        intermediate_xs = []
+        runner = ScipyBoundedMinimize(fun=objective, method='l-bfgs-b', callback=lambda xk: intermediate_xs.append(xk) if self.should_log else None)
         result = runner.run(u, bounds=bounds)
         u = numpy.array(result.params)
 
@@ -150,7 +150,7 @@ class StimDesigner:
         idx = numpy.argsort(u)
         u[idx[:-self.max_l0_norm]] = 0
 
-        return u, {'s': u_to_s_function(u)}
+        return u, {'s': u_to_s_function(u), 'intermediate_xs': numpy.array(intermediate_xs)}
 
 
 
@@ -163,7 +163,7 @@ class StimDesigner:
             case OptimizationMethod.JAXOPT:
                 u, l = self.design_stim_jaxopt(v, kwargs['u_dimension'], kwargs['u_to_s_function'])
             case OptimizationMethod.CHEAT_LOWD_VEC:
-                u = (kwargs['equivalent_projection_matrix'] @ v).flatten(),
+                u = (kwargs['equivalent_projection_matrix'] @ v).flatten()
             case OptimizationMethod.CHEAT_HIGHD_VEC_SINGLE_NEURONS:
                 u = numpy.zeros(kwargs['equivalent_projection_matrix'].shape[0])
                 u[self.rng.choice(kwargs['equivalent_projection_matrix'].shape[0])] = 1

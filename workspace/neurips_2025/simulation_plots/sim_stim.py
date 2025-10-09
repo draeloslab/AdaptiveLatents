@@ -124,7 +124,7 @@ def get_presets(comparison_preset):
             }
         case 'visualization':
             common = default_common
-            del common[autoreg]
+            del common['autoreg']
 
             to_run = {
                 'learning from stim': common | dict(attempt_correction=True, heed_stimuli=True),
