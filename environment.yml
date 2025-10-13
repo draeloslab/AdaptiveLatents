@@ -35,6 +35,7 @@ dependencies:
   - pytorch
   - ipdb
   - seaborn
+  - git # in some cases pip needs this
   - pip
   - pip:
      - jax[cuda12]
