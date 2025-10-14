@@ -453,7 +453,7 @@ if __name__ == '__main__':
             fig, axs = plt.subplots(ncols=2, squeeze=False, figsize=(8,4), layout='constrained')
             to_plot = {k:v for k, v in zip(srs.keys(), [x[0] for x in proportions])}
             sns.violinplot(to_plot, orient='v', ax=axs[0,0], width=1, density_norm='width',inner_kws = violinplot_inner_kws)
-            sns.swarmplot(to_plot, orient='v', ax=axs[0,0], width=1, density_norm='width',inner_kws = violinplot_inner_kws)
+            sns.swarmplot(to_plot, orient='v', ax=axs[0,0])
 
             for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors)):
                 for j, e in enumerate(errors):

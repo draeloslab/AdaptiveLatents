@@ -1,4 +1,4 @@
 jax_platform_name: 'cpu'
 dataset_path: ../datasets
 cache_path: ../al_generated/caches
-attempt_to_cache: False
+attempt_to_cache: True

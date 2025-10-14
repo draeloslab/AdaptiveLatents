@@ -8,6 +8,6 @@ pcp_script_path:=$(ROOT_DIR)
 $(generated_path)/paralell_compare.$(raster_output_filetype): $(pcp_script_path)/paralell_compare.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(pcp_script_path)/paralell_compare.py \
-		--output $@ \
+		--output $@
 
 pcps: $(generated_path)/paralell_compare.$(raster_output_filetype)
