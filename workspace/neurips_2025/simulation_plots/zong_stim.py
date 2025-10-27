@@ -361,7 +361,6 @@ def plot_onestep_pred_error_decreasing(srs, row_info, make_slices_tensor):
     return fig
 
 def plot_2(srs):
-
     fig, axs = plt.subplots(nrows=1, figsize=np.array((9,6)), squeeze=False, layout='constrained', sharex=False, sharey=True)
 
     ax = axs[0,0]
