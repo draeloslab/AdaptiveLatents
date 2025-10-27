@@ -127,10 +127,6 @@ class StimDesigner:
 
         u = self.rng.uniform(size=(u_dimension,)) * .1
 
-        lb = jnp.zeros_like(u)
-        ub = jnp.ones_like(u)
-        bounds = (lb, ub)
-
         def objective(u):
             s = u_to_s_function(u)
             s_norm = jnp.linalg.norm(s)
@@ -138,6 +134,10 @@ class StimDesigner:
             loss += jnp.dot(s, v) / (s_norm + 1e-10)
             return -loss.reshape()
 
+        lb = jnp.zeros_like(u)
+        ub = jnp.ones_like(u)
+
+        bounds = (lb, ub)
         intermediate_xs = []
         runner = ScipyBoundedMinimize(fun=objective, method='l-bfgs-b', callback=lambda xk: intermediate_xs.append(xk) if self.should_log else None)
         result = runner.run(u, bounds=bounds)
