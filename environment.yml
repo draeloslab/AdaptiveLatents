@@ -36,6 +36,7 @@ dependencies:
   - ipdb
   - seaborn
   - git # in some cases pip needs this
+  - gcc # in some cases pip needs this
   - pip
   - pip:
      - jax[cuda12]
