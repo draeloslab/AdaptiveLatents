@@ -115,7 +115,7 @@ class ArrayWithTime(np.ndarray):
             return super().__iter__()
 
     def slice(self, *args, all_axes=False):
-        raise Exception("TODO: check the 3.10 syntax doesn't break anything")
+        raise Exception("TODO: check the 3.10 syntax doesn't break anything") # TODO: improv requires 3.10 syntax, which breaks these lines
         if not all_axes:
             # return ArrayWithTime(self[*args], self.t[*args])
             return ArrayWithTime(self[args], self.t[args])
