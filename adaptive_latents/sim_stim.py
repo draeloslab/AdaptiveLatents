@@ -15,13 +15,12 @@ from .timed_data_source import ArrayWithTime
 from .transformer import Pipeline, CenteringTransformer, KernelSmoother, StreamingTransformer
 from .stim_regressor import StimRegressor
 from .bubblewrap import Bubblewrap
-from .ica import mmICA
 from .jpca import sjPCA
-from .vjf import VJF
 from .prosvd import proSVD
 from .input_sources.kalman_filter import StreamingKalmanFilter
 from .regressions import BaseMultiKernelRegressor
 from .stim_designer import StimDesigner
+
 
 class SimulatedStimAdder(StreamingTransformer):
     def __init__(self, *, true_S='identity', static_S_seed=0, decay=.8, stim_time_delay=0, input_streams=None, output_streams=None, log_level=None):
@@ -214,6 +213,7 @@ def make_sr(
     elif last_dim_red == 'sjpca':
         last_dim_red_object = sjPCA()
     elif last_dim_red == 'mmica':
+        from .ica import mmICA
         last_dim_red_object = mmICA()
     else:
         raise ValueError()

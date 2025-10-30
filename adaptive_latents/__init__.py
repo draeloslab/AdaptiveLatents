@@ -11,8 +11,6 @@ jax.config.update('jax_platform_name', CONFIG.jax_platform_name)
 
 from . import input_sources, plotting_functions, predictor, profiling_functions, utils
 from .bubblewrap import Bubblewrap
-from .ica import mmICA
-from .input_sources import datasets
 from .input_sources.kalman_filter import StreamingKalmanFilter
 from .jpca import sjPCA
 from .plotting_functions import AnimationManager
@@ -22,5 +20,19 @@ from .regressions import VanillaOnlineRegressor, BaseMultiKernelRegressor
 from .stim_regressor import StimRegressor
 from .timed_data_source import ArrayWithTime
 from .transformer import CenteringTransformer, Concatenator, KernelSmoother, Pipeline, Tee, ZScoringTransformer
-from .vjf import VJF
 from . import sim_stim
+
+try:
+    from .input_sources import datasets
+except ImportError:
+    pass
+
+try:
+    from .ica import mmICA
+except ImportError:
+    pass
+
+try:
+    from .vjf import VJF
+except ImportError:
+    pass

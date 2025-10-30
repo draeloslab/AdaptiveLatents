@@ -4,7 +4,6 @@ import time
 import warnings
 
 import numpy as np
-import pytest
 
 from .timed_data_source import ArrayWithTime
 from .transformer import StreamingTransformer
@@ -223,6 +222,7 @@ class Predictor(StreamingTransformer):
 
     @staticmethod
     def _test_checks_dt(constructor, rng, DIM):
+        import pytest
 
         predictor: Predictor = constructor(check_dt=True)
         dt = 1/np.pi
