@@ -122,7 +122,11 @@ class proSVD(TypicalTransformer, BaseProSVD):
         if not self.is_partially_initialized:
             self.init_samples += list(X)
             if len(self.init_samples) >= self.init_size:
-                self.initialize(np.array(self.init_samples).T)
+                width_max = np.squeeze([s.shape for s in self.init_samples]).max(axis=0)
+                init_array = np.zeros((len(self.init_samples), width_max))
+                for i, s in enumerate(self.init_samples):
+                    init_array[i,:s.size] = s
+                self.initialize(np.squeeze(init_array).T)
                 self.is_partially_initialized = True
         else:
             self.updateSVD(X.T)
