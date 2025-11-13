@@ -188,7 +188,7 @@ def make_sr(
         inter_stim_interval_generator=isi_generator,
         optimization_method=optimization_method, # todo:fix
         u_to_s_model_type=u_to_s_model_type,
-        n_identity_initialization=n_identity_prior
+        n_random_initialization=n_identity_prior
     )
 
     static_S_seed = other_rng.integers(2 ** 32)
