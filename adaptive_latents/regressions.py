@@ -14,6 +14,7 @@ from .transformer import DecoupledTransformer
 @jax.jit
 def rank_one_update_formula1(D, x1, x2):
     # TODO: maybe this is only faster if we put it on the GPU? maybe move the data?
+    # TODO: if this is called multiple times, maybe define this in-function so there isn't a lookup process?
     return D - (D @ x1 @ x2.T @ D) / (1 + x2.T @ D @ x1)
 
 

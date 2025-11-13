@@ -12,7 +12,7 @@ readme = "README.md"
 requires-python = ">=3.10,<=3.13"
 keywords = ["neuroscience", "prediction", "dynamics"]
 dependencies = [
-    "jax[cuda13]",
+    "jax[cuda12]",
     "jaxopt",
     "numpy",
     "scipy",
@@ -50,6 +50,7 @@ more = [
     "jupyter",
     "ipympl",
     "nbval",
+    "pyqt6",
 ]
 dev = [
     "adaptive-latents[more]",
