@@ -15,6 +15,7 @@ from .timed_data_source import ArrayWithTime
 from .transformer import Pipeline, CenteringTransformer, KernelSmoother, StreamingTransformer
 from .stim_regressor import StimRegressor
 from .bubblewrap import Bubblewrap
+from .ica import mmICA
 from .jpca import sjPCA
 from .prosvd import proSVD
 from .input_sources.kalman_filter import StreamingKalmanFilter
@@ -77,7 +78,9 @@ class SimulatedStimAdder(StreamingTransformer):
 def calculate_equivalent_projection_matrix(pro, last_dim_red_object):
     equivalent_projection_matrix = pro.Q
     if equivalent_projection_matrix is not None:
-        if isinstance(last_dim_red_object, sjPCA):
+        if last_dim_red_object is None:
+            pass
+        elif isinstance(last_dim_red_object, sjPCA):
             try:
                 U = last_dim_red_object.get_U()
             except AttributeError: # TODO make this more elegant
@@ -88,8 +91,6 @@ def calculate_equivalent_projection_matrix(pro, last_dim_red_object):
             W = last_dim_red_object.W
             if W is not None:
                 equivalent_projection_matrix = equivalent_projection_matrix @ W.T
-        elif last_dim_red_object is None:
-            pass
         else:
             raise ValueError()
     return equivalent_projection_matrix
@@ -213,7 +214,6 @@ def make_sr(
     elif last_dim_red == 'sjpca':
         last_dim_red_object = sjPCA()
     elif last_dim_red == 'mmica':
-        from .ica import mmICA
         last_dim_red_object = mmICA()
     else:
         raise ValueError()

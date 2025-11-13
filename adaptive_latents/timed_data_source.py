@@ -115,13 +115,15 @@ class ArrayWithTime(np.ndarray):
             return super().__iter__()
 
     def slice(self, *args, all_axes=False):
-        raise Exception("TODO: check the 3.10 syntax doesn't break anything") # TODO: improv requires 3.10 syntax, which breaks these lines
+        # TODO: decide between 3.10 and 3.11 syntax; both pass tests
         if not all_axes:
             # return ArrayWithTime(self[*args], self.t[*args])
             return ArrayWithTime(self[args], self.t[args])
         elif all_axes:
             # return ArrayWithTime(self[*args], self.t[args[0]])
             return ArrayWithTime(self[args], self.t[args[0]])
+        else:
+            raise ValueError()
 
     def slice_by_time(self, *args, all_axes=False):
         def convert_from_time_to_indices(x):
