@@ -175,6 +175,30 @@ class LDS:
 
                 u[2] = stim_magnitude * stim[i] * state[0] / np.linalg.norm(state[:2])
                 return u
+        elif u_function == 'curvy spins alld-resp':
+            def u_function(lds, state, i, rng):
+                u = np.zeros(lds.B.shape[0])
+
+                state = np.array(state)
+
+                transition1 = 25 * transitions_per_rotation
+                transition2  = 45 * transitions_per_rotation
+                if i <= transition1:
+                    rotation_angle = 0
+                elif transition1 < i <= transition2:
+                    rotation_angle = np.pi
+                elif transition2 < i:
+                    rotation_angle = (i-transition2) * 2*np.pi / (30 * transitions_per_rotation) + np.pi
+                else:
+                    raise ValueError()
+
+                rotation_matrix = np.array([[np.cos(rotation_angle), -np.sin(rotation_angle)],
+                                            [np.sin(rotation_angle),  np.cos(rotation_angle)]])
+                state[:2] = rotation_matrix @ state[:2]
+
+                u[:] = stim_magnitude * stim[i] * state[0] / np.linalg.norm(state[:2])
+                return u
+
         elif u_function == 'constant':
             def u_function(lds, state, i, rng):
                 u = np.zeros(lds.B.shape[0])
