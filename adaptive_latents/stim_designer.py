@@ -1,8 +1,20 @@
 import time
 import numpy
+import jax
 import jax.numpy as jnp
 from jaxopt import ScipyBoundedMinimize
 import itertools
+import copy
+import warnings
+from enum import Enum
+
+class OptimizationMethod(str, Enum):
+    JAXOPT = 'jaxopt'
+    PREV_SEEN = 'prev_seen'
+    CHEAT_LOWD_VEC = 'cheat_lowd_vec'
+    CHEAT_HIGHD_VEC_SINGLE_NEURONS = 'cheat_highd_vec_single_neurons'
+    CHEAT_HIGHD_VEC_MANY_NEURONS = 'cheat_highd_vec_many_neurons'  # TODO: this isn't really cheating, change the name?
+
 
 class StimDesigner:
     def __init__(
@@ -12,11 +24,11 @@ class StimDesigner:
             should_log=False,
             lam_1=0.001,
             inter_stim_interval_generator=None,
-            optimization_method='jaxopt',
+            optimization_method=OptimizationMethod.JAXOPT,
             stim_timing_method='regular',
             initial_nostim_period=1,
-            u_to_s_model_type='identity', # TODO: remove
-            n_identity_initialization=1,
+            u_to_s_model_type='identity', # TODO: remove? it's used in sim_stim_design_stim
+            n_random_initialization=1,
     ):
         self.rng_seed = rng_seed
         self.rng = numpy.random.default_rng(rng_seed)
@@ -24,9 +36,10 @@ class StimDesigner:
         self.max_l0_norm = max_l0_norm
         self.should_log = should_log
         self.lam_1 = lam_1
+        self.u_to_s_model_type = u_to_s_model_type
 
-        self.optimization_method = optimization_method
-        self.n_identity_initialization = n_identity_initialization
+        self.optimization_method: OptimizationMethod = optimization_method
+        self.n_random_initialization = n_random_initialization
         self.stim_timing_method = stim_timing_method
         self.initial_nostim_period = initial_nostim_period
 
@@ -65,8 +78,7 @@ class StimDesigner:
             raise ValueError()
 
 
-    @staticmethod
-    def desired_stim_direction(equivalent_projection_matrix, stim_direction_type, rng):  # TODO: use built-in rng
+    def desired_stim_direction(self, equivalent_projection_matrix, stim_direction_type, rng):  # TODO: use built-in rng
         if stim_direction_type == 'first':
             desired_stim = numpy.zeros((equivalent_projection_matrix.shape[1], 1))
             desired_stim[0] = 1
@@ -80,6 +92,29 @@ class StimDesigner:
         elif stim_direction_type == 'random':
             desired_stim = rng.normal(size=(equivalent_projection_matrix.shape[1], 1))
             desired_stim = desired_stim / numpy.linalg.norm(desired_stim)
+        elif stim_direction_type == 'random+':
+            desired_stim_high_d = rng.normal(size=(equivalent_projection_matrix.shape[0], 1))
+            desired_stim_high_d = desired_stim_high_d / numpy.linalg.norm(desired_stim_high_d)
+            desired_stim_high_d = numpy.abs(desired_stim_high_d)
+            desired_stim = equivalent_projection_matrix.T @ desired_stim_high_d
+            desired_stim = desired_stim / numpy.linalg.norm(desired_stim)
+        elif stim_direction_type == 'random_feasible':
+            desired_stim_high_d = rng.normal(size=(equivalent_projection_matrix.shape[0], 1))
+            desired_stim_high_d = desired_stim_high_d / numpy.linalg.norm(desired_stim_high_d)
+            desired_stim_high_d = numpy.abs(desired_stim_high_d).flatten()
+            while (desired_stim_high_d > 0).sum() > self.max_l0_norm:
+                desired_stim_high_d[rng.choice(len(desired_stim_high_d))] = 0
+            desired_stim = equivalent_projection_matrix.T @ desired_stim_high_d
+            desired_stim = desired_stim / numpy.linalg.norm(desired_stim)
+            desired_stim = desired_stim.reshape([-1,1])
+        elif stim_direction_type == 'ones':
+            desired_stim_high_d = numpy.ones((equivalent_projection_matrix.shape[0], 1))
+            desired_stim = equivalent_projection_matrix.T @ desired_stim_high_d
+            desired_stim = desired_stim / numpy.linalg.norm(desired_stim)
+        elif stim_direction_type == '-ones':
+            desired_stim_high_d = -numpy.ones((equivalent_projection_matrix.shape[0], 1))
+            desired_stim = equivalent_projection_matrix.T @ desired_stim_high_d
+            desired_stim = desired_stim / numpy.linalg.norm(desired_stim)
         else:
             raise ValueError()
         return desired_stim
@@ -87,25 +122,49 @@ class StimDesigner:
     def register_stim(self):
         pass
 
+    def design_stim_prev_seen(self, v, previous_us, u_to_s_function=None):
+        if u_to_s_function is None:
+            u_to_s_function = lambda u: u
+
+        # TODO: keep this consistent with jaxopt version
+        def objective(u):
+            s = u_to_s_function(u)
+            s_norm = jnp.linalg.norm(s)
+            loss = 0
+            loss += jnp.dot(s, v) / (s_norm + 1e-10)
+            return -loss.reshape()
+
+        best_u = None
+        best_loss = float('inf')
+        # TODO: parallellize this
+        for u in previous_us:
+            loss = objective(u)
+            if loss < best_loss:
+                best_loss = loss
+                best_u = u
+
+        best_u = best_u / best_u.max()
+        return best_u, {'s': u_to_s_function(u)}
+
     def design_stim_jaxopt(self, v, u_dimension, u_to_s_function=None):
         if u_to_s_function is None:
             u_to_s_function = lambda x: x
 
         u = self.rng.uniform(size=(u_dimension,)) * .1
 
-        lb = jnp.zeros_like(u)
-        ub = jnp.ones_like(u)
-        bounds = (lb, ub)
-
         def objective(u):
             s = u_to_s_function(u)
             s_norm = jnp.linalg.norm(s)
             loss = self.lam_1 * (self.max_l0_norm - jnp.sum(jnp.abs(u)))
             loss += jnp.dot(s, v) / (s_norm + 1e-10)
-            # new: loss += jnp.linalg.norm(jnp.dot(s, v))**2 / (s_norm + 1e-10)
             return -loss.reshape()
 
-        runner = ScipyBoundedMinimize(fun=objective, method='l-bfgs-b')
+        lb = jnp.zeros_like(u)
+        ub = jnp.ones_like(u)
+
+        bounds = (lb, ub)
+        intermediate_xs = []
+        runner = ScipyBoundedMinimize(fun=objective, method='l-bfgs-b', callback=lambda xk: intermediate_xs.append(xk) if self.should_log else None)
         result = runner.run(u, bounds=bounds)
         u = numpy.array(result.params)
 
@@ -116,24 +175,29 @@ class StimDesigner:
         idx = numpy.argsort(u)
         u[idx[:-self.max_l0_norm]] = 0
 
-        return u, {'s': u_to_s_function(u)}
+        return u, {'s': u_to_s_function(u), 'intermediate_xs': numpy.array(intermediate_xs)}
 
 
 
-    def design_stim(self, v, **kwargs):
+    def design_stim(self, v, optimization_method=None, **kwargs):
         start_time = time.time()
         assert len(v.shape) == 2
 
         l = {}
-        match self.optimization_method:
-            case 'jaxopt':
+        if optimization_method is None:
+            optimization_method = self.optimization_method
+
+        match optimization_method:
+            case OptimizationMethod.JAXOPT:
                 u, l = self.design_stim_jaxopt(v, kwargs['u_dimension'], kwargs['u_to_s_function'])
-            case 'cheat_lowd_vec':
-                u = (kwargs['equivalent_projection_matrix'] @ v).flatten(),
-            case 'cheat_highd_vec_single_neurons':
+            case OptimizationMethod.PREV_SEEN:
+                u, l = self.design_stim_prev_seen(v, kwargs['previous_us'], kwargs['u_to_s_function'])
+            case OptimizationMethod.CHEAT_LOWD_VEC:
+                u = (kwargs['equivalent_projection_matrix'] @ v).flatten()
+            case OptimizationMethod.CHEAT_HIGHD_VEC_SINGLE_NEURONS:
                 u = numpy.zeros(kwargs['equivalent_projection_matrix'].shape[0])
                 u[self.rng.choice(kwargs['equivalent_projection_matrix'].shape[0])] = 1
-            case 'cheat_highd_vec_many_neurons':
+            case OptimizationMethod.CHEAT_HIGHD_VEC_MANY_NEURONS:
                 u = numpy.zeros(kwargs['equivalent_projection_matrix'].shape[0])
                 u[self.rng.choice(kwargs['equivalent_projection_matrix'].shape[0], size=self.max_l0_norm, replace=False)] = 1
             case _:
@@ -149,3 +213,43 @@ class StimDesigner:
             } | l)
 
         return u
+
+    def sim_stim_design_stim(self, sr, stim_magnitude, desired_stim, equivalent_projection_matrix, current_t):
+        self: StimDesigner
+        optimization_method = self.optimization_method
+        u_to_s_model_type = self.u_to_s_model_type
+        if sr.stim_reg.n_observed <= self.n_random_initialization and (u_to_s_model_type == 'kernel_regressed' or optimization_method == 'prev_seen'):
+            # u_to_s_model_type = 'identity'
+            u_to_s_model_type = None
+            optimization_method = 'cheat_highd_vec_many_neurons'
+
+
+        if optimization_method in {'jaxopt', 'prev_seen'}:
+            stim_reg = sr.stim_reg
+            previous_us = stim_reg.input_histories[1][:stim_reg.n_observed] if optimization_method == 'prev_seen' else None
+            if u_to_s_model_type == 'kernel_regressed':
+                f = stim_reg.make_jax_pred_f()
+                pred = sr.autoreg.predict(n_steps=0)
+                def u_to_s_function(u):
+                    return stim_magnitude * f([pred, u, current_t])
+                designed_stim = self.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0], previous_us=previous_us)
+            elif u_to_s_model_type == 'identity':
+                def u_to_s_function(u):
+                    return stim_magnitude * equivalent_projection_matrix.T @ u
+                designed_stim = self.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0], previous_us=previous_us)
+        elif optimization_method == 'cheat_lowd_vec' and u_to_s_model_type == 'identity':
+            designed_stim = self.design_stim(desired_stim, equivalent_projection_matrix=equivalent_projection_matrix)
+        elif optimization_method in {'cheat_highd_vec_single_neurons','cheat_highd_vec_many_neurons'} and u_to_s_model_type is None:
+            designed_stim = self.design_stim(desired_stim, equivalent_projection_matrix=equivalent_projection_matrix, optimization_method=optimization_method)
+        else:
+            raise ValueError()
+
+        self.log[-1]['stim_reg'] = copy.deepcopy(sr.stim_reg)
+        self.log[-1]['time_of_stim'] = current_t
+        self.log[-1]['equiv_proj_mat'] = equivalent_projection_matrix
+
+        if (designed_stim == 0).all():
+            designed_stim[0] = 1e-10
+            warnings.warn("Stimulus was all zero!")  # TODO: handle this better
+
+        return designed_stim

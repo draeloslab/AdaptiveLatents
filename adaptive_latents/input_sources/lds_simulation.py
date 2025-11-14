@@ -130,9 +130,11 @@ class LDS:
         return LDS(A, C, W, Q, B=B)
 
     @classmethod
-    def run_nest_dynamical_system(cls, rotations, transitions_per_rotation=30 + 1 / np.pi, stim_magnitude=1, stims_per_rotation=1, radius=5, u_function=None, rng=None, early_shift=1e-12, noise=0.05):
+    def run_nest_dynamical_system(cls, rotations, transitions_per_rotation=30 + 1 / np.pi, stim_magnitude=1, stims_per_rotation=1, radius=5, u_function=None, rng=None, early_shift=1e-12, noise=0.05, theta_0=None):
         rng = rng if rng is not None else np.random.default_rng()
         dynamics_rng, stim_rng = rng.spawn(2)
+        if theta_0 is None:
+            theta_0 = dynamics_rng.uniform(0, 2 * np.pi)
         lds = cls.nest_lds(transitions_per_rotation=transitions_per_rotation, rng=dynamics_rng, noise=noise)
         N = int(rotations * transitions_per_rotation)
         t = np.linspace(0, N / transitions_per_rotation, N)
@@ -150,7 +152,29 @@ class LDS:
                 u = np.zeros(lds.B.shape[0])
                 u[2] = stim_magnitude * stim[i] * state[0] / np.linalg.norm(state[:2]) * (-1 if i > stim.shape[0]//2 else 1)
                 return u
+        elif u_function == 'curvy spins':
+            def u_function(lds, state, i, rng):
+                u = np.zeros(lds.B.shape[0])
 
+                state = np.array(state)
+
+                transition1 = 25 * transitions_per_rotation
+                transition2  = 45 * transitions_per_rotation
+                if i <= transition1:
+                    rotation_angle = 0
+                elif transition1 < i <= transition2:
+                    rotation_angle = np.pi
+                elif transition2 < i:
+                    rotation_angle = (i-transition2) * 2*np.pi / (30 * transitions_per_rotation) + np.pi
+                else:
+                    raise ValueError()
+
+                rotation_matrix = np.array([[np.cos(rotation_angle), -np.sin(rotation_angle)],
+                                            [np.sin(rotation_angle),  np.cos(rotation_angle)]])
+                state[:2] = rotation_matrix @ state[:2]
+
+                u[2] = stim_magnitude * stim[i] * state[0] / np.linalg.norm(state[:2])
+                return u
         elif u_function == 'constant':
             def u_function(lds, state, i, rng):
                 u = np.zeros(lds.B.shape[0])
@@ -159,7 +183,7 @@ class LDS:
         elif u_function is None:
             u_function = lambda **_: np.zeros(lds.B.shape[0])
 
-        states, observations, received_stim = lds.simulate(N, initial_state=[radius, 0, 0], U=u_function, rng=dynamics_rng)
+        states, observations, received_stim = lds.simulate(N, initial_state=[radius * np.cos(theta_0), radius * np.sin(theta_0), 0], U=u_function, rng=dynamics_rng)
 
         assert early_shift == 0 or np.diff(t).mean() / early_shift > 100
 

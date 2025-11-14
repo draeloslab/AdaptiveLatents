@@ -1,8 +1,9 @@
+import functools
 from collections import deque
 
 import numpy as np
 
-from . import StreamingKalmanFilter
+from .input_sources.kalman_filter import StreamingKalmanFilter
 from .predictor import Predictor
 from .regressions import BaseKNearestNeighborRegressor, OnlineRegressor, BaseMultiKernelRegressor
 from .timed_data_source import ArrayWithTime
@@ -10,6 +11,57 @@ from .stim_designer import StimDesigner
 
 # TODO: make the time comparisons more uniform
 
+dt_epsilon = 1e-8
+
+class StimAutoReg():
+    def __init__(self, n_steps_to_consider):
+        self.n_steps_to_consider = n_steps_to_consider
+        self.previous_corrections = []
+        self.training_data = []
+        self.coeffs = np.zeros(n_steps_to_consider) * np.nan
+
+    def correct(self, current_t, dt):
+        new_correction = 0
+        for correction in reversed(self.previous_corrections):
+            steps = (current_t - correction.t) / dt
+            assert abs(steps - round(steps)) < dt_epsilon
+            steps = int(round(steps))
+
+            if steps >= self.n_steps_to_consider:
+                break
+            new_correction += correction * self.coeffs[steps-1]
+        return new_correction
+
+    def observe_new_correction(self, new_correction):
+        self.previous_corrections.append(np.squeeze(new_correction))
+        self.training_data.append([])
+
+    def observe(self, X, pred_callback, dt):
+        if len(self.previous_corrections) == 0:
+            return
+
+        steps = (X.t - self.previous_corrections[-1].t)/dt
+        assert abs(steps - round(steps)) < dt_epsilon
+        steps = int(round(steps))
+        if steps >= self.n_steps_to_consider + 1:
+            return
+
+        pred = pred_callback()
+        residual = X - pred
+        self.training_data[-1].append(np.squeeze(residual))
+
+        if len(self.training_data) > 1 and type(self.training_data[-2]) is list:
+            if len(self.training_data[-2]) == self.n_steps_to_consider:
+                self.training_data[-2] = self.training_data[-2]
+            else:
+                self.training_data.pop(-2)
+            errors = np.array(self.training_data[:-1])
+            corrections = np.array(self.previous_corrections[:-1])[:,None,:]
+
+            corrections = corrections.transpose((0,2,1))
+            errors = errors.transpose((0,2,1))
+            self.coeffs, _, _, _ = np.linalg.lstsq(corrections.reshape((-1, 1)), errors.reshape((-1, self.n_steps_to_consider)))
+            self.coeffs = self.coeffs.flatten()
 
 class StimRegressor(Predictor):
     stream_to_update_log_on = 'stim'
@@ -31,6 +83,7 @@ class StimRegressor(Predictor):
         self.attempt_correction = attempt_correction
         self.heed_stimuli = heed_stimuli
         self.last_seen_stims = deque()
+        self.stim_autoreg = StimAutoReg(n_steps_to_consider=0)
         assert stim_delay >= 0
         self.stim_delay = stim_delay  # in units of time (wrt the data)
         self.error_on_missed_stim = error_on_missed_stim
@@ -64,7 +117,7 @@ class StimRegressor(Predictor):
     def trim_last_seen_stims(self, current_t):
         saftey_margin = self.dt if self.dt else self.stim_delay
         while self.last_seen_stims and (current_t - self.last_seen_stims[0].t) > (self.stim_delay + saftey_margin):
-            if self.error_on_missed_stim and self.heed_stimuli:
+            if self.error_on_missed_stim and self.heed_stimuli and np.isfinite(self.autoreg.get_arbitrary_dynamics_parameter()).all():
                 raise Exception("Missed stim.")
             self.last_seen_stims.popleft()
 
@@ -120,12 +173,14 @@ class StimRegressor(Predictor):
                 residual = X - pred
                 stim_reg_input = [self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for, X.t]  # TODO: deal with nan from autoreg
                 self.stim_reg.observe(stim_reg_input, residual)
+                self.stim_autoreg.observe_new_correction(ArrayWithTime(self.stim_reg.predict(stim_reg_input), X.t))
 
             # TODO: make a decision about wheither autoreg needs to be a transformer
             # self.autoreg.observe(X, stream=self.input_streams[stream])
             self.autoreg.partial_fit_transform(data=X, stream=self.input_streams[stream])
         else:
             self.autoreg.toggle_parameter_fitting(True)
+            self.stim_autoreg.observe(X,functools.partial(self.autoreg.predict,n_steps=1), self.dt)
             self.autoreg.partial_fit_transform(data=X, stream=self.input_streams[stream])
 
     def get_state(self):
@@ -145,6 +200,7 @@ class StimRegressor(Predictor):
             stim_to_correct_for = self.get_stim_to_correct_for(current_t=current_t)
             if len(stim_to_correct_for):
                 pred = pred + self.predict_stim_response(stim_to_correct_for, current_t)
+            pred = pred + self.stim_autoreg.correct(current_t, self.dt)
         return pred
 
     def unevaluated_log_pred_p(self, n_steps, current_t=None):
@@ -165,6 +221,11 @@ class StimRegressor(Predictor):
         else:
             corrected_f = f
         return corrected_f
+
+    def finalize_log(self, stim_intended_samples=None):
+        self.log['pred_error'] = ArrayWithTime.from_list(self.log['pred_error'], drop_early_nans=True, squeeze_type='to_2d')
+        if stim_intended_samples is not None:
+            self.log['stim_intended_samples'] = stim_intended_samples.slice((stim_intended_samples > 0).any(axis=1))
 
     def get_params(self, deep=True):
         return super().get_params(deep) | dict(autoreg=self.autoreg, stim_reg=self.stim_reg, attempt_correction=self.attempt_correction, heed_stimuli=self.heed_stimuli, stim_designer=self.stim_designer, stim_delay=self.stim_delay, error_on_missed_stim=self.error_on_missed_stim)

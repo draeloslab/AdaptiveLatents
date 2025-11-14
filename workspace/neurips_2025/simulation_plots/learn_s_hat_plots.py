@@ -97,22 +97,14 @@ def plot_manifold_error(srs, comparison_keys=('learning from stim', 'unaware of 
     for k in comparison_keys:
         for sr in srs[k]:
             she = ArrayWithTime.from_list(sr.log['s_hat_error'])
-            ax.plot(she.t, she, label=k)
+            stim_samples = sr.log['stim_intended_samples']
+            she, _ = ArrayWithTime.align_indices(she, stim_samples)
+            ax.plot(she, label=k)
 
-    ax.set_xlabel('time (rotations)')
+    ax.set_xlim([0, 50])
+    ax.set_xlabel('# of stimuli')
     ax.set_ylabel(r'~$\mathbb{E}\Vert \hat S - S \Vert$')
     ax.set_ylim(bottom=0)
     ax.legend()
 
     return fig
-
-def finalize_log(sr:StimRegressor, stim_intended_samples):
-    error = ArrayWithTime.from_list(sr.log['pred_error'], drop_early_nans=True, squeeze_type='to_2d')
-    sr.log['pred_error'] = error
-
-    # pred_error_with_origin_t = [ArrayWithTime(p,t) for p, t in zip(sr.log['pred_error'], sr.log['pred_origin_t'])]
-    # error_ot = ArrayWithTime.from_list(pred_error_with_origin_t, drop_early_nans=True, squeeze_type='to_2d')
-    # sr.log['pred_error_ot'] = error_ot
-
-    sr.log['stim_intended_samples'] = stim_intended_samples.slice((stim_intended_samples > 0).any(axis=1))
-    return sr

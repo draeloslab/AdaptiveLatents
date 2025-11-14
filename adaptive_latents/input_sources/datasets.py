@@ -571,6 +571,63 @@ Please download {sub_dataset_identifier} from {self.doi} and put it in {self.dat
         return static_construct(sub_dataset_identifier, self.bin_width)
 
 
+class Temmar24uDataset(Dataset):
+    doi = None
+    model_organism = ModelOrganism.MONKEY
+    dataset_base_path = DATA_BASE_PATH / 'temmar24u'
+    automatically_downloadable = False
+
+    def __init__(self, include_position=True, include_velocity=False, include_acceleration=False):
+        self.include_position = include_position
+        self.include_velocity = include_velocity
+        self.include_acceleration = include_acceleration
+        self.bin_width = .05  # in seconds, this is in jgould_first_extraction.mat
+
+        neural_data, behavioral_data, neural_t, behavioral_t = self.construct()
+        self.neural_data = ArrayWithTime(neural_data, neural_t)
+        self.behavioral_data = ArrayWithTime(behavioral_data, behavioral_t)
+
+    def acquire(self):
+        file = self.dataset_base_path / 'jgould_first_extraction.mat'
+        if not file.is_file():
+            # todo: possibly run jgould_first_extraction here?
+            print("""\
+Talk to the Chestek lab to get access to this data, and Jonathan Gould for the specifics of how this file was generated.
+This data will eventually be published, after which there should be an easier way to download it.
+""")
+            raise FileNotFoundError()
+        return loadmat(file, squeeze_me=True, simplify_cells=True)
+
+    def construct(self):
+        mat = self.acquire()
+
+        pre_smooth_beh = mat["feats"][1]
+        pre_smooth_A = mat["feats"][0]
+        pre_smooth_t = mat["feats"][2] / 1000
+
+        pre_smooth_beh = pre_smooth_beh.reshape((pre_smooth_beh.shape[0], 3, 5))
+
+        nonzero_columns = pre_smooth_beh.std(axis=0) > 0
+        assert np.all(~(nonzero_columns[0, :] ^ nonzero_columns))  # checks that fingers always have the same values
+        pre_smooth_beh = pre_smooth_beh[:, :, nonzero_columns[0, :]]  # the booleans select for position, velocity, and acceleration
+        pre_smooth_beh = pre_smooth_beh[:, [self.include_position, self.include_velocity, self.include_acceleration], :].reshape(pre_smooth_beh.shape[0], -1)  # the three booleans select for position, velocity, and acceleration
+        kernel = np.exp(np.linspace(0, -1, 5))
+        kernel /= kernel.sum()
+
+        mode = 'valid'
+        A = np.column_stack([np.convolve(kernel, column, mode) for column in pre_smooth_A.T])
+        t = np.convolve(np.hstack([[1], kernel[:-1] * 0]), pre_smooth_t, mode)
+        beh = pre_smooth_beh
+
+        # pre_prosvd_A = center_from_first_n(pre_center_A, 100)
+        # pre_prosvd_A, pre_prosvd_beh, pre_prosvd_t = clip(pre_prosvd_A, pre_prosvd_beh, pre_prosvd_t)
+        #
+        # pre_jpca_A = prosvd_data(input_arr=pre_prosvd_A, output_d=4, init_size=50)
+        # pre_jpca_A, pre_jpca_t, pre_jpca_beh = clip(pre_jpca_A, pre_prosvd_t, pre_prosvd_beh)
+        #
+        # A, beh, t = pre_jpca_A, pre_jpca_beh, pre_jpca_t
+        return A, beh, t, pre_smooth_t
+
 
 # class Musall19Dataset(Dataset):
 #     doi = 'https://doi.org/10.1038/s41593-019-0502-4'
@@ -660,7 +717,7 @@ Please download {sub_dataset_identifier} from {self.doi} and put it in {self.dat
 #         if not self.inner_data_path.is_dir():
 #             # TODO: I think this is actually publicly downloadable
 #             print(f"""\
-# Please ask [redacted] where to download the Musal data.\
+# Please ask Anne Draelos where to download the Musal data.\
 # """)
 #             raise FileNotFoundError()
 
@@ -820,7 +877,7 @@ class Naumann24uDataset(Dataset):
         if not base.is_dir():
             print(base)
             print("""\
-Please ask [redacted] how to acquire the Naumann lab dataset we use here. (hint: box)\
+Please ask Anne Draelos how to acquire the Naumann lab dataset we use here. (hint: box)\
 """)
             raise FileNotFoundError()
         optical_stimulations = np.load(base/'photostims.npy')
@@ -1040,6 +1097,7 @@ class Zong22Dataset(Dataset):
 
         iscell = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'iscell.npy')
         F_all = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'F.npy')
+        self.F_all = F_all
         n_cells = int(sum(iscell[:, 0]))
 
         stat = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'stat.npy', allow_pickle=True)
@@ -1084,14 +1142,7 @@ class Zong22Dataset(Dataset):
         return F, img, video, beh, n_cells, stat, ops
 
     def show_stim_pattern(self, ax, desired_stim):
-        planes = []
-        for i in range(500):
-            self.raw_images.seek(i)
-            planes.append(np.array(self.raw_images))
-
-        im = np.mean(planes, axis=0)
-
-        ax.matshow(-im, cmap='Grays')
+        ax.matshow(self.ops['meanImg'], cmap='Grays')
         xs, ys = list(zip(*[cell['med'] for cell in self.stat]))
         map = ax.scatter(ys, xs, s=7, c=desired_stim)
 

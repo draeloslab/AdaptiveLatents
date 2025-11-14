@@ -5,7 +5,6 @@ import pathlib
 import warnings
 
 import numpy as np
-from IPython import display
 from matplotlib import pyplot as plt
 from matplotlib.animation import FFMpegWriter, PillowWriter
 
@@ -38,7 +37,7 @@ class AnimationManager:
 
         if filename_stem is None:
             time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-            filename_stem = f"movie_{time_string}-{str(hash(id(self)))[-3:]}.gif"
+            filename_stem = f"movie_{time_string}-{str(hash(id(self)))[-3:]}"
 
         self.filetype = filetype
         self.outfile = pathlib.Path(outdir).resolve() / f"{filename_stem}.{filetype}"
@@ -79,6 +78,7 @@ class AnimationManager:
         self.seen_frames += 1
 
     def display_video(self, embed=False, width=None):
+        from IPython import display
         if self.filetype == 'gif':
             display.display(display.Image(self.outfile, embed=embed, width=width))
         else:
@@ -197,6 +197,7 @@ class UpdatingOptimizationGraph:
                 if jdx == 0:
                     self.axs[idx, jdx].set_ylabel(target_str)
 
+        from IPython import display
         display.clear_output()
         display.display(self.fig)
 

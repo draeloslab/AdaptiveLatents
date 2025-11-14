@@ -52,6 +52,7 @@ def check_lds_predicts_circle(predictor, X, trasitions_per_rotation, show_plots)
 def test_kf_cov_pos_def(rng):
     """
     see the `evals = np.abs(evals)  # TODO: this should not be necessary` line in kalman_filter.py
+    https://github.com/draeloslab/AdaptiveLatents/issues/30#issue-3000347528
     """
     transitions_per_rotation = 30
     radius = 10

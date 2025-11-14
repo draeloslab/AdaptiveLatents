@@ -9,10 +9,9 @@ from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, Sti
 import tqdm.auto as tqdm
 import numpy as np
 import pandas as pd
-from adaptive_latents.stim_designer import StimDesigner
+from adaptive_latents.stim_designer import StimDesigner, OptimizationMethod
 from adaptive_latents.sim_stim import make_sr as new_make_sr
 
-from learn_s_hat_plots import finalize_log
 
 
 def make_sr(*args, **kwargs):
@@ -43,6 +42,8 @@ def make_srs(data, rng, comparison_preset=None, n_runs=1, show_tqdm=False, overr
 
 
 def get_presets(comparison_preset):
+    default_common = dict(stim_magnitude=10, optimization_method=OptimizationMethod.JAXOPT, u_to_s_model_type='identity', exit_time=np.inf, stim_rate=None, smoothing_tau=1, centerer_init_size=8 * 25, initial_nostim_period=30, regular_stim_iter=cycle([1 / 10, 1 / 3]), stim_timing_method='regular', autoreg=functools.partial(StreamingKalmanFilter, steps_between_refits=5), )
+
     match comparison_preset:
         case 'pred methods':
             to_run = {
@@ -51,48 +52,58 @@ def get_presets(comparison_preset):
                 'vjf':dict(autoreg=VJF)
             }
         case 'optim_col_vs_rand':
-            design_method = 'optimized identity u_to_s'
-            stim_rate=1/2
-            exit_time=130
+            common = dict(optimization_method=OptimizationMethod.JAXOPT, u_to_s_model_type='identity', stim_rate=1/2, exit_time=130)
             to_run = {
-                'first column of Q': dict(design_method=design_method, stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time,),
-                'random columns of Q': dict(design_method=design_method, stim_direction_type='col',stim_rate=stim_rate, exit_time=exit_time,),
-                'random unit vector': dict(design_method=design_method, stim_direction_type='random', stim_rate=stim_rate, exit_time=exit_time,),
+                'first column of Q': common | dict(stim_direction_type='first'),
+                'random columns of Q': common | dict(stim_direction_type='col'),
+                'random unit vector': common | dict(stim_direction_type='random'),
             }
 
         case 'optim_col_vs_rand_with_high_d_rand':
-            common = dict(stim_direction_type='first', stim_rate=1/2, stim_magnitude=10, exit_time=130)
-            to_run = {
-                'normal': common | dict(true_S='identity', design_method='optimized identity u_to_s',),
-                'shuffled': common | dict(true_S='high_d_permuted',design_method='optimized identity u_to_s'),
-                'many': common | dict(true_S='identity',design_method='many neurons'),
-                'single': common | dict(true_S='identity', design_method='single neurons'),
-                # 'near_zero': common | dict(true_S='identity', design_method='optimized identity u_to_s', stim_magnitude=0.001),
-            }
+            common = dict(stim_rate=1/2, stim_magnitude=10, exit_time=130)
+            to_run = {}
+            stim_direction_types = ('random_feasible', 'first', 'ones', 'random+', 'col', 'random', '-ones')
+            for stim_direction_type in stim_direction_types:
+                inner_common = common | dict(stim_direction_type=stim_direction_type)
+                to_run.update({
+                    f'normal {stim_direction_type}': inner_common | dict(true_S='identity', optimization_method=OptimizationMethod.JAXOPT, u_to_s_model_type='identity',),
+                    f'shuffled {stim_direction_type}': inner_common | dict(true_S='high_d_permuted', optimization_method=OptimizationMethod.JAXOPT, u_to_s_model_type='identity'),
+                    f'many {stim_direction_type}': inner_common | dict(true_S='identity', optimization_method=OptimizationMethod.CHEAT_HIGHD_VEC_MANY_NEURONS, u_to_s_model_type=None),
+                    f'single {stim_direction_type}': inner_common | dict(true_S='identity', optimization_method=OptimizationMethod.CHEAT_HIGHD_VEC_SINGLE_NEURONS, u_to_s_model_type=None),
+                })
+
+        case 'optim_col_vs_rand_with_high_d_rand_closed':
+            common = dict(stim_rate=1/2, stim_magnitude=10, exit_time=130)
+            to_run = {}
+            stim_direction_types = ('first', 'ones', 'random+', 'col', 'random', '-ones')
+            for stim_direction_type in stim_direction_types:
+                inner_common = common | dict(stim_direction_type=stim_direction_type)
+                to_run.update({
+                    f'normal {stim_direction_type}': inner_common | dict(true_S='identity', optimization_method=OptimizationMethod.JAXOPT, u_to_s_model_type='kernel_regressed',),
+                    f'shuffled {stim_direction_type}': inner_common | dict(true_S='high_d_permuted', optimization_method=OptimizationMethod.JAXOPT, u_to_s_model_type='kernel_regressed'),
+                    f'many {stim_direction_type}': inner_common | dict(true_S='identity', optimization_method=OptimizationMethod.CHEAT_HIGHD_VEC_MANY_NEURONS, u_to_s_model_type=None),
+                    f'single {stim_direction_type}': inner_common | dict(true_S='identity', optimization_method=OptimizationMethod.CHEAT_HIGHD_VEC_SINGLE_NEURONS, u_to_s_model_type=None),
+                })
 
         case 'optim_open_vs_closed':
-            stim_rate = 1/2
-            exit_time = np.inf
-            prosvd_k = 10
+            common = dict(stim_rate = 1/2, exit_time = np.inf, prosvd_k = 10, optimization_method=OptimizationMethod.JAXOPT, stim_direction_type='first',)
             to_run = {
-                'open id': dict(design_method='optimized identity u_to_s', true_S='identity', stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k,),
-                'closed id': dict(design_method='optimized learned u_to_s', true_S='identity', stim_direction_type='first',stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k,),
-                'open flip': dict(design_method='optimized identity u_to_s', true_S='flip', stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k, ),
-                'closed flip': dict(design_method='optimized learned u_to_s', true_S='flip', stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k, ),
+                'open id': common | dict(u_to_s_model_type='identity', true_S='identity'),
+                'closed id': common | dict(u_to_s_model_type='kernel_regressed', true_S='identity'),
+                'open flip': common | dict(u_to_s_model_type='identity', true_S='flip'),
+                'closed flip': common | dict(u_to_s_model_type='kernel_regressed', true_S='flip',),
             }
         case 'optim_open_vs_closed_toy':
-            stim_rate = 3
-            exit_time = np.inf
-            prosvd_k = 2
+            common = dict( stim_rate = 3, exit_time = np.inf, prosvd_k = 2, optimization_method=OptimizationMethod.JAXOPT,stim_direction_type='first',)
             to_run = {
-                'open id': dict(design_method='optimized identity u_to_s', true_S='identity', stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k,),
-                'closed id': dict(design_method='optimized learned u_to_s', true_S='identity', stim_direction_type='first',stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k,),
-                'open flip': dict(design_method='optimized identity u_to_s', true_S='flip', stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k, ),
-                'closed flip': dict(design_method='optimized learned u_to_s', true_S='flip', stim_direction_type='first', stim_rate=stim_rate, exit_time=exit_time, prosvd_k=prosvd_k, ),
+                'open id': common | dict( u_to_s_model_type='identity', true_S='identity'),
+                'closed id': common | dict(u_to_s_model_type='kernel_regressed', true_S='identity'),
+                'open flip': common | dict(u_to_s_model_type='identity', true_S='flip'),
+                'closed flip': common | dict(u_to_s_model_type='kernel_regressed', true_S='flip'),
             }
         case 'delay-table':
             to_run = {}
-            common = dict(stim_magnitude=10, prosvd_k=8, exit_time=30, initial_nostim_period=5, design_method='direct cheating')
+            common = dict(stim_magnitude=10, prosvd_k=8, exit_time=30, initial_nostim_period=5, optimization_method=OptimizationMethod.CHEAT_LOWD_VEC, u_to_s_model_type='identity')
 
             # for LDS
             # common |= dict(prosvd_k=4, exit_time=np.inf, initial_nostim_period=10, stim_rate=1 / 20)
@@ -100,44 +111,23 @@ def get_presets(comparison_preset):
             for i in range(4):
                 for j in range(4):
                     # for LDS:
-                    # to_run[f'({i}, {j})'] = dict(stim_time_delay=i, regressor_stim_delay=j, stim_magnitude=10, prosvd_k=4, exit_time=np.inf, initial_nostim_period=10, design_method='direct cheating', stim_rate=1/20)
+                    # to_run[f'({i}, {j})'] = dict(stim_time_delay=i, regressor_stim_delay=j, stim_magnitude=10, prosvd_k=4, exit_time=np.inf, initial_nostim_period=10, optimization_method='cheat_lowd_vec', u_to_s_model_type='identity', stim_rate=1/20)
                     # for ODoherty
                     to_run[f'({i}, {j})'] = common | dict(stim_time_delay=i, regressor_stim_delay=j)
 
         case 'default':
-            stim_magnitude = 10
-            design_method = 'optimized identity u_to_s'
-            exit_time = np.inf
-            stim_rate = None
-            smoothing_tau = 1
-            centerer_init_size = 8 * 25
-            initial_nostim_period = 30
-            regular_stim_iter = cycle([1 / 10, 1 / 3])
-            stim_timing_method = 'regular'
-            autoreg=functools.partial(StreamingKalmanFilter, steps_between_refits=5)
-
+            common = default_common
             to_run = {
-                'learning from stim': dict(attempt_correction=True, heed_stimuli=True, exit_time=exit_time, stim_magnitude=stim_magnitude, design_method=design_method, stim_rate=stim_rate, smoothing_tau=smoothing_tau, centerer_init_size=centerer_init_size, initial_nostim_period=initial_nostim_period,regular_stim_iter=regular_stim_iter,stim_timing_method=stim_timing_method, autoreg=autoreg,),
-                'ignoring stim samples':dict(attempt_correction=False, heed_stimuli=True, exit_time=exit_time,stim_magnitude=stim_magnitude, design_method=design_method,stim_rate=stim_rate, smoothing_tau=smoothing_tau,centerer_init_size=centerer_init_size,initial_nostim_period=initial_nostim_period,regular_stim_iter=regular_stim_iter,stim_timing_method=stim_timing_method, autoreg=autoreg,),
-                'unaware of stim':dict(attempt_correction=False, heed_stimuli=False, exit_time=exit_time, stim_magnitude=stim_magnitude,design_method=design_method,stim_rate=stim_rate, smoothing_tau=smoothing_tau,centerer_init_size=centerer_init_size,initial_nostim_period=initial_nostim_period,regular_stim_iter=regular_stim_iter,stim_timing_method=stim_timing_method, autoreg=autoreg,)
+                'learning from stim': common | dict(attempt_correction=True, heed_stimuli=True),
+                'ignoring stim samples': common | dict(attempt_correction=False, heed_stimuli=True),
+                'unaware of stim': common | dict(attempt_correction=False, heed_stimuli=False),
             }
         case 'visualization':
-            stim_magnitude = 10
-            design_method = 'optimized identity u_to_s'
-            exit_time = np.inf
-            stim_rate = None
-            smoothing_tau = 1
-            centerer_init_size = 8 * 25
-            initial_nostim_period = 30
-            regular_stim_iter = cycle([1 / 10, 1 / 3])
-            stim_timing_method = 'regular'
+            common = default_common
+            del common['autoreg']
 
             to_run = {
-                'learning from stim': dict(attempt_correction=True, heed_stimuli=True, exit_time=exit_time,
-                                           stim_magnitude=stim_magnitude, design_method=design_method, stim_rate=stim_rate,
-                                           smoothing_tau=smoothing_tau, centerer_init_size=centerer_init_size,
-                                           initial_nostim_period=initial_nostim_period,
-                                           regular_stim_iter =regular_stim_iter, stim_timing_method=stim_timing_method),
+                'learning from stim': common | dict(attempt_correction=True, heed_stimuli=True),
             }
 
         case _:

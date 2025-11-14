@@ -127,12 +127,13 @@ class KalmanFilter:
 
 class StreamingKalmanFilter(Predictor, KalmanFilter):
     base_algorithm = KalmanFilter
-    def __init__(self, *, steps_between_refits = 25, use_steady_state_k=False, subtract_means=True, no_hidden_state=True, input_streams=None, output_streams=None, log_level=None, check_dt=False, n_steps_to_predict=1):
+    def __init__(self, *, steps_between_refits = 25, use_steady_state_k=False, subtract_means=True, no_hidden_state=True, input_streams=None, output_streams=None, log_level=None, check_dt=False, n_steps_to_predict=1, max_history_length=5000):
         input_streams = input_streams or {0: 'X', 1: 'Y', 2: 'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}
         Predictor.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level, check_dt=check_dt, n_steps_to_predict=n_steps_to_predict)
         KalmanFilter.__init__(self, use_steady_state_k=use_steady_state_k, subtract_means=subtract_means)
         self.no_hidden_state = no_hidden_state
         self.steps_between_refits = steps_between_refits
+        self.max_history_length = max_history_length
 
         self.last_seen = {}
         self.latent_state_history = [[]]
@@ -159,24 +160,25 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
             if semantic_stream == 'X' and self.A is not None:
                 self.step(X)
 
+            assert len(self.latent_state_history[-1]) == len(self.observation_history[-1])
+            n_seen = sum(len(x) if len(x) > 1 else 0 for x in self.observation_history)
             if (
-                    len(self.latent_state_history[-1]) == len(self.observation_history[-1])
+                    n_seen % self.steps_between_refits == 0
                     and len(self.observation_history[-1]) > 1
-                    and len(self.observation_history[-1]) % self.steps_between_refits == 0
                     and self.parameter_fitting
             ):
                 self.fit(X=self.latent_state_history, Y=self.observation_history)
                 latent = np.squeeze(self.latent_state_history[-1])
                 obs = np.squeeze(self.observation_history[-1])
 
-                while sum([len(x) for x in self.observation_history]) > 5000:
-                    if len(self.observation_history) > 1:
+                while sum([len(x) for x in self.observation_history]) > self.max_history_length:
+                    if len(self.observation_history[0]) == 2:
                         self.observation_history.pop(0)
                         self.latent_state_history.pop(0)
                     else:
                         self.observation_history[0].pop(0)
                         self.latent_state_history[0].pop(0)
-                        pass # TODO: you can intelligently slice in this case
+
 
                 constant = min(self.steps_between_refits, len(obs)) # TODO: set this more rigorously
                 self.state = latent[obs.shape[0]-constant]
@@ -206,6 +208,9 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
         return super().get_params(deep) | dict(use_steady_state_k=self.use_steady_state_K, subtract_means=self.subtract_means, steps_between_refits=self.steps_between_refits)
 
     def get_arbitrary_dynamics_parameter(self):
+        if self.A is None:
+            return np.nan
+
         return self.A
 
 
