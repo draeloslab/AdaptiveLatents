@@ -81,15 +81,18 @@ $(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype): $(sim_scri
 		--type-of-dim-red prosvd # you could do more here
 
 
+sim_stim_datasets := odoherty21 zong22
 
 open_vs_closed_by_dimred_prefix := $(generated_path)/open_vs_closed_by_dimred_
-open_vs_closed_by_dimred_plots := $(foreach method, $(dim_red_methods), $(open_vs_closed_by_dimred_prefix)$(method).$(vector_output_filetype))
+open_vs_closed_by_dimred_plots := $(foreach a, $(prediction_methods), $(foreach b, $(dim_red_methods), $(foreach c, $(sim_stim_datasets), $(open_vs_closed_by_dimred_prefix)$(a)_$(b)_$(c).$(vector_output_filetype)  )))
 $(open_vs_closed_by_dimred_plots): $(open_vs_closed_by_dimred_prefix)%.$(vector_output_filetype): $(sim_script_path)/optimization_comparison.py $(sim_script_path)/sim_stim.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(sim_script_path)/optimization_comparison.py \
 		--output $@ \
 	    --type-of-plot optim_open_vs_closed \
-		--type-of-dim-red $*
+		--type-of-dim-red $(word 2,$(subst _, ,$*)) \
+		--type-of-autoreg $(word 1,$(subst _, ,$*)) \
+		--dataset $(word 3,$(subst _, ,$*))
 
 $(generated_path)/zong_stim.$(vector_output_filetype): $(sim_script_path)/zong_stim.py $(sim_script_path)/sim_stim.py
 	$(CONDA_ACTIVATE) adaptive_latents

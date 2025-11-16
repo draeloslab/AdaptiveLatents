@@ -142,7 +142,7 @@ def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_er
 
     return fig
 
-N = 10
+N = 5
 
 def plot_optim_col_vs_rand_with_high_d_rand():
     @save_to_cache('optim_col_vs_rand_with_high_d_rand')
@@ -359,11 +359,27 @@ def plot_optim_col_vs_rand_with_high_d_rand_closed():
 
     return fig, [fig2, fig3, fig4, fig5]
 
-def plot_optim_open_vs_closed():
+def plot_optim_open_vs_closed(args):
     @save_to_cache('optim_open_vs_closed')
-    def f(n_runs=N):
-        data = datasets.Odoherty21Dataset().neural_data
-        srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed', n_runs=n_runs, show_tqdm=True, overrides=dict(last_dim_red=args.type_of_dim_red))
+    def f(n_runs=N, args_dataset=args.dataset, args_type_of_dim_red=args.type_of_dim_red, args_type_of_autoreg=args.type_of_autoreg):
+        if args_dataset == 'odoherty21':
+            data = datasets.Odoherty21Dataset().neural_data
+        elif args_dataset == 'zong22':
+            data = datasets.Zong22Dataset().neural_data
+        else:
+            raise ValueError()
+        
+        if args_type_of_autoreg == 'kf':
+            from adaptive_latents import StreamingKalmanFilter
+            autoreg = StreamingKalmanFilter
+        elif args_type_of_autoreg == 'bw':
+            from adaptive_latents import Bubblewrap
+            autoreg = Bubblewrap
+        elif args_type_of_autoreg == 'vjf':
+            from adaptive_latents import VJF
+            autoreg = VJF
+        
+        srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed', n_runs=n_runs, show_tqdm=True, overrides=dict(last_dim_red=args_type_of_dim_red, autoreg=autoreg))
         return srs
 
     srs = f()
@@ -404,8 +420,7 @@ def plot_optim_open_vs_closed_toy():
             t = np.arange(data.shape[0]) * 1 / lds.transitions_per_rotation
             data = ArrayWithTime(data, t)
 
-            srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed_toy', n_runs=1, show_tqdm=True,
-                           overrides=dict(last_dim_red=args.type_of_dim_red))
+            srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed_toy', n_runs=1, show_tqdm=True, overrides=dict(last_dim_red=args.type_of_dim_red))
             all_srs.append(srs)
 
         srs = {k: [sub_srs[k][0] for sub_srs in all_srs] for k in srs.keys()}
@@ -437,6 +452,8 @@ if __name__ == '__main__':
     parser.add_argument("-o", "--output", type=pathlib.Path, required=True)
     parser.add_argument( "--type-of-plot", type=str, required=True)
     parser.add_argument( "--type-of-dim-red", type=str, required=False)
+    parser.add_argument( "--type-of-autoreg", type=str, required=False, default='kf')
+    parser.add_argument( "--dataset", type=str, required=False, default='Odoherty21')
     args = parser.parse_args()
 
     rng = np.random.default_rng(0)
@@ -475,7 +492,7 @@ if __name__ == '__main__':
                 extra_fig.savefig(args.output.with_stem(args.output.stem +f'_extra_{i}'), bbox_inches="tight")
 
         case 'optim_open_vs_closed':
-            fig, extra_figs = plot_optim_open_vs_closed()
+            fig, extra_figs = plot_optim_open_vs_closed(args)
 
             for i, extra_fig in enumerate(extra_figs):
                 extra_fig.savefig(args.output.with_stem(args.output.stem + f'_extra_{i}'), bbox_inches="tight")
