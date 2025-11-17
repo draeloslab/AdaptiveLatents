@@ -116,7 +116,7 @@ def unpack_metrics(metrics):
         return metrics
 
 
-def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=True):
+def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=True, legend=False):
     fig, axs = plt.subplots(ncols=2, nrows=1, squeeze=False, layout='constrained', figsize=(2*4, 1*4))
 
     ax: plt.Axes = axs[0,0]
@@ -126,19 +126,24 @@ def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_er
                 ax.plot(e, color=f'C{i}', alpha=0.1)
     for i, (k, errors) in enumerate(zip(srs.keys(), v_delta_errors)):
         trendline = np.mean(errors, axis=0)
-        ax.plot(trendline, color=f'C{i}', lw=1.5)
+        ax.plot(trendline, color=f'C{i}', lw=1.5, label=f'{k} {trendline[trendline.size//2:].mean():.2f}')
     ax.set_title('$s_{\\text{obs}}$ along $v$')
 
     ax: plt.Axes = axs[0,1]
     if show_individuals:
         for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors)):
             for j, e in enumerate(errors):
-                ax.plot(e, color=f'C{i}', alpha=0.1)
+                ax.plot(e, color=f'C{i}', alpha=0.1, )
 
     for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors)):
         trendline = np.mean(errors, axis=0)
-        ax.plot(trendline, color=f'C{i}', lw=1.5)
-    ax.set_title('$\\Vert \\hat s_obs - \\hat S_{i-1}(x_i, u_i, t_i) \\Vert$')
+        ax.plot(trendline, color=f'C{i}', lw=1.5, label=f'{k} {trendline[trendline.size//2:].mean():.2f}')
+    ax.set_title('$\\Vert \\hat s_{obs} - \\hat S_{i-1}(x_i, u_i, t_i) \\Vert$')
+
+    if legend:
+        for ax in axs.flatten():
+            ax.legend()
+
 
     return fig
 
@@ -386,9 +391,9 @@ def plot_optim_open_vs_closed(args):
 
     proportions, preq_errors, v_delta_errors, s_delta_errors, angles, mags_along, mags, alignment_with_old_v, v_mag_ratio = unpack_metrics(
         extract_metrics(srs, preq_cutoff=None))
-    fig = open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=False)
-
-
+    fig = open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_errors, show_individuals=False, legend=True)
+    fig.axes[0].set_title(f'$s_{{\\text{{obs}}}}$ along $v$, {args.dataset} {args.type_of_dim_red} {args.type_of_autoreg}')
+ 
     l_df = srs_to_l_df(srs)
     fig2, axs = plt.subplots(ncols=2, squeeze=False, figsize=(10,4), layout='constrained')
     l_df[['open_closed', 'true_s']] = l_df['sr_key'].str.split(' ', expand=True)

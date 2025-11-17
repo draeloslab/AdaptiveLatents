@@ -325,8 +325,8 @@ class BaseBubblewrap:
         if not state["sfrozen"]:
             self._add_jited_functions()
             if not self.go_fast:
-                from jax.lib import xla_bridge
-                self.backend_note += " " + xla_bridge.get_backend().platform
+                from jax.extend.backend import get_backend
+                self.backend_note = get_backend().platform
 
     default_clock_parameters = dict(
         num=8,
