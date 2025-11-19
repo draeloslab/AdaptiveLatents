@@ -147,7 +147,7 @@ def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_er
 
     return fig
 
-N = 5
+N = 10
 
 def plot_optim_col_vs_rand_with_high_d_rand():
     @save_to_cache('optim_col_vs_rand_with_high_d_rand')
@@ -365,8 +365,7 @@ def plot_optim_col_vs_rand_with_high_d_rand_closed():
     return fig, [fig2, fig3, fig4, fig5]
 
 def plot_optim_open_vs_closed(args):
-    @save_to_cache('optim_open_vs_closed')
-    def f(n_runs=N, args_dataset=args.dataset, args_type_of_dim_red=args.type_of_dim_red, args_type_of_autoreg=args.type_of_autoreg):
+    def _f(n_runs=N, args_dataset=args.dataset, args_type_of_dim_red=args.type_of_dim_red, args_type_of_autoreg=args.type_of_autoreg):
         if args_dataset == 'odoherty21':
             data = datasets.Odoherty21Dataset().neural_data
         elif args_dataset == 'zong22':
@@ -387,7 +386,12 @@ def plot_optim_open_vs_closed(args):
         srs = make_srs(data=data, rng=rng, comparison_preset='optim_open_vs_closed', n_runs=n_runs, show_tqdm=True, overrides=dict(last_dim_red=args_type_of_dim_red, autoreg=autoreg))
         return srs
 
-    srs = f()
+    f = save_to_cache('optim_open_vs_closed')(_f)
+
+    try:
+        srs = f()
+    except AttributeError:
+        srs = _f()
 
     proportions, preq_errors, v_delta_errors, s_delta_errors, angles, mags_along, mags, alignment_with_old_v, v_mag_ratio = unpack_metrics(
         extract_metrics(srs, preq_cutoff=None))
@@ -405,9 +409,31 @@ def plot_optim_open_vs_closed(args):
     sns.violinplot(data=l_df[l_df['l_i'] > 20], x='sr_key', y='angle(s_obs,v)', ax=axs[0,0], density_norm='width',inner_kws = violinplot_inner_kws) #  density_norm='width',
     sns.violinplot(data=l_df[l_df['l_i'] > 20], x='sr_key', y='s_obs along v', ax=axs[0,1], density_norm='width',inner_kws = violinplot_inner_kws)
 
+    fig3, axs = plt.subplots(figsize=(10, 8), squeeze=False, layout='constrained')
+    errors = []
+    for k, v in srs.items():
+        errors.append([])
+        for sr in v:
+            errors[-1].append([])
+            e = ArrayWithTime.from_list(sr.log['pred_error'],squeeze_type='to_2d')
+            errors[-1][-1].append(ArrayWithTime(np.linalg.norm(e, axis=1), e.t))
 
 
-    return fig, [fig2]
+
+    ax: plt.Axes = axs[0,0]
+    for i, (k, es) in enumerate(zip(srs.keys(), errors)):
+        for j, e in enumerate(es):
+            ax.plot(e.t, e, color=f'C{i}', alpha=0.1, )
+
+    for i, (k, es) in enumerate(zip(srs.keys(), errors)):
+        trendline = es.mean(axis=0)
+        ax.plot(trendline.t, trendline, color=f'C{i}', lw=1.5, label=f'{k} {trendline[trendline.size//2:].mean():.2f}')
+
+    ax.set_title(f'{args.dataset} {args.type_of_dim_red} {args.type_of_autoreg} 1 step pred error')
+    ax.legend()
+
+
+    return fig, [fig2, fig3]
 
 def plot_optim_open_vs_closed_toy():
     @save_to_cache('optim_open_vs_closed_toy')

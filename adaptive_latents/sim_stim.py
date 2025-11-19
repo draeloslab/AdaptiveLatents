@@ -219,6 +219,7 @@ def make_sr(
         raise ValueError()
 
     decided_stims = []
+    stims = []
     latents = []
     high_d_without_stim = []
     high_d_with_stim = []
@@ -247,6 +248,8 @@ def make_sr(
             else:
                 instantaneous_stim = np.zeros(input_array.shape[1])
             timing_log.stim_design[-1] = time.time() - timing_log.stim_design[-1]
+
+            stims.append(ArrayWithTime(instantaneous_stim, data.t))
 
             true_stim_result = sim_stim_adder.true_stim_result(instantaneous_stim, equivalent_projection_matrix)
 
@@ -309,6 +312,8 @@ def make_sr(
 
     stim_intended_samples = ArrayWithTime.from_list(decided_stims, squeeze_type='to_2d')
     log['stim_intended_samples'] = stim_intended_samples.slice((stim_intended_samples > 0).any(axis=1))
+    stims = ArrayWithTime.from_list(stims, squeeze_type='to_2d', drop_early_nans=True)
+    log['stims'] = stims.slice((stims != 0).any(axis=1))
     log['timing_log'] = timing_log
 
     sr.log['pred_error'] = ArrayWithTime.from_list(sr.log['pred_error'])
