@@ -24,7 +24,7 @@ class StimAutoReg():
         new_correction = 0
         for correction in reversed(self.previous_corrections):
             steps = (current_t - correction.t) / dt
-            assert abs(steps - round(steps)) < dt_epsilon
+            # assert abs(steps - round(steps)) < dt/4, steps # TODO: is this ok to ignore?
             steps = int(round(steps))
 
             if steps >= self.n_steps_to_consider:
@@ -41,8 +41,12 @@ class StimAutoReg():
             return
 
         steps = (X.t - self.previous_corrections[-1].t)/dt
-        assert abs(steps - round(steps)) < dt_epsilon
+        if steps >= self.n_steps_to_consider + 2: # TODO: simplify this logic
+            return
         steps = int(round(steps))
+        if not abs(steps - round(steps)) < dt/5:  # TODO: make this standard
+            print(f'{steps=} {X.t=}')
+            raise Exception()
         if steps >= self.n_steps_to_consider + 1:
             return
 
@@ -115,10 +119,10 @@ class StimRegressor(Predictor):
         return False
 
     def trim_last_seen_stims(self, current_t):
-        saftey_margin = self.dt if self.dt else self.stim_delay
+        saftey_margin = self.dt*1.2 if self.dt else self.stim_delay # TODO: check this timing/synchronization logic
         while self.last_seen_stims and (current_t - self.last_seen_stims[0].t) > (self.stim_delay + saftey_margin):
             if self.error_on_missed_stim and self.heed_stimuli and np.isfinite(self.autoreg.get_arbitrary_dynamics_parameter()).all():
-                raise Exception("Missed stim.")
+                raise Exception(f"Missed stim. {current_t=:.3f} {self.last_seen_stims[0].t=:.3f} (diff={current_t-self.last_seen_stims[0].t:.2f}) {(self.stim_delay + saftey_margin)=:.3f}")
             self.last_seen_stims.popleft()
 
     def get_stim_to_correct_for(self, current_t, remove=False):

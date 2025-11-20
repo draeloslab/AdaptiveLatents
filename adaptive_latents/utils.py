@@ -80,7 +80,7 @@ def save_to_cache(file, location=None, override_config_and_cache=False):
                 with CONFIG.open_with_parents(cache_file, "wb") as fhan:
                     pickle.dump(result, fhan)
 
-                cache_index[all_args_as_key] = {'cache_file': cache_file, 'execute_time': execute_time, 'args': str(all_args)}
+                cache_index[all_args_as_key] = {'cache_file': cache_file, 'execute_time': execute_time, 'args': str(all_args), 'filesize_gb': cache_file.stat().st_size/1e9}
                 with CONFIG.open_with_parents(cache_index_file, 'w') as fhan:
                     json.dump(cache_index, fhan, indent=4)
 

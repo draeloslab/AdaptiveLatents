@@ -147,7 +147,7 @@ def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_er
 
     return fig
 
-N = 5
+N = 10
 
 def plot_optim_col_vs_rand_with_high_d_rand():
     @save_to_cache('optim_col_vs_rand_with_high_d_rand')

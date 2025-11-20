@@ -245,7 +245,7 @@ class BaseMultiKernelRegressor:
         if rng is None:
             rng = numpy.random.default_rng(0)
         self.rng = rng
-        self.log = {'length_scales': []}
+        self.log = {'length_scales': [], 'preq_errors':[]}
 
         self.length_scales = numpy.array(length_scales)
 
@@ -253,6 +253,8 @@ class BaseMultiKernelRegressor:
         if any([numpy.any(~numpy.isfinite(sub_x)) for sub_x in x]) or numpy.any(~numpy.isfinite(y)):
             warnings.warn("ignoring non-finite input")
             return
+
+        self.log['preq_errors'].append(y - self.predict(x))
 
         if self.input_histories is None:
             self.input_histories = [numpy.zeros(shape=(self.maxlen, sub_x.size)) * numpy.nan for sub_x in x]
