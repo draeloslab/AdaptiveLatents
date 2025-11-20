@@ -126,7 +126,7 @@ def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_er
                 ax.plot(e, color=f'C{i}', alpha=0.1)
     for i, (k, errors) in enumerate(zip(srs.keys(), v_delta_errors)):
         trendline = np.mean(errors, axis=0)
-        ax.plot(trendline, color=f'C{i}', lw=1.5, label=f'{k} {trendline[trendline.size//2:].mean():.2f}')
+        ax.plot(trendline, color=f'C{i}', lw=1.5, label=f'{k} {trendline[trendline.size//2:].mean():.2f} ')
     ax.set_title('$s_{\\text{obs}}$ along $v$')
 
     ax: plt.Axes = axs[0,1]
@@ -137,7 +137,7 @@ def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_er
 
     for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors)):
         trendline = np.mean(errors, axis=0)
-        ax.plot(trendline, color=f'C{i}', lw=1.5, label=f'{k} {trendline[trendline.size//2:].mean():.2f}')
+        ax.plot(trendline, color=f'C{i}', lw=1.5, label=f'{k} {trendline[trendline.size//2:].mean():.2f} +/- {trendline[trendline.size//2:].std():.2f}')
     ax.set_title('$\\Vert \\hat s_{obs} - \\hat S_{i-1}(x_i, u_i, t_i) \\Vert$')
 
     if legend:
@@ -147,7 +147,7 @@ def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_er
 
     return fig
 
-N = 10
+N = 5
 
 def plot_optim_col_vs_rand_with_high_d_rand():
     @save_to_cache('optim_col_vs_rand_with_high_d_rand')
@@ -414,9 +414,8 @@ def plot_optim_open_vs_closed(args):
     for k, v in srs.items():
         errors.append([])
         for sr in v:
-            errors[-1].append([])
             e = ArrayWithTime.from_list(sr.log['pred_error'],squeeze_type='to_2d')
-            errors[-1][-1].append(ArrayWithTime(np.linalg.norm(e, axis=1), e.t))
+            errors[-1].append(ArrayWithTime(np.linalg.norm(e, axis=1), e.t))
 
 
 
@@ -426,8 +425,8 @@ def plot_optim_open_vs_closed(args):
             ax.plot(e.t, e, color=f'C{i}', alpha=0.1, )
 
     for i, (k, es) in enumerate(zip(srs.keys(), errors)):
-        trendline = es.mean(axis=0)
-        ax.plot(trendline.t, trendline, color=f'C{i}', lw=1.5, label=f'{k} {trendline[trendline.size//2:].mean():.2f}')
+        trendline = np.mean(es, axis=0)
+        ax.plot(e.t, trendline, color=f'C{i}', lw=1.5, label=f'{k} {trendline[trendline.size//2:].mean():.2f} +/- {trendline[trendline.size//2:].std():.2f}')
 
     ax.set_title(f'{args.dataset} {args.type_of_dim_red} {args.type_of_autoreg} 1 step pred error')
     ax.legend()
