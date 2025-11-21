@@ -10,4 +10,9 @@ $(generated_path)/paralell_compare.$(raster_output_filetype): $(pcp_script_path)
 	$(python_command) $(pcp_script_path)/paralell_compare.py \
 		--output $@
 
-pcps: $(generated_path)/paralell_compare.$(raster_output_filetype)
+$(generated_path)/paralell_compare.$(vector_output_filetype): $(pcp_script_path)/paralell_compare.py
+	$(CONDA_ACTIVATE) adaptive_latents
+	$(python_command) $(pcp_script_path)/paralell_compare.py \
+		--output $@
+
+pcps: $(generated_path)/paralell_compare.$(raster_output_filetype) $(generated_path)/paralell_compare.$(vector_output_filetype)

@@ -186,8 +186,9 @@ def align_column_spaces(A, B):
 
 
 def principle_angles(Q1, Q2):
+    assert is_orthonormal(Q1) and is_orthonormal(Q2)
     _, s, _ = np.linalg.svd(Q1.T @ Q2)
-    return np.arccos(s)
+    return np.arccos(np.clip(s, -1, 1))
 
 
 def is_orthonormal(Q, rows_too=False):

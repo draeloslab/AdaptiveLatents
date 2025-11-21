@@ -165,9 +165,6 @@ def main():
         ax.axis(l)
 
 
-    for reg, ax, old_ax in zip(regs, axs[2], axs[1]):
-        density = 4
-        make_heatmap(ax, reg.history, x_direction, y_direction, color_direction=-1, density=density, sigma=density * 4/200, cax=cax)
 
     for reg, ax, old_ax in zip(regs, axs[2], axs[1]):
         density = 200

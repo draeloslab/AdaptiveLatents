@@ -95,9 +95,12 @@ class BaseProSVD:
             x = R @ x
         return self.Q @ x
 
-    def get_cov_matrix(self):
+    def get_cov_matrix(self, low_d=False):
         R = self.R / np.sqrt(self.n_samples_observed)
-        return R @ R.T
+        if low_d:
+            return R @ R.T
+        else:
+            return self.Q @ R @ R.T @ self.Q.T
 
 
 
