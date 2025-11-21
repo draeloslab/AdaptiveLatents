@@ -101,13 +101,17 @@ $(generated_path)/zong_stim.$(vector_output_filetype): $(sim_script_path)/zong_s
 
 $(generated_path)/learn_s_hat_toy_1step_spin.$(vector_output_filetype): $(sim_script_path)/learn_s_hat_toy_1step_spin.ipynb $(sim_script_path)/learn_s_hat_toy.py
 	$(CONDA_ACTIVATE) adaptive_latents && cd $(sim_script_path)
-	papermill -p output $@ $< /tmp/output.ipynb
+	papermill -p u_function 'curvy spins' -p output $@ $< /tmp/output.ipynb
+
+$(generated_path)/learn_s_hat_toy_1step_spin_3d.$(vector_output_filetype): $(sim_script_path)/learn_s_hat_toy_1step_spin.ipynb $(sim_script_path)/learn_s_hat_toy.py
+	$(CONDA_ACTIVATE) adaptive_latents && cd $(sim_script_path)
+	papermill -p u_function 'curvy spins alld-resp' -p output $@ $< /tmp/output.ipynb
 
 
 open_vs_closed_by_dimred: $(open_vs_closed_by_dimred_plots)
 toy_dataset: $(generated_path)/show_toy_dataset.$(vector_output_filetype)
 learn_s_hat_toy: $(generated_path)/learn_s_hat_toy_1step.$(vector_output_filetype) $(generated_path)/learn_s_hat_toy_manifold_error.$(vector_output_filetype) #$(generated_path)/learn_s_hat_table_toy.tex
-learn_s_hat_toy_spin: $(generated_path)/learn_s_hat_toy_1step_spin.$(vector_output_filetype)
+learn_s_hat_toy_spin: $(generated_path)/learn_s_hat_toy_1step_spin.$(vector_output_filetype) $(generated_path)/learn_s_hat_toy_1step_spin_3d.$(vector_output_filetype)
 learn_s_hat_ss: $(ss_1step_plots)  # $(generated_path)/delay_table_ss.tex
 optim: $(generated_path)/optim_col_vs_rand.$(vector_output_filetype)  $(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype) open_vs_closed_by_dimred # $(generated_path)/optim_open_vs_closed.$(vector_output_filetype)
 zong_stim: $(generated_path)/zong_stim.$(vector_output_filetype)
