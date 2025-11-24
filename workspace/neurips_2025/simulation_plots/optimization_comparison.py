@@ -1,6 +1,7 @@
 import numpy as np
 
 import adaptive_latents
+import json
 import seaborn as sns
 from sim_stim import make_srs, make_slices_tensor
 from adaptive_latents import datasets, ArrayWithTime
@@ -9,12 +10,24 @@ from matplotlib.path import Path
 import matplotlib.pyplot as plt
 from adaptive_latents.utils import save_to_cache
 import pandas
+from scipy.stats import linregress
 
 _vh = .5
 verts = [ (-1., -_vh), (-1., _vh), (1., _vh), (1., -_vh), (-1., -_vh), ]
 codes = [ Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO, Path.CLOSEPOLY, ]
 white_bar_path = Path(verts, codes)
 violinplot_inner_kws = {'marker': white_bar_path, 'markersize': 3, 'markerfacecolor': 'white', }
+
+def add_info_to_json(line_info):
+    try:
+        with open('collected_info.json', 'r+') as f:
+            info = json.load(f)
+    except (FileNotFoundError, json.decoder.JSONDecodeError):
+        info = []
+
+    info.append(line_info)
+    with open('collected_info.json', 'w+') as f:
+        json.dump(info, f)
 
 
 def proportion_in_space(desired, designed):
@@ -137,7 +150,13 @@ def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_er
 
     for i, (k, errors) in enumerate(zip(srs.keys(), preq_errors)):
         trendline = np.mean(errors, axis=0)
-        ax.plot(trendline, color=f'C{i}', lw=1.5, label=f'{k} {trendline[trendline.size//2:].mean():.2f} +/- {trendline[trendline.size//2:].std():.2f}')
+
+        line_last_half = trendline[trendline.size//2:]
+        line_info = dict(dataset=args.dataset, type_of_dim_red=args.type_of_dim_red, type_of_autoreg=args.type_of_autoreg, condition=k, metric='s_hat', mean=line_last_half.mean(), std=line_last_half.std())
+
+        add_info_to_json(line_info)
+
+        ax.plot(trendline, color=f'C{i}', lw=1.5, label=f'{k} {line_info["mean"]:.2f} +/- {line_info["std"]:.2f}')
     ax.set_title('$\\Vert \\hat s_{obs} - \\hat S_{i-1}(x_i, u_i, t_i) \\Vert$')
 
     if legend:
@@ -147,7 +166,7 @@ def open_v_closed_plot(srs, proportions, preq_errors, v_delta_errors, s_delta_er
 
     return fig
 
-N = 10
+N = 2
 
 def plot_optim_col_vs_rand_with_high_d_rand():
     @save_to_cache('optim_col_vs_rand_with_high_d_rand')
@@ -178,9 +197,10 @@ def plot_optim_col_vs_rand_with_high_d_rand():
     fig, axs = plt.subplots(ncols=ncols, nrows=len(stim_direction_types), squeeze=False, figsize=(4*ncols, 4*len(stim_direction_types)), layout='constrained', sharey='col')
 
     fig5, ax5 = plt.subplots(figsize=(8, 8))
+    fig6, ax6 = plt.subplots(figsize=(8, 8))
 
 
-    make_whole_plots = False
+    make_whole_plots = True
     for row, stim_direction_type in enumerate(stim_direction_types):
         sub_df = pandas.DataFrame(l_df[l_df['stim_direction_type'] == stim_direction_type])
 
@@ -220,17 +240,38 @@ def plot_optim_col_vs_rand_with_high_d_rand():
         ax.axis('equal')
 
         sns.scatterplot(just_normal_sub_df, x='angles(s_designed,v)', y='angles(s_obs,v)', zorder=10-row, ax=ax5, label=stim_direction_type)
-        print((just_normal_sub_df['angles(s_designed,v)'] > just_normal_sub_df['angles(s_obs,v)']).sum())
-        print((just_normal_sub_df['angles(s_designed,v)'] == just_normal_sub_df['angles(s_obs,v)']).sum())
-        print((just_normal_sub_df['angles(s_designed,v)'] < just_normal_sub_df['angles(s_obs,v)']).sum())
-        breakpoint()
-        ax5.plot([0,120], [0,120], 'k')
-        ax5.set_xlim([0, 120])
-        ax5.set_ylim([0, 120])
+        _s_des = just_normal_sub_df['angles(s_designed,v)']
+        _s_obs = just_normal_sub_df['angles(s_obs,v)']
+        print(f's_des > s_obs: {(_s_des > _s_obs).sum()}')
+        print(f's_des == s_obs: {(_s_des == _s_obs).sum()}')
+        print(f's_des < s_obs: {(_s_des < _s_obs).sum()}')
+
+        metric_name = 'angles(velocity,v)'
+        just_normal_sub_df[metric_name] = just_normal_sub_df.l.apply(lambda l: angle(l['old_v'], l['v']))
+
+        stim_direction_type_subs = {'first': 'Q_0', 'random_feasible': 'feasible', '-ones': 'negative', 'ones': 'dense', 'random': 'random'}
+        just_normal_sub_df['stim_direction_type'] = just_normal_sub_df['stim_direction_type'].replace(stim_direction_type_subs)
+
+        converted_stim_direction_type = stim_direction_type_subs[stim_direction_type]
+        colors = {'feasible':'#beaed4ff', 'Q_0':'#ca1469ff'}
+        if converted_stim_direction_type in colors:
+            color = colors[converted_stim_direction_type]
+            _df = just_normal_sub_df[just_normal_sub_df['stim_direction_type'].apply(lambda x: x in {'feasible', 'Q_0'})]
+            sns.scatterplot(_df, x='angles(velocity,v)', y='angles(s_obs,v)', zorder=10-row, ax=ax6, label=converted_stim_direction_type,color=color)
+            print(converted_stim_direction_type)
+            print(linregress(x=_df['angles(velocity,v)'], y=_df['angles(s_obs,v)']))
+
+
+    ax5.plot([0,120], [0,120], 'k')
+    ax5.set_xlim([0, 120])
+    ax5.set_ylim([0, 120])
     ax5.legend()
+
+    ax6.legend()
 
     order = ('first', '-ones', 'ones', 'random', 'random_feasible')
     l_df.sort_values(by='stim_direction_type', inplace=True, key=lambda x: x.apply(order.index))
+    l_df['stim_direction_type'] = l_df['stim_direction_type'].replace(stim_direction_type_subs)
 
     fig2, ax2 = plt.subplots(ncols=2, nrows=4, figsize=(6 * 2, 4 * 4), squeeze=False, layout='constrained')
 
@@ -247,8 +288,17 @@ def plot_optim_col_vs_rand_with_high_d_rand():
             ax.set_title(f'{optim_method=}')
 
             fig3, ax3 = plt.subplots(figsize=(8, 8))
+            fig7, ax7 = plt.subplots(figsize=(8, 8))
+            sub_df[f'log_{metric_name}'] = sub_df[metric_name].apply(np.log)
+
             sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax3, scale='width', width=1, density_norm='width',inner_kws = violinplot_inner_kws)
-            # sns.swarmplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax3, size=2, edgecolor='white', color='C0')
+            sns.swarmplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax3, size=2, edgecolor='white', color='C1')
+            ax3.set_ylim([-5, 125])
+
+            metric_name = f'log_{metric_name}'
+            sns.violinplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax7, scale='width', width=1, density_norm='width',inner_kws = violinplot_inner_kws)
+            sns.swarmplot(sub_df, x='stim_direction_type', y=metric_name, orient='v', ax=ax7, size=2, edgecolor='white', color='C1')
+
 
 
         ax: plt.Axes = ax2[row, 1]
@@ -261,7 +311,7 @@ def plot_optim_col_vs_rand_with_high_d_rand():
 
 
 
-    return fig, [fig2, fig3, fig4, fig5]
+    return fig, [fig2, fig3, fig7, fig4, fig5, fig6]
 
 
 
@@ -388,10 +438,7 @@ def plot_optim_open_vs_closed(args):
 
     f = save_to_cache('optim_open_vs_closed')(_f)
 
-    try:
-        srs = f()
-    except AttributeError:
-        srs = _f()
+    srs = f(n_runs=5)
 
     proportions, preq_errors, v_delta_errors, s_delta_errors, angles, mags_along, mags, alignment_with_old_v, v_mag_ratio = unpack_metrics(
         extract_metrics(srs, preq_cutoff=None))
@@ -426,11 +473,15 @@ def plot_optim_open_vs_closed(args):
 
     for i, (k, es) in enumerate(zip(srs.keys(), errors)):
         trendline = np.mean(es, axis=0)
-        ax.plot(e.t, trendline, color=f'C{i}', lw=1.5, label=f'{k} {trendline[trendline.size//2:].mean():.2f} +/- {trendline[trendline.size//2:].std():.2f}')
+        line_last_half = trendline[trendline.size//2:]
+        line_info = dict(dataset=args.dataset, type_of_dim_red=args.type_of_dim_red, type_of_autoreg=args.type_of_autoreg, condition=k, metric='1step_pred', mean=line_last_half.mean(), std=line_last_half.std())
+        add_info_to_json(line_info)
+        ax.plot(e.t, trendline, color=f'C{i}', lw=1.5, label=f'{k} {line_info["mean"]:.2f} +/- {line_info["std"]:.2f}')
 
     ax.set_title(f'{args.dataset} {args.type_of_dim_red} {args.type_of_autoreg} 1 step pred error')
     ax.legend()
 
+    exit()
 
     return fig, [fig2, fig3]
 

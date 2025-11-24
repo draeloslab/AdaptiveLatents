@@ -2,7 +2,7 @@ import time
 import numpy
 import jax
 import jax.numpy as jnp
-from jaxopt import ScipyBoundedMinimize
+from jaxopt import ScipyBoundedMinimize, LBFGS
 import itertools
 import copy
 import warnings
@@ -174,6 +174,42 @@ class StimDesigner:
 
         idx = numpy.argsort(u)
         u[idx[:-self.max_l0_norm]] = 0
+
+        return u, {'s': u_to_s_function(u), 'intermediate_xs': numpy.array(intermediate_xs)}
+
+    # design_stim_jaxopt_unconstrained
+    def design_stim_jaxopt_unconstrained(self, v, u_dimension, u_to_s_function=None):
+        if u_to_s_function is None:
+            u_to_s_function = lambda x: x
+
+        u = self.rng.uniform(size=(u_dimension,)) * .1
+
+        def objective(u):
+            s = u_to_s_function(u)
+            s_norm = jnp.linalg.norm(s)
+            loss = 0
+            # loss += self.lam_1 * (self.max_l0_norm - jnp.sum(jnp.abs(u)))
+            loss += jnp.dot(s, v) / (s_norm + 1e-10)
+            return -loss.reshape()
+
+        # lb = jnp.zeros_like(u)
+        # ub = jnp.ones_like(u)
+        #
+        # bounds = (lb, ub)
+        intermediate_xs = []
+        # runner = ScipyBoundedMinimize(fun=objective, method='l-bfgs-b', callback=lambda xk: intermediate_xs.append(xk) if self.should_log else None)
+        # result = runner.run(u, bounds=bounds)
+
+        runner = LBFGS(fun=objective)
+        result = runner.run(u)
+        u = numpy.array(result.params)
+
+        if numpy.abs(u).max() > 0:
+            u = numpy.array(u / u.max())
+
+
+        # idx = numpy.argsort(u)
+        # u[idx[:-self.max_l0_norm]] = 0
 
         return u, {'s': u_to_s_function(u), 'intermediate_xs': numpy.array(intermediate_xs)}
 
