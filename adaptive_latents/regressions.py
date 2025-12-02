@@ -265,18 +265,30 @@ class BaseMultiKernelRegressor:
         if self.input_histories is None:
             def f(x):
                 return numpy.array([[numpy.nan]])
-        else:
-            input_histories = [jnp.array(h) for h in self.input_histories]
-            output_history = jnp.array(self.output_history)
-            def f(x, length_scales=jnp.array(self.length_scales)):
-                distances = [-length_scale * jnp.linalg.norm(history - jnp.squeeze(sub_x), axis=1) ** 2 for
-                             (sub_x, history, length_scale) in zip(x, input_histories, length_scales)]
-                log_weights = jnp.array(distances).sum(axis=0)
-                log_weights = jnp.nan_to_num(log_weights, nan=-numpy.inf)
-                log_sum = jax.scipy.special.logsumexp(log_weights)
-                log_weights = log_weights - log_sum
+        
+        input_histories = [jnp.array(h) for h in self.input_histories]
+        output_history = jnp.array(self.output_history)
 
-                return jnp.exp(log_weights) @ output_history
+
+        def f(x, length_scales=jnp.array(self.length_scales)):
+            distances = [-length_scale * jnp.linalg.norm(history - jnp.squeeze(sub_x), axis=1) ** 2 for
+                            (sub_x, history, length_scale) in zip(x, input_histories, length_scales)]
+
+            #tried some z norm stuff
+            # normalized_distances = []
+            # for dist in distances:
+            #     dist_mean = jnp.mean(dist)
+            #     dist_std = jnp.std(dist) + 1e-10
+            #     normalized = (dist - dist_mean) / dist_std
+            #     normalized_distances.append(normalized)
+            #log_weights = jnp.array(normalized_distances).sum(axis=0)
+            
+            log_weights = jnp.array(distances).sum(axis=0)
+            log_weights = jnp.nan_to_num(log_weights, nan=-numpy.inf)
+            log_sum = jax.scipy.special.logsumexp(log_weights)
+            log_weights = log_weights - log_sum
+
+            return jnp.exp(log_weights) @ output_history
         return f
 
     def predict(self, x):

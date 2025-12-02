@@ -106,7 +106,10 @@ class StimRegressor(Predictor):
 
     def predict_stim_response(self, stim_to_correct_for, current_t):
         # TODO: is current_t correct here?
-        stim_reg_input = [self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for, current_t]
+        stim_reg_input = [self.autoreg.predict(n_steps=0).flatten(), 
+                          stim_to_correct_for, 
+                          current_t
+                          ]
         return self.stim_reg.predict(stim_reg_input)
 
     def observe(self, X, stream=None):
@@ -118,7 +121,9 @@ class StimRegressor(Predictor):
                 self.autoreg.toggle_parameter_fitting(False)
                 pred = self.autoreg.predict(n_steps=1)
                 residual = X - pred
-                stim_reg_input = [self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for, X.t]  # TODO: deal with nan from autoreg
+                stim_reg_input = [self.autoreg.predict(n_steps=0).flatten(), 
+                                  stim_to_correct_for, 
+                                  X.t]  # TODO: deal with nan from autoreg
                 self.stim_reg.observe(stim_reg_input, residual)
 
             # TODO: make a decision about wheither autoreg needs to be a transformer

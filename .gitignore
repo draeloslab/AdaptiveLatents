@@ -18,6 +18,7 @@ scripts/*
 __pycache__/
 *.py[cod]
 *$py.class
+*.jsonl
 
 # C extensions
 *.so
@@ -169,3 +170,5 @@ data/
 
 # generated data files
 *.pickle
+
+

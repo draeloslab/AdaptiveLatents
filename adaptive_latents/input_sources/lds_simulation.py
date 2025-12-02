@@ -131,8 +131,19 @@ class LDS:
 
     @classmethod
     def run_nest_dynamical_system(cls, rotations, transitions_per_rotation=30 + 1 / np.pi, stim_magnitude=1, stims_per_rotation=1, radius=5, u_function=None, rng=None, early_shift=1e-12, noise=0.05):
-        rng = rng if rng is not None else np.random.default_rng()
-        dynamics_rng, stim_rng = rng.spawn(2)
+        # rng = rng if rng is not None else np.random.default_rng()
+        # dynamics_rng, stim_rng = rng.spawn(2)
+
+        if rng is None:
+            dynamics_rng = np.random.default_rng()
+            stim_rng = np.random.default_rng()
+        else: 
+            base_ss = np.random.SeedSequence(int(rng))   
+            ss_dyn, ss_stim = base_ss.spawn(2)
+            dynamics_rng = np.random.default_rng(ss_dyn)
+            stim_rng = np.random.default_rng(ss_stim)
+
+
         lds = cls.nest_lds(transitions_per_rotation=transitions_per_rotation, rng=dynamics_rng, noise=noise)
         N = int(rotations * transitions_per_rotation)
         t = np.linspace(0, N / transitions_per_rotation, N)
