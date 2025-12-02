@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from adaptive_latents import datasets, proSVD, Pipeline, CenteringTransformer, StreamingKalmanFilter, Bubblewrap, sjPCA, mmICA, ArrayWithTime, plotting_functions, KernelSmoother, VJF
+from adaptive_latents.utils import save_to_cache
 from tqdm.auto import tqdm
 from IPython import display
 from adaptive_latents.plotting_functions import plot_flow_fields, AnimationManager, plot_history_with_tail
@@ -19,42 +20,46 @@ def main():
 
     prosvd_k = 8
 
-    p = Pipeline([CenteringTransformer(), KernelSmoother(tau=2*.68/d.neural_data.dt), proSVD(k=prosvd_k)])
+    @save_to_cache("parallel_compare")
+    def f():
+        p = Pipeline([CenteringTransformer(), KernelSmoother(tau=2*.68/d.neural_data.dt), proSVD(k=prosvd_k)])
 
-    labels = ['prosvd','sjpca','mmica']
-    dim_red_methods = [Pipeline(), sjPCA(), mmICA()]
-    # predictors = [StreamingKalmanFilter(log_level=2, check_dt=True, n_steps_to_predict=1, steps_between_refits=50) for _ in dim_red_methods]
-    predictors = [Bubblewrap(log_level=2, check_dt=True, n_steps_to_predict=1) for _ in dim_red_methods]
-    # predictors = [VJF(log_level=2, check_dt=True, n_steps_to_predict=1) for _ in dim_red_methods]
+        dim_red_methods = [Pipeline(), sjPCA(), mmICA()]
+        # predictors = [StreamingKalmanFilter(log_level=2, check_dt=True, n_steps_to_predict=1, steps_between_refits=50) for _ in dim_red_methods]
+        predictors = [Bubblewrap(log_level=2, check_dt=True, n_steps_to_predict=1) for _ in dim_red_methods]
+        # predictors = [VJF(log_level=2, check_dt=True, n_steps_to_predict=1) for _ in dim_red_methods]
 
-    regs = [BaseKernelRegressor(maxlen=10000, length_scale=0.1725) for _ in dim_red_methods]
+        regs = [BaseKernelRegressor(maxlen=10000, length_scale=0.1725) for _ in dim_red_methods]
 
-    outputs = [[] for _ in dim_red_methods]
+        outputs = [[] for _ in dim_red_methods]
 
-    pbar = tqdm(total=round(d.neural_data.t.max(),2))
-    for data in p.streaming_run_on(d.neural_data):
+        pbar = tqdm(total=round(d.neural_data.t.max(),2))
+        for data in p.streaming_run_on(d.neural_data):
 
-        metrics = []
-        in_space_data = []
-        for dim_red_method, predictor, output_accumulator in zip(dim_red_methods, predictors, outputs):
-            in_space_datum = dim_red_method.partial_fit_transform(data)
-            in_space_datum = in_space_datum[:,:4]
-            in_space_data.append(in_space_datum)
-            output_accumulator.append(in_space_datum)
+            metrics = []
+            in_space_data = []
+            for dim_red_method, predictor, output_accumulator in zip(dim_red_methods, predictors, outputs):
+                in_space_datum = dim_red_method.partial_fit_transform(data)
+                in_space_datum = in_space_datum[:,:4]
+                in_space_data.append(in_space_datum)
+                output_accumulator.append(in_space_datum)
 
-            mse = ((in_space_datum - predictor.predict(1)) ** 2).mean()
-            neg_log_pred_p = -predictor.unevaluated_log_pred_p(1)(in_space_datum)
-            metrics.append(neg_log_pred_p)
-            predictor.partial_fit_transform(in_space_datum)
+                mse = ((in_space_datum - predictor.predict(1)) ** 2).mean()
+                neg_log_pred_p = -predictor.unevaluated_log_pred_p(1)(in_space_datum)
+                metrics.append(neg_log_pred_p)
+                predictor.partial_fit_transform(in_space_datum)
 
-        best_regressor = np.argmin(metrics)
-        for i, (reg, in_space_datum) in enumerate(zip(regs, in_space_data)):
-            reg.observe(in_space_datum, np.array([i == best_regressor]))
+            best_regressor = np.argmin(metrics)
+            for i, (reg, in_space_datum) in enumerate(zip(regs, in_space_data)):
+                reg.observe(in_space_datum, np.array([i == best_regressor]))
 
-        pbar.update(round(data.t,2) - pbar.n)
+            pbar.update(round(data.t,2) - pbar.n)
 
 
-    outputs = [ArrayWithTime.from_list(o, drop_early_nans=True, squeeze_type='to_2d') for o in outputs]
+        outputs = [ArrayWithTime.from_list(o, drop_early_nans=True, squeeze_type='to_2d') for o in outputs]
+        return outputs, dim_red_methods, regs
+
+    outputs, dim_red_methods, regs = f()
 
 
 
@@ -160,9 +165,6 @@ def main():
         ax.axis(l)
 
 
-    for reg, ax, old_ax in zip(regs, axs[2], axs[1]):
-        density = 4
-        make_heatmap(ax, reg.history, x_direction, y_direction, color_direction=-1, density=density, sigma=density * 4/200, cax=cax)
 
     for reg, ax, old_ax in zip(regs, axs[2], axs[1]):
         density = 200

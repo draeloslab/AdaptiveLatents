@@ -17,15 +17,15 @@ $(foreach dmethod, $(dim_red_methods), \
 		$(eval $(CSV_RULE)) \
 	) \
 )
-benchmark_csvs := \
+benchmark_csv_list := \
 				$(foreach dmethod, $(dim_red_methods), \
 					$(foreach pmethod, $(prediction_methods), \
 						$(csv_prefix)$(dmethod)_$(pmethod).csv \
 					) \
 				)
-benchmark_csvs: $(benchmark_csvs)
+benchmark_csvs: $(benchmark_csv_list)
 
-$(generated_path)/benchmark_heatmap_table.$(vector_output_filetype): benchmark_csvs $(benchmark_script_path)/benchmark_heatmap_table.py
+$(generated_path)/benchmark_heatmap_table.$(vector_output_filetype): $(benchmark_csv_list) $(benchmark_script_path)/benchmark_heatmap_table.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(benchmark_script_path)/benchmark_heatmap_table.py --output $@
 

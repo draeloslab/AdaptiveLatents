@@ -1,4 +1,4 @@
-simulation_plots: toy_dataset learn_s_hat_toy learn_s_hat_ss optim zong_stim $(generated_path)/optim_col_vs_rand_with_high_d_rand.$(vector_output_filetype)
+simulation_plots: toy_dataset learn_s_hat_toy learn_s_hat_toy_spin learn_s_hat_ss optim zong_stim $(generated_path)/optim_col_vs_rand_with_high_d_rand.$(vector_output_filetype) $(generated_path)/optim_col_vs_rand_with_high_d_rand_closed.$(vector_output_filetype)
 
 ROOT_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 include $(realpath $(ROOT_DIR)/../common.mk)
@@ -23,17 +23,12 @@ $(generated_path)/show_toy_dataset.$(vector_output_filetype): $(sim_script_path)
 		--output $@
 
 
-$(generated_path)/learn_s_hat_toy_1step.$(vector_output_filetype) $(generated_path)/toy_curvy.$(vector_output_filetype): $(sim_script_path)/learn_s_hat_toy.py
+$(generated_path)/learn_s_hat_toy_1step.$(vector_output_filetype) $(generated_path)/toy_curvy.$(vector_output_filetype) $(generated_path)/toy_curvy_spun.$(vector_output_filetype): $(sim_script_path)/learn_s_hat_toy.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(sim_script_path)/learn_s_hat_toy.py \
 		--output $@ \
 	    --type-of-plot 1-step-prediction
 
-#$(generated_path)/learn_s_hat_table_toy.tex: $(script_path)/learn_s_hat_toy.py
-#	$(CONDA_ACTIVATE) adaptive_latents
-#	$(python_command) $(script_path)/learn_s_hat_toy.py \
-#		--output $@ \
-#	    --type-of-plot 1-step-prediction-table
 
 $(generated_path)/learn_s_hat_toy_manifold_error.$(vector_output_filetype): $(sim_script_path)/learn_s_hat_toy.py
 	$(CONDA_ACTIVATE) adaptive_latents
@@ -51,22 +46,6 @@ $(ss_1step_plots): $(ss_1step_prefix)%.$(raster_output_filetype): $(sim_script_p
 	    --type-of-plot 1-step-prediction \
 		--type-of-predictor $*
 
-#$(generated_path)/learn_s_hat_ss_1step.$(vector_output_filetype): $(script_path)/learn_s_hat_ss.py $(script_path)/sim_stim.py
-#	$(CONDA_ACTIVATE) adaptive_latents
-#	$(python_command) $(script_path)/learn_s_hat_ss.py \
-#		--output $@ \
-#	    --type-of-plot 1-step-prediction
-
-
-
-#$(generated_path)/delay_table_ss.tex: $(script_path)/learn_s_hat_ss.py
-#	$(CONDA_ACTIVATE) adaptive_latents
-#	$(python_command) $(script_path)/learn_s_hat_ss.py \
-#		--output $@ \
-#	    --type-of-plot delay-table
-
-
-
 $(generated_path)/optim_col_vs_rand.$(vector_output_filetype): $(sim_script_path)/optimization_comparison.py $(sim_script_path)/sim_stim.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(sim_script_path)/optimization_comparison.py \
@@ -79,6 +58,12 @@ $(generated_path)/optim_col_vs_rand_with_high_d_rand.$(vector_output_filetype): 
 	$(python_command) $(sim_script_path)/optimization_comparison.py \
 		--output $@ \
 	    --type-of-plot optim_col_vs_rand_with_high_d_rand
+
+$(generated_path)/optim_col_vs_rand_with_high_d_rand_closed.$(vector_output_filetype): $(sim_script_path)/optimization_comparison.py $(sim_script_path)/sim_stim.py
+	$(CONDA_ACTIVATE) adaptive_latents
+	$(python_command) $(sim_script_path)/optimization_comparison.py \
+		--output $@ \
+	    --type-of-plot optim_col_vs_rand_with_high_d_rand_closed
 
 
 #$(generated_path)/optim_open_vs_closed.$(vector_output_filetype): $(script_path)/optimization_comparison.py $(script_path)/sim_stim.py
@@ -96,25 +81,37 @@ $(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype): $(sim_scri
 		--type-of-dim-red prosvd # you could do more here
 
 
+sim_stim_datasets := odoherty21 zong22
 
 open_vs_closed_by_dimred_prefix := $(generated_path)/open_vs_closed_by_dimred_
-open_vs_closed_by_dimred_plots := $(foreach method, $(dim_red_methods), $(open_vs_closed_by_dimred_prefix)$(method).$(vector_output_filetype))
+open_vs_closed_by_dimred_plots := $(foreach a, $(prediction_methods), $(foreach b, $(dim_red_methods), $(foreach c, $(sim_stim_datasets), $(open_vs_closed_by_dimred_prefix)$(a)_$(b)_$(c).$(vector_output_filetype)  )))
 $(open_vs_closed_by_dimred_plots): $(open_vs_closed_by_dimred_prefix)%.$(vector_output_filetype): $(sim_script_path)/optimization_comparison.py $(sim_script_path)/sim_stim.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(sim_script_path)/optimization_comparison.py \
 		--output $@ \
 	    --type-of-plot optim_open_vs_closed \
-		--type-of-dim-red $*
+		--type-of-dim-red $(word 2,$(subst _, ,$*)) \
+		--type-of-autoreg $(word 1,$(subst _, ,$*)) \
+		--dataset $(word 3,$(subst _, ,$*))
 
 $(generated_path)/zong_stim.$(vector_output_filetype): $(sim_script_path)/zong_stim.py $(sim_script_path)/sim_stim.py
 	$(CONDA_ACTIVATE) adaptive_latents
 	$(python_command) $(sim_script_path)/zong_stim.py --output $@
 
 
+$(generated_path)/learn_s_hat_toy_1step_spin.$(vector_output_filetype): $(sim_script_path)/learn_s_hat_toy_1step_spin.ipynb $(sim_script_path)/learn_s_hat_toy.py
+	$(CONDA_ACTIVATE) adaptive_latents && cd $(sim_script_path)
+	papermill -p u_function 'curvy spins' -p output $@ $< /tmp/output.ipynb
+
+$(generated_path)/learn_s_hat_toy_1step_spin_3d.$(vector_output_filetype): $(sim_script_path)/learn_s_hat_toy_1step_spin.ipynb $(sim_script_path)/learn_s_hat_toy.py
+	$(CONDA_ACTIVATE) adaptive_latents && cd $(sim_script_path)
+	papermill -p u_function 'curvy spins alld-resp' -p output $@ $< /tmp/output.ipynb
+
 
 open_vs_closed_by_dimred: $(open_vs_closed_by_dimred_plots)
 toy_dataset: $(generated_path)/show_toy_dataset.$(vector_output_filetype)
 learn_s_hat_toy: $(generated_path)/learn_s_hat_toy_1step.$(vector_output_filetype) $(generated_path)/learn_s_hat_toy_manifold_error.$(vector_output_filetype) #$(generated_path)/learn_s_hat_table_toy.tex
+learn_s_hat_toy_spin: $(generated_path)/learn_s_hat_toy_1step_spin.$(vector_output_filetype) $(generated_path)/learn_s_hat_toy_1step_spin_3d.$(vector_output_filetype)
 learn_s_hat_ss: $(ss_1step_plots)  # $(generated_path)/delay_table_ss.tex
 optim: $(generated_path)/optim_col_vs_rand.$(vector_output_filetype)  $(generated_path)/optim_open_vs_closed_toy.$(vector_output_filetype) open_vs_closed_by_dimred # $(generated_path)/optim_open_vs_closed.$(vector_output_filetype)
 zong_stim: $(generated_path)/zong_stim.$(vector_output_filetype)

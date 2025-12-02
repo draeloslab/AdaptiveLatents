@@ -1,7 +1,7 @@
 # todo: this contains state I don't account for in tests
 
 jax_enable_x64: True # this should basically never be false
-jax_platform_name: 'cpu'
+jax_platform_name: 'gpu'  # TODO: is it wise to do global jax config like this?
 jax_supress_xla_bridge_warnings: False
 
 attempt_to_cache: False

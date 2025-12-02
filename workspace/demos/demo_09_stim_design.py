@@ -63,7 +63,6 @@ def main(show_plots=True):
     #24509824
     #7982
 
-    # ---- SESSION HANDLING ----
     SESSION_FOLDER = r"C:\Users\secom\OneDrive\Documents\DraelosLab\AdaptiveLatents\AdaptiveLatents\workspace\Alexworkspace\metricsfolder"
 
     session_id = get_or_create_session_id(SESSION_FOLDER, SEED)      # persists across runs
@@ -120,7 +119,7 @@ def main(show_plots=True):
         # print(u)
         # check out `stim_designer_open_loop.log`
 
-        stim_designer_closed_loop = StimDesigner(optimization_method='admm',
+        stim_designer_closed_loop = StimDesigner(optimization_method='jaxopt',
                                                 rng_seed = SEED,
                                                 session_id=session_id,              
                                                 script_run_id=script_run_id,      

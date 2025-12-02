@@ -1097,6 +1097,7 @@ class Zong22Dataset(Dataset):
 
         iscell = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'iscell.npy')
         F_all = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'F.npy')
+        self.F_all = F_all
         n_cells = int(sum(iscell[:, 0]))
 
         stat = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'stat.npy', allow_pickle=True)
@@ -1141,14 +1142,7 @@ class Zong22Dataset(Dataset):
         return F, img, video, beh, n_cells, stat, ops
 
     def show_stim_pattern(self, ax, desired_stim):
-        planes = []
-        for i in range(500):
-            self.raw_images.seek(i)
-            planes.append(np.array(self.raw_images))
-
-        im = np.mean(planes, axis=0)
-
-        ax.matshow(-im, cmap='Grays')
+        ax.matshow(self.ops['meanImg'], cmap='Grays')
         xs, ys = list(zip(*[cell['med'] for cell in self.stat]))
         map = ax.scatter(ys, xs, s=7, c=desired_stim)
 

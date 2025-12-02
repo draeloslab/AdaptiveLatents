@@ -2,10 +2,11 @@ import functools
 import hashlib
 import inspect
 import json
-import os
+import pathlib
 import pickle
 import warnings
 from collections import namedtuple
+import time
 
 import numpy as np
 
@@ -15,12 +16,12 @@ from adaptive_latents.timed_data_source import ArrayWithTime
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, np.ndarray):
-            if obj.shape[0] > 1000:
-                n_samples = 200
-                row_samples = [round(x * (obj.shape[0] - 1)) for x in np.linspace(0, 1, n_samples)]
-                obj = obj[row_samples]
+        if isinstance(obj, ArrayWithTime):
+            return [obj.tolist(), obj.t.tolist()]
+        elif isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif isinstance(obj, np.random.Generator):
+            return (obj.bit_generator.__class__, obj.bit_generator.state)
         return json.JSONEncoder.default(self, obj)
 
 
@@ -50,10 +51,10 @@ def save_to_cache(file, location=None, override_config_and_cache=False):
 
         return decorator
 
-    cache_index_file = location / f"{file}_index.pickle"
+    cache_index_file = (location / f"{file}_index.json").resolve()
     try:
-        with open(cache_index_file, 'rb') as fhan:
-            cache_index = pickle.load(fhan)
+        with open(cache_index_file, 'r') as fhan:
+            cache_index = json.load(fhan)
     except FileNotFoundError:
         cache_index = {}
 
@@ -64,27 +65,31 @@ def save_to_cache(file, location=None, override_config_and_cache=False):
             bound_args.apply_defaults()
 
             all_args = bound_args.arguments
-            all_args_as_key = make_hashable_and_hash(all_args)
+            all_args_as_key = str(make_hashable_and_hash(all_args))
 
-            if _recalculate_cache_value or all_args_as_key not in cache_index or not os.path.exists(location / cache_index[all_args_as_key]):
+
+            if _recalculate_cache_value or all_args_as_key not in cache_index or not (location/ cache_index[all_args_as_key]['cache_file']).exists():
+                start = time.time()
                 result = original_function(**all_args)
+                execute_time = time.time() - start
 
                 hstring = str(all_args_as_key)[-15:]
-                cache_file = os.path.join(location, f"{file}_{hstring}.pickle")
+                cache_file = str((location/ f"{file}_{hstring}.pickle").resolve())
                 if CONFIG.verbose:
                     print(f"caching value in: {cache_file}")
                 with CONFIG.open_with_parents(cache_file, "wb") as fhan:
                     pickle.dump(result, fhan)
 
-                cache_index[all_args_as_key] = cache_file
-                with CONFIG.open_with_parents(cache_index_file, 'bw') as fhan:
-                    pickle.dump(cache_index, fhan)
+                cache_index[all_args_as_key] = {'cache_file': cache_file, 'execute_time': execute_time, 'args': str(all_args), 'filesize_gb': pathlib.Path(cache_file).stat().st_size/1e9}
+                with CONFIG.open_with_parents(cache_index_file, 'w') as fhan:
+                    json.dump(cache_index, fhan, indent=4)
 
-            with open(location/ cache_index[all_args_as_key], 'rb') as fhan:
+            to_load_from = location/ cache_index[all_args_as_key]['cache_file']
+            with open(to_load_from, 'rb') as fhan:
                 if CONFIG.verbose:
                     # TODO: also log here
                     # TODO: have tests globally disable caching; you can recalculate, but that doesn't get inner caching
-                    print(f"retreiving cache from: {cache_index[all_args_as_key]}")
+                    print(f"retreiving cache from: {to_load_from}")
                 return pickle.load(fhan)
 
         return new_function
@@ -181,8 +186,9 @@ def align_column_spaces(A, B):
 
 
 def principle_angles(Q1, Q2):
+    assert is_orthonormal(Q1) and is_orthonormal(Q2)
     _, s, _ = np.linalg.svd(Q1.T @ Q2)
-    return np.arccos(s)
+    return np.arccos(np.clip(s, -1, 1))
 
 
 def is_orthonormal(Q, rows_too=False):
