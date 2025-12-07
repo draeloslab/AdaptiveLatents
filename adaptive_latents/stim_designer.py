@@ -163,7 +163,11 @@ class StimDesigner:
         # changed the bounds
         #u = self.rng.uniform(size=(u_dimension,)) * 0.2
         u = jnp.asarray(init_u0) if init_u0 is not None else self.rng.uniform(size=(u_dimension,)) * 0.1
-
+        # jax.debug.print(
+        # "\nDEBUG INIIIIIIIIIIIIIIIIII U>>>\n"
+        # "u[:10] = {u_head}\n",
+        # u_head=u[:10],
+        # )
         lb = jnp.zeros_like(u)
         ub = jnp.ones_like(u)
         bounds = (lb, ub)
@@ -197,6 +201,7 @@ class StimDesigner:
         v = jnp.ravel(jnp.asarray(v))
         
         def objective(u):
+            # u = jnp.nan_to_num(u, nan=0.0, posinf=1.0, neginf=-1.0)
 
             s = u_to_s_function(u)
             s = jnp.ravel(s)
@@ -210,7 +215,19 @@ class StimDesigner:
 
             cos_sim_clipped = jnp.clip(cos_sim, -1.0, 1.0)
             angle_deg = jnp.degrees(jnp.arccos(cos_sim_clipped))
-
+            # jax.debug.print(
+            #     "\nDEBUG >>>\n"
+            #     "u[:10] = {u_head}\n"
+            #     "abs(u)[:10] = {u_abs_head}\n"
+            #     "sum(abs(u)) = {u_sum}\n"
+            #     "has_nan = {nan_flag}\n"
+            #     "has_inf = {inf_flag}\n",
+            #     u_head=u[:10],
+            #     u_abs_head=jnp.abs(u)[:10],
+            #     u_sum=jnp.sum(jnp.abs(u)),
+            #     nan_flag=jnp.any(jnp.isnan(u)),
+            #     inf_flag=jnp.any(jnp.isinf(u)),
+            # )
             # loss = -cos_sim + self.lam_1 * (jnp.sum(jnp.abs(u))) # old
             regterm = self.lam_1 * (self.max_l0_norm - jnp.sum(jnp.abs(u)))
                 
@@ -621,10 +638,11 @@ class StimDesigner:
     def design_stim(self, v, optimization_method=None, **kwargs):
         start_time = time.time()
         assert len(v.shape) == 2
-        init_u = kwargs.get("init_u", None)
 
-        if init_u is None:
-            init_u = self.rng.uniform(size=(kwargs['u_dimension'],)) * 0.1
+        init_u = kwargs.get("init_u", None)
+        u_dim = kwargs.get("u_dimension", None)
+        if init_u is None and u_dim is not None:
+            init_u = self.rng.uniform(size=(u_dim,)) * 0.1
 
         l = {}
         if optimization_method is None:

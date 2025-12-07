@@ -252,7 +252,7 @@ def plot_recent_runs(
                     va="center"
                 )
 
-        annotate_last(ax2, x, align)
+        # annotate_last(ax2, x, align)
 
     # Axis formatting
     ax1.set_ylabel("Cosine (higher better)")
