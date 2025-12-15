@@ -128,14 +128,22 @@ def clip(*args, maxlen=float("inf")):
     return clipped_arrays
 
 
-def check_same(v: np.ndarray, overwrite=True):
-    var = 'temp'
-    import torch
-    if isinstance(v, torch.Tensor):
-        v = v.detach().cpu().numpy()
-    s = f'/tmp/asdf_{var}'
+def check_same(v: np.ndarray, var_name='temp', overwrite=True):
+    """
+    >>> check_same(1) # reports new
+    >>> check_same(1) # reports true
+    >>> check_same(2) # reports false
+    """
+    try:
+        import torch
+        if isinstance(v, torch.Tensor):
+            v = v.detach().cpu().numpy()
+    except ImportError:
+        pass
+    s = f'/tmp/_{var_name}'
     try:
         old_v = np.load(f"{s}.npy")
+        assert old_v is not None # edge case I don't want to deal with
     except FileNotFoundError:
         old_v = None
 
@@ -144,10 +152,9 @@ def check_same(v: np.ndarray, overwrite=True):
 
     if old_v is not None:
         same = np.shape(v) == np.shape(old_v) and np.nanmax((v - old_v) ** 2) == 0
-        print(f'{var}: {same}')
+        print(f'{var_name}: {same}')
     else:
-        print(f'{var}: NEW')
-    return same
+        print(f'{var_name}: NEW')
 
 
 def resample_matched_timeseries(old_timeseries, old_sample_times, new_sample_times,):
