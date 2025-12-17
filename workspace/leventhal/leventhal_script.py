@@ -39,7 +39,7 @@ def make_video(outdir=None):
         for row in d.neural_data:
             row = row.reshape(1, -1)
             current_time = row.t
-            output = p.partial_fit_transform(row, stream=0)
+            output = p.step(row, stream=0)
             for i in range(len(outputs)):
                 outputs[i].append(output[0][i])
 

@@ -92,13 +92,13 @@ class StimRegressor(Predictor):
         self.stim_delay = stim_delay  # in units of time (wrt the data)
         self.error_on_missed_stim = error_on_missed_stim
 
-    def _partial_fit_transform(self, data, stream, return_output_stream):
+    def _step(self, data, stream, return_output_stream):
         if self.input_streams[stream] == 'stim':
             if self.is_notable_stim(data):
                 self.last_seen_stims.append(data)
             ret =  (data, stream) if return_output_stream else data
         else:
-            ret = super()._partial_fit_transform(data, stream, return_output_stream)
+            ret = super()._step(data, stream, return_output_stream)
 
         if hasattr(data, 't'):
             self.trim_last_seen_stims(current_t=data.t)
@@ -144,8 +144,8 @@ class StimRegressor(Predictor):
 
 
 
-    def log_for_partial_fit(self, data, stream, original_data=None):
-        super().log_for_partial_fit(data, stream, original_data=original_data)
+    def log_for_step(self, data, stream, original_data=None):
+        super().log_for_step(data, stream, original_data=original_data)
 
         if self.log_level >= 2 and self.dt is not None:
             if self.input_streams[stream] == 'stim':
@@ -181,11 +181,11 @@ class StimRegressor(Predictor):
 
             # TODO: make a decision about wheither autoreg needs to be a transformer
             # self.autoreg.observe(X, stream=self.input_streams[stream])
-            self.autoreg.partial_fit_transform(data=X, stream=self.input_streams[stream])
+            self.autoreg.step(data=X, stream=self.input_streams[stream])
         else:
             self.autoreg.toggle_parameter_fitting(True)
             self.stim_autoreg.observe(X,functools.partial(self.autoreg.predict,n_steps=1), self.dt)
-            self.autoreg.partial_fit_transform(data=X, stream=self.input_streams[stream])
+            self.autoreg.step(data=X, stream=self.input_streams[stream])
 
     def get_state(self):
         return self.autoreg.get_state()

@@ -58,7 +58,7 @@ class StreamingEstimator(ABC):
         self.log = dict(step_time=[], stream=[])
 
 
-    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
+    def step(self, data, stream=0, return_output_stream=False):
         """
         Learns and applies a transformation to incoming data.
 
@@ -79,25 +79,31 @@ class StreamingEstimator(ABC):
         stream: int, optional
             the stream the outputted data should be routed to
         """
-        start = time.time()
         if self.log_level >= 1:
+            start = time.time()
             self.log['stream'].append(stream)
-        ret = self._partial_fit_transform(data, stream, return_output_stream)
-        time_elapsed = time.time() - start
+            self.pre_log_for_step(data, stream)
+
+        ret = self._step(data, stream, return_output_stream)
 
         if self.log_level >= 1:
+            time_elapsed = time.time() - start
             if hasattr(data, 't'):
                 time_elapsed = ArrayWithTime(time_elapsed, data.t)
             self.log['step_time'].append(time_elapsed)
 
-        self.log_for_partial_fit(data, stream)
+            self.log_for_step(data, stream)
         return ret
 
-    def log_for_partial_fit(self, data, stream):
+    def pre_log_for_step(self, data, stream):
         pass
 
+    def log_for_step(self, data, stream):
+        pass
+
+
     @abstractmethod
-    def _partial_fit_transform(self, data, stream, return_output_stream):
+    def _step(self, data, stream, return_output_stream):
         # most implementations will need to handle initialization and nan values; possibly also logging?
         stream = self.output_streams[stream]
         return (data, stream) if return_output_stream else data
@@ -179,7 +185,7 @@ class StreamingEstimator(ABC):
             if not next_time < float('inf'):
                 break
 
-            yield self.partial_fit_transform(data=next(next_source), stream=next_stream, return_output_stream=return_output_stream)
+            yield self.step(data=next(next_source), stream=next_stream, return_output_stream=return_output_stream)
 
         self.mid_run_sources = None
 
@@ -249,7 +255,7 @@ class DecoupledEstimator(StreamingEstimator):
         super().__init__(input_streams, output_streams, log_level)
         self.frozen = False
 
-    def _partial_fit_transform(self, data, stream=0, return_output_stream=False):
+    def _step(self, data, stream=0, return_output_stream=False):
         self.partial_fit(data, stream)
         return self.transform(data, stream, return_output_stream)
 
@@ -304,12 +310,12 @@ class Pipeline(DecoupledEstimator):
         return p | super().get_params(deep)
 
     def _partial_fit(self, data, stream=0):
-        self.partial_fit_transform(data, stream)
+        self.step(data, stream)
 
-    def _partial_fit_transform(self, data, stream=0, return_output_stream=False):
+    def _step(self, data, stream=0, return_output_stream=False):
         stream = self.input_streams[stream]
         for step in self.steps:
-            data, stream = step.partial_fit_transform(data, stream=stream, return_output_stream=True)
+            data, stream = step.step(data, stream=stream, return_output_stream=True)
 
         stream = self.output_streams[stream]
         if not return_output_stream:
@@ -526,7 +532,7 @@ class KernelSmoother(StreamingEstimator):
         self.last_X = None
         self.history = deque(maxlen=len(self.kernel))
 
-    def _partial_fit_transform(self, data, stream, return_output_stream):
+    def _step(self, data, stream, return_output_stream):
         if self.input_streams[stream] == 'X':
             output = []
             for row in data:
@@ -585,7 +591,7 @@ class Concatenator(StreamingEstimator):
 
         self.stream_scaling_factors = stream_scaling_factors
 
-    def _partial_fit_transform(self, data, stream, return_output_stream):
+    def _step(self, data, stream, return_output_stream):
         if stream in self.input_streams:
             self.last_seen[self.input_streams[stream]] = data
 

@@ -112,7 +112,7 @@ class mmICA(TypicalEstimator, BaseMMICA):
             self.observe_new_batch(np.array(self.processing_queue).T)
             self.processing_queue = []
 
-    def log_for_partial_fit(self, data, stream=0):
+    def log_for_step(self, data, stream=0):
         if self.is_initialized and self.input_streams[stream] == 'X' and self.log_level >= 2:
             self.log['W'].append(ArrayWithTime(self.W.copy(), data.t))
 

@@ -133,7 +133,7 @@ def test_predictor_accuracy(fitted_predictor_tuple, show_plots):
     trajectory = []
     for i in range(0, transitions_per_rotation+2):  # TODO: what's the correct number of transitions here? +1 or +2?
         stream = 'dt_X'
-        prediction = predictor.partial_fit_transform(ArrayWithTime([[i]], Y_train.t[-1]), stream=stream)
+        prediction = predictor.step(ArrayWithTime([[i]], Y_train.t[-1]), stream=stream)
         trajectory.append(prediction)
 
     assert not np.isclose(trajectory[1].t, Y_train.t[-1] + Y_train.dt)

@@ -35,11 +35,11 @@ class StreamingEstimatorTests:
     def test_can_fit_transform(constructor, rng, DIM=6):
         transformer: StreamingEstimator = constructor()
         for data, s in transformer.expected_data_streams(rng, DIM, cycles=5):
-            transformer.partial_fit_transform(data, s)
+            transformer.step(data, s)
 
         # tests that the transformer can ignore data not in its input_sources
         # todo: make this Mock
-        transformer.partial_fit_transform(None, "test_that_this_doesn't go through")
+        transformer.step(None, "test_that_this_doesn't go through")
 
 
     @staticmethod
@@ -47,7 +47,7 @@ class StreamingEstimatorTests:
         transformer: StreamingEstimator = constructor()
 
         for data, s in transformer.expected_data_streams(rng, DIM, cycles=5):
-            transformer.partial_fit_transform(data, s)
+            transformer.step(data, s)
         t2 = copy.deepcopy(transformer)
 
         temp_file = tmp_path / 'streaming_transformer.pkl'
@@ -60,7 +60,7 @@ class StreamingEstimatorTests:
             transformer = pickle.load(f)
 
         for data, s in transformer.expected_data_streams(rng, DIM):
-            assert np.array_equal(transformer.partial_fit_transform(data, s), t2.partial_fit_transform(data, s),
+            assert np.array_equal(transformer.step(data, s), t2.step(data, s),
                                   equal_nan=True)
 
 
@@ -133,7 +133,7 @@ class DecoupledEstimatorTests:
                 t1 = transformer
                 t2 = copy.deepcopy(transformer)
 
-                o1 = t1.partial_fit_transform(batch, stream)
+                o1 = t1.step(batch, stream)
 
                 t2.partial_fit(batch, stream)
                 o2 = t2.transform(batch, stream)

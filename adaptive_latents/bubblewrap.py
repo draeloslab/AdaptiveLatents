@@ -593,7 +593,7 @@ class Bubblewrap(Predictor, BaseBubblewrap):
     def unevaluated_log_pred_p(self, n_steps):
         return BaseBubblewrap.unevaluated_log_pred_p(self, n_steps)
 
-    def _partial_fit_transform(self, data, stream=0, return_output_stream=False):
+    def _step(self, data, stream=0, return_output_stream=False):
         if self.input_streams[stream] == 'dt':
             assert data.size == 1
             if self.is_initialized:
@@ -607,7 +607,7 @@ class Bubblewrap(Predictor, BaseBubblewrap):
 
             stream = self.output_streams[stream]
         else:
-            data, stream = Predictor._partial_fit_transform(self, data, stream, return_output_stream=True)
+            data, stream = Predictor._step(self, data, stream, return_output_stream=True)
 
         return (data, stream) if return_output_stream else data
 
@@ -638,8 +638,8 @@ class Bubblewrap(Predictor, BaseBubblewrap):
         bw.log = self.log
         return bw
 
-    def log_for_partial_fit(self, data, stream, original_data=None):
-        super().log_for_partial_fit(data, stream, original_data)
+    def log_for_step(self, data, stream, original_data=None):
+        super().log_for_step(data, stream, original_data)
         if self.log_level >= 2 and self.is_initialized and self.input_streams[stream] == 'X' and not numpy.isnan(data).any():
             if 'alpha' not in self.log:
                 for key in ['alpha', 'entropy']:

@@ -45,7 +45,7 @@ class Predictor(StreamingEstimator):
         pass
 
 
-    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
+    def step(self, data, stream=0, return_output_stream=False):
         original_data = None
         if self.log_level >= 2:
             original_data = copy.deepcopy(data)
@@ -54,7 +54,7 @@ class Predictor(StreamingEstimator):
             self.log['stream'].append(stream)
 
         start = time.time()
-        ret = self._partial_fit_transform(data, stream, return_output_stream)
+        ret = self._step(data, stream, return_output_stream)
         time_elapsed = time.time() - start
 
         if self.log_level >= 1:
@@ -62,10 +62,10 @@ class Predictor(StreamingEstimator):
                 time_elapsed = ArrayWithTime(time_elapsed, data.t)
             self.log['step_time'].append(time_elapsed)
 
-        self.log_for_partial_fit(data, stream, original_data=original_data)
+        self.log_for_step(data, stream, original_data=original_data)
         return ret
 
-    def log_for_partial_fit(self, data, stream, original_data=None):
+    def log_for_step(self, data, stream, original_data=None):
         if self.log_level >= 2:
             assert self.check_dt
             if 'pred_error' not in self.log:
@@ -107,7 +107,7 @@ class Predictor(StreamingEstimator):
         else:
             self.parameter_fitting = not self.parameter_fitting
 
-    def _partial_fit_transform(self, data, stream, return_output_stream):
+    def _step(self, data, stream, return_output_stream):
         if self.input_streams[stream] == 'X':
             if self.check_dt:
                 assert hasattr(data, 't')
@@ -217,7 +217,7 @@ class Predictor(StreamingEstimator):
 
         predictor.offline_run_on(rng.normal(size=(100, DIM)))
 
-        output = predictor.partial_fit_transform(ArrayWithTime([[1]], t=100), stream='dt_X')
+        output = predictor.step(ArrayWithTime([[1]], t=100), stream='dt_X')
         assert np.all(output.t == 100)
 
     @staticmethod
@@ -226,8 +226,8 @@ class Predictor(StreamingEstimator):
 
         predictor: Predictor = constructor(check_dt=True)
         dt = 1/np.pi
-        predictor.partial_fit_transform(ArrayWithTime(rng.normal(size=(1, DIM)), 0), stream='X')
-        predictor.partial_fit_transform(ArrayWithTime(rng.normal(size=(1, DIM)), 1 * dt), stream='X')
+        predictor.step(ArrayWithTime(rng.normal(size=(1, DIM)), 0), stream='X')
+        predictor.step(ArrayWithTime(rng.normal(size=(1, DIM)), 1 * dt), stream='X')
 
         assert np.isclose(predictor.dt, dt)
 
@@ -242,15 +242,15 @@ class Predictor(StreamingEstimator):
 
         predictor = copy.deepcopy(predictor_backup)
         with pytest.raises(AssertionError):
-            predictor.partial_fit_transform(ArrayWithTime(rng.normal(size=(1, DIM)), 1 * dt), stream='X')
+            predictor.step(ArrayWithTime(rng.normal(size=(1, DIM)), 1 * dt), stream='X')
 
         predictor = copy.deepcopy(predictor_backup)
         with pytest_condition:
-            predictor.partial_fit_transform(ArrayWithTime(rng.normal(size=(1, DIM)), 3 * dt), stream='X')
+            predictor.step(ArrayWithTime(rng.normal(size=(1, DIM)), 3 * dt), stream='X')
 
         predictor = copy.deepcopy(predictor_backup)
-        predictor.partial_fit_transform(ArrayWithTime(rng.normal(size=(1, DIM)), 2 * dt), stream='X')
+        predictor.step(ArrayWithTime(rng.normal(size=(1, DIM)), 2 * dt), stream='X')
 
         predictor = copy.deepcopy(predictor_backup)
         with pytest.raises(AssertionError):
-            predictor.partial_fit_transform(ArrayWithTime([[1]], 3 * dt), stream='dt_X')
+            predictor.step(ArrayWithTime([[1]], 3 * dt), stream='dt_X')

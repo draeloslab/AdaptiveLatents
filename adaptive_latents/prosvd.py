@@ -149,7 +149,7 @@ class proSVD(TypicalEstimator, BaseProSVD):
             self.add_new_input_channels(X.shape[1] - self.Q.shape[0])
         self.updateSVD(X.T)
 
-    def log_for_partial_fit(self, data, stream=0):
+    def log_for_step(self, data, stream=0):
         if self.is_initialized:
             if self.log_level >= 2:
                 self.log['Q'].append(ArrayWithTime(self.Q, data.t))

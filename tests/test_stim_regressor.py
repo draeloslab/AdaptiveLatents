@@ -15,7 +15,7 @@ def sr_s(rng):
 
     for sr in [sr1, sr2, sr3]:
         sr.offline_run_on(sources=[(stim,'stim'), (Y,'X')], convinient_return=False)
-        sr.partial_fit_transform(ArrayWithTime([[1]], stim.t[-1] + stim.dt), stream='stim')
+        sr.step(ArrayWithTime([[1]], stim.t[-1] + stim.dt), stream='stim')
 
     return (sr1, sr2, sr3), stim_magnitude, stim
 
@@ -210,14 +210,14 @@ def test_skips_training_while_stim_pending():
             i += 1
             s = Y2.slice(slice(i,i+1))
             s.t = s.t[0]
-            sr.partial_fit_transform(s, stream='X')
+            sr.step(s, stream='X')
             assert (sr.get_arbitrary_dynamics_parameter() == par).all() == should_be_same
             par = sr.get_arbitrary_dynamics_parameter()
 
 
         step()
         step()
-        sr.partial_fit_transform(ArrayWithTime([1], s.t+1), stream='stim')
+        sr.step(ArrayWithTime([1], s.t + 1), stream='stim')
         for j in range(stim_delay+2):
             step(True)
         step()
@@ -232,7 +232,7 @@ def test_not_heeding_works(rng):
 
     for p in [sr2, sr3, kf]:
         p.offline_run_on(sources=[(stim,'stim'), (Y,'X')], convinient_return=False)
-        p.partial_fit_transform(ArrayWithTime([[1]], stim.t[-1] + stim.dt), stream='stim')
+        p.step(ArrayWithTime([[1]], stim.t[-1] + stim.dt), stream='stim')
 
     assert np.array_equal(np.array(sr3.log['pred_error']), np.array(kf.log['pred_error']), equal_nan=True)
     assert not np.array_equal(np.array(sr2.log['pred_error']), np.array(kf.log['pred_error']), equal_nan=True)

@@ -58,14 +58,14 @@ def objective(trial):
             instantaneous_stim = ArrayWithTime(instantaneous_stim[None,:], data.t)
 
 
-            data = centerer.partial_fit_transform(data, stream= 'X')
-            data = smoother.partial_fit_transform(data, stream='X')
-            data = pro.partial_fit_transform(data, stream='X')
+            data = centerer.step(data, stream='X')
+            data = smoother.step(data, stream='X')
+            data = pro.step(data, stream='X')
 
             latents.append(data)
 
-            sr.partial_fit_transform(instantaneous_stim, stream='stim')
-            sr.partial_fit_transform(data, stream= 'X')
+            sr.step(instantaneous_stim, stream='stim')
+            sr.step(data, stream='X')
 
             if data.t > d.end_of_visual_period_time:
                 centerer.freeze()

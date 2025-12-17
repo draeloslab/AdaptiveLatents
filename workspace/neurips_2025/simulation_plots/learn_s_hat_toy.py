@@ -33,9 +33,9 @@ class StimRegressorWithExtraLogging(StimRegressor):
                     self.log[key] = []
                 self.log[key].append(ArrayWithTime.from_transformed_data(self.s_hat_error_function(self), data))
 
-    def partial_fit_transform(self, data, stream=0, return_output_stream=False):
+    def step(self, data, stream=0, return_output_stream=False):
         self.pre_log(data, stream)
-        return super().partial_fit_transform(data, stream=stream, return_output_stream=return_output_stream)
+        return super().step(data, stream=stream, return_output_stream=return_output_stream)
 
 def rotation_matrix(theta):
     return np.array([[np.cos(theta), -np.sin(theta)],

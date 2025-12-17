@@ -395,11 +395,11 @@ class VanillaOnlineRegressor(DecoupledEstimator, BaseVanillaOnlineRegressor):
     def partial_fit(self, data, stream=0):
         if self.frozen:
             return
-        self.pre_log_for_partial_fit(data, stream)
+        self.pre_log_for_step(data, stream)
         self._partial_fit(data, stream)
-        self.log_for_partial_fit(data, stream)
+        self.log_for_step(data, stream)
 
-    def pre_log_for_partial_fit(self, data, stream):
+    def pre_log_for_step(self, data, stream):
         if self.log_level >= 2:
             stream_label = self.input_streams[stream]
             if stream_label in ('X', 'Y'):

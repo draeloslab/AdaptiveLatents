@@ -134,7 +134,7 @@ class sjPCA(TypicalEstimator, BaseSJPCA):
     def inverse_transform_for_X(self, X):
         return self.project(X, project_up=True)
 
-    def log_for_partial_fit(self, data, stream=0):
+    def log_for_step(self, data, stream=0):
         if self.is_initialized and self.input_streams[stream] == 'X' and self.log_level >= 2:
             self.log['U'].append(ArrayWithTime(self.get_U(), data.t))
 

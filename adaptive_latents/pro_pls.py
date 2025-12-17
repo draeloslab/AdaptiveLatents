@@ -163,7 +163,7 @@ class proPLS(DecoupledEstimator, BaseProPLS):
             return data, stream
         return data
 
-    def log_for_partial_fit(self, data, stream=0):
+    def log_for_step(self, data, stream=0):
         if self.is_initialized and self.log_level >= 2:
             # stream doesn't matter because they update at the same time
             self.log['u'].append(self.u)

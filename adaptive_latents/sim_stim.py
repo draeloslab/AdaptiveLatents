@@ -250,19 +250,19 @@ def make_sr(
             high_d_stims.append(data - pre_stim_data)
 
             timing_log.dimension_reduction.append(time.time())
-            data = centerer.partial_fit_transform(data, stream= 'X')
-            data = smoother.partial_fit_transform(data, stream= 'X')
-            data = pro.partial_fit_transform(data, stream='X')
+            data = centerer.step(data, stream='X')
+            data = smoother.step(data, stream='X')
+            data = pro.step(data, stream='X')
             if last_dim_red_object is not None:
-                data = last_dim_red_object.partial_fit_transform(data, stream='X')
+                data = last_dim_red_object.step(data, stream='X')
             timing_log.dimension_reduction[-1] = time.time() - timing_log.dimension_reduction[-1]
             latents.append(data)
 
             timing_log.stim_reg_updated.append(sr.stim_reg.n_observed)
             timing_log.sr_update.append(time.time())
-            sr.partial_fit_transform(ArrayWithTime(true_stim_result, data.t), stream= 'stim')
+            sr.step(ArrayWithTime(true_stim_result, data.t), stream='stim')
             stims_before_obs = set([stim.t for stim in sr.last_seen_stims])
-            data = sr.partial_fit_transform(data, stream= 'X')
+            data = sr.step(data, stream='X')
             resolved_stim_ts = stims_before_obs - set([stim.t for stim in sr.last_seen_stims])
             timing_log.sr_update[-1] = time.time() - timing_log.sr_update[-1]
             timing_log.stim_reg_updated[-1] = timing_log.stim_reg_updated[-1] != sr.stim_reg.n_observed

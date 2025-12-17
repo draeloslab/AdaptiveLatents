@@ -16,7 +16,7 @@ class FlippingEstimator0(StreamingEstimator):
         input_streams = input_streams or {0: 'X'}
         super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
 
-    def _partial_fit_transform(self, data, stream, return_output_stream):
+    def _step(self, data, stream, return_output_stream):
         return (data[:, ::-1], stream) if return_output_stream else data
 
 

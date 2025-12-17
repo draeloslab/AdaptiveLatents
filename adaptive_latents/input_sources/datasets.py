@@ -740,7 +740,7 @@ class Naumann24uDataset(Dataset):
             self.history = deque(maxlen=15)
             self.threshold = threshold
 
-        def _partial_fit_transform(self, data, stream, return_output_stream):
+        def _step(self, data, stream, return_output_stream):
             if self.input_streams[stream] == 'X':
 
                 output = []

@@ -99,7 +99,7 @@ class TestProSVD:
     def test_can_continuously_add_channels(self, rng):
         pro = proSVD(k=3)
         for i in range(4, 100):
-            pro.partial_fit_transform(rng.normal(size=(rng.integers(1,3), i)))
+            pro.step(rng.normal(size=(rng.integers(1, 3), i)))
 
     def test_can_find_subspace(self, rng):
         X, _, true_variables = generate_circle_embedded_in_high_d(rng, m=500, n=8, stddev=1)

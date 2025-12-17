@@ -7,21 +7,21 @@ import numpy as np
 def a(data):
     pro = proSVD(k=10, log_level=0)
     for i in range(len(data)):
-        pro.partial_fit_transform(data[i:i+1])
+        pro.step(data[i:i + 1])
 
 def b(data):
     pro = proSVD(k=10, log_level=0)
     jpca = sjPCA(log_level=0)
     for i in range(len(data)):
-        o = pro.partial_fit_transform(data[i:i+1])
-        jpca.partial_fit_transform(o)
+        o = pro.step(data[i:i + 1])
+        jpca.step(o)
 
 def c(data):
     pro = proSVD(k=10, log_level=0)
     ica = mmICA(log_level=0)
     for i in range(len(data)):
-        o = pro.partial_fit_transform(data[i:i+1])
-        ica.partial_fit_transform(o)
+        o = pro.step(data[i:i + 1])
+        ica.step(o)
 
 
 if __name__ == "__main__":

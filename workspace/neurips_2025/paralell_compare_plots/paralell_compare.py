@@ -39,7 +39,7 @@ def main():
             metrics = []
             in_space_data = []
             for dim_red_method, predictor, output_accumulator in zip(dim_red_methods, predictors, outputs):
-                in_space_datum = dim_red_method.partial_fit_transform(data)
+                in_space_datum = dim_red_method.step(data)
                 in_space_datum = in_space_datum[:,:4]
                 in_space_data.append(in_space_datum)
                 output_accumulator.append(in_space_datum)
@@ -47,7 +47,7 @@ def main():
                 mse = ((in_space_datum - predictor.predict(1)) ** 2).mean()
                 neg_log_pred_p = -predictor.unevaluated_log_pred_p(1)(in_space_datum)
                 metrics.append(neg_log_pred_p)
-                predictor.partial_fit_transform(in_space_datum)
+                predictor.step(in_space_datum)
 
             best_regressor = np.argmin(metrics)
             for i, (reg, in_space_datum) in enumerate(zip(regs, in_space_data)):

@@ -22,16 +22,16 @@ def main():
     for data, stream in Pipeline().streaming_run_on([neural_data, behavioral_data], return_output_stream=True):
         if data.t > 60:
             break
-        data, stream = centerer.partial_fit_transform(data, stream, return_output_stream=True)
+        data, stream = centerer.step(data, stream, return_output_stream=True)
 
         # you can do whatever what you want between steps, but be careful, it can be hard to reason about
         # e.g.: stream = 1-stream
         # e.g.: data = data + 1
 
-        data, stream = smoother.partial_fit_transform(data, stream, return_output_stream=True)
-        data, stream = concat.partial_fit_transform(data, stream, return_output_stream=True)
-        data, stream = pro.partial_fit_transform(data, stream, return_output_stream=True)
-        data, stream = jpca.partial_fit_transform(data, stream, return_output_stream=True)
+        data, stream = smoother.step(data, stream, return_output_stream=True)
+        data, stream = concat.step(data, stream, return_output_stream=True)
+        data, stream = pro.step(data, stream, return_output_stream=True)
+        data, stream = jpca.step(data, stream, return_output_stream=True)
 
         if stream not in outputs:
             outputs[stream] = []

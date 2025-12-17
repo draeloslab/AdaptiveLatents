@@ -208,18 +208,18 @@ def make_sr(
         to_add = decay_rate * to_add
 
         log.dimension_reduction.append(time.time())
-        data = centerer.partial_fit_transform(data, stream= 'X')
-        data = smoother.partial_fit_transform(data, stream= 'X')
-        data = pro.partial_fit_transform(data, stream='X')
+        data = centerer.step(data, stream='X')
+        data = smoother.step(data, stream='X')
+        data = pro.step(data, stream='X')
         if last_dim_red_object is not None:
-            data = last_dim_red_object.partial_fit_transform(data, stream='X')
+            data = last_dim_red_object.step(data, stream='X')
         log.dimension_reduction[-1] = time.time() - log.dimension_reduction[-1]
 
 
         old_n = sr.stim_reg.n_observed
         log.prediction.append(time.time())
-        sr.partial_fit_transform(ArrayWithTime(transformed_instantaneous_stim, data.t), stream= 'stim')
-        data = sr.partial_fit_transform(data, stream= 'X')
+        sr.step(ArrayWithTime(transformed_instantaneous_stim, data.t), stream='stim')
+        data = sr.step(data, stream='X')
         log.prediction[-1] = time.time() - log.prediction[-1]
         log.stim_reg_updated.append(old_n != sr.stim_reg.n_observed)
 
