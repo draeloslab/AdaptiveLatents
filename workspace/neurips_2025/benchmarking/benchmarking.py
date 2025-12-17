@@ -2,7 +2,7 @@ import copy
 from collections import deque
 import jax
 
-from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap, proSVD, CenteringTransformer, VJF, KernelSmoother, mmICA, sjPCA, datasets
+from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap, proSVD, CenteringEstimator, VJF, KernelSmoother, mmICA, sjPCA, datasets
 from adaptive_latents.regressions import BaseMultiKernelRegressor
 import numpy as np
 from adaptive_latents.stim_designer import StimDesigner
@@ -68,7 +68,7 @@ def make_sr(
 
     static_S_seed = other_rng.integers(2 ** 32)
 
-    centerer = CenteringTransformer(init_size=centerer_init_size, nan_when_uninitialized=True, log_level=0)
+    centerer = CenteringEstimator(init_size=centerer_init_size, nan_when_uninitialized=True, log_level=0)
     if smoothing_tau is not None:
         smoother = KernelSmoother(tau=smoothing_tau/input_array.dt)
     else:

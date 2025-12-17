@@ -1,4 +1,4 @@
-from adaptive_latents import ArrayWithTime, CenteringTransformer, Concatenator, KernelSmoother, Pipeline, datasets, proSVD, sjPCA
+from adaptive_latents import ArrayWithTime, CenteringEstimator, Concatenator, KernelSmoother, Pipeline, datasets, proSVD, sjPCA
 
 """
 Demo: Manually managing data flow
@@ -10,7 +10,7 @@ def main():
     behavioral_data = d.behavioral_data
 
     p = Pipeline([
-        centerer := CenteringTransformer(input_streams={0: 'X'}),
+        centerer := CenteringEstimator(input_streams={0: 'X'}),
         smoother := KernelSmoother(input_streams={0: 'X'}),
         concat := Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 0, 1: 0}),
         pro := proSVD(k=6),

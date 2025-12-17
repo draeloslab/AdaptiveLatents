@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import adaptive_latents
 import itertools
 from collections import deque
-from adaptive_latents import CenteringTransformer, Pipeline, proSVD, KernelSmoother, sjPCA, mmICA, AnimationManager
+from adaptive_latents import CenteringEstimator, Pipeline, proSVD, KernelSmoother, sjPCA, mmICA, AnimationManager
 from adaptive_latents import datasets
 from tqdm import tqdm
 
@@ -12,7 +12,7 @@ def make_video(outdir=None):
     d = datasets.Leventhal24uDataset(bin_size=.1)
 
     smoother1 = KernelSmoother(tau=8)
-    centerer = CenteringTransformer()
+    centerer = CenteringEstimator()
     pro = proSVD(k=6, whiten=False)
     smoother2 = KernelSmoother(tau=8)
     jpca = sjPCA()
@@ -94,7 +94,7 @@ def show_events_timestamps_and_average_trace(show=True):
     d = datasets.Leventhal24uDataset(bin_size=.1)
 
     smoother1 = KernelSmoother(tau=8)
-    centerer = CenteringTransformer()
+    centerer = CenteringEstimator()
     pro = proSVD(k=6, whiten=False)
     smoother2 = KernelSmoother(tau=8)
     jpca = sjPCA()
@@ -125,7 +125,7 @@ def show_response_arcs(show=True):
     "shows the arcs of responses in the latent space"
     d = datasets.Leventhal24uDataset(bin_size=.1)
 
-    centerer = CenteringTransformer()
+    centerer = CenteringEstimator()
     pro = proSVD(k=6, whiten=False)
     jpca = sjPCA()
 

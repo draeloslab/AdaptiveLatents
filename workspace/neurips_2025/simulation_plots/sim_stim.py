@@ -5,7 +5,7 @@ import time
 from itertools import cycle
 import jax
 
-from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap, proSVD, CenteringTransformer, VJF, KernelSmoother, mmICA, sjPCA
+from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap, proSVD, CenteringEstimator, VJF, KernelSmoother, mmICA, sjPCA
 import tqdm.auto as tqdm
 import numpy as np
 import pandas as pd

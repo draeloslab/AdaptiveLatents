@@ -124,7 +124,7 @@ def new_make_sr(
 
     log = {}
 
-    centerer = CenteringTransformer(init_size=centerer_init_size, nan_when_uninitialized=True)
+    centerer = CenteringEstimator(init_size=centerer_init_size, nan_when_uninitialized=True)
     if smoothing_tau is not None:
         smoother = KernelSmoother(tau=smoothing_tau/input_array.dt)
     else:

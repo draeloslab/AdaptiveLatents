@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 import adaptive_latents as al
-from adaptive_latents import ArrayWithTime, Bubblewrap, CenteringTransformer, Concatenator, KernelSmoother, Pipeline, VanillaOnlineRegressor, proSVD, sjPCA
+from adaptive_latents import ArrayWithTime, Bubblewrap, CenteringEstimator, Concatenator, KernelSmoother, Pipeline, VanillaOnlineRegressor, proSVD, sjPCA
 from adaptive_latents.plotting_functions import MultiRowRunComparison
 
 """
@@ -14,7 +14,7 @@ def main(show_plots=True):
     behavioral_data = d.behavioral_data
 
     p = Pipeline([
-        CenteringTransformer(input_streams={0: 'X'}),
+        CenteringEstimator(input_streams={0: 'X'}),
         KernelSmoother(input_streams={0: 'X'}),
         Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 0, 1: 0}),
         proSVD(k=6),

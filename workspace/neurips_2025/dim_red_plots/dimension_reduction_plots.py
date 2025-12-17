@@ -1,5 +1,5 @@
 import numpy as np
-from adaptive_latents import datasets, KernelSmoother, CenteringTransformer, Pipeline
+from adaptive_latents import datasets, KernelSmoother, CenteringEstimator, Pipeline
 
 import prosvd_code
 import sjpca_code
@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     if args.type_of_plot != "native_nearness_to_offline":
         example_data = datasets.Odoherty21Dataset().neural_data
-        pipeline = Pipeline([CenteringTransformer(init_size=200,nan_when_uninitialized=True), KernelSmoother(tau=.16/example_data.dt)])
+        pipeline = Pipeline([CenteringEstimator(init_size=200, nan_when_uninitialized=True), KernelSmoother(tau=.16 / example_data.dt)])
         example_data = pipeline.offline_run_on(example_data)
     else:
         rng = np.random.default_rng(0)

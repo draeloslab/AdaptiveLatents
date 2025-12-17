@@ -19,10 +19,6 @@ def sr_s(rng):
 
     return (sr1, sr2, sr3), stim_magnitude, stim
 
-
-def test_api_compatible():
-    StimRegressor.test_if_api_compatible()
-
 def test_logs(sr_s, show_plots):
     (sr1, sr2, sr3), stim_magnitude, stim = sr_s
     real_stim_samples = stim.slice((stim > 0).any(axis=1))

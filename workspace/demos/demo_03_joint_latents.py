@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 import adaptive_latents as al
-from adaptive_latents import CenteringTransformer, Concatenator, KernelSmoother, Pipeline, Tee, proSVD, sjPCA
+from adaptive_latents import CenteringEstimator, Concatenator, KernelSmoother, Pipeline, Tee, proSVD, sjPCA
 
 """
 Demo: Joint latent spaces
@@ -14,7 +14,7 @@ def main(show_plots=True):
     behavioral_data = d.behavioral_data
 
     p = Pipeline([
-        CenteringTransformer(),
+        CenteringEstimator(),
         KernelSmoother(input_streams={0: 'X'}),  # this operates on data stream 0 (the neural data)
         KernelSmoother(input_streams={1: 'X'}),  # this operates on data stream 1 (the behavioral data)
         Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 0, 1: 0}),  # this concatenates stream 0 and stream 1 and returns the result to stream 0

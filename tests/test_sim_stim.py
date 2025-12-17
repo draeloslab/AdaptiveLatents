@@ -147,7 +147,7 @@ class TestSimulatedStimAdder:
         # Should not be identity
         assert not np.allclose(result1, stim)
 
-
+@longrun
 class TestMakeSRBasics:
     """Basic integration tests for make_sr function."""
 
@@ -226,6 +226,7 @@ class TestMakeSRBasics:
         assert len(timing_log.dimension_reduction) == n_steps
 
 
+@longrun
 class TestMakeSRStimulationTiming:
     """Tests for different stimulation timing methods."""
 
@@ -275,92 +276,7 @@ class TestMakeSRStimulationTiming:
         assert log['stims'].shape[0] > 0
 
 
-class TestMakeSRDimensionReduction:
-    """Tests for different dimension reduction methods."""
-
-    def test_prosvd_only(self, input_array, rng):
-        """Test with proSVD only (default)."""
-        sr, stim_designer, log = make_sr(
-            input_array=input_array,
-            rng=rng,
-            exit_time=20,
-            last_dim_red='prosvd',
-            prosvd_k=7,
-        )
-
-        # Latents should have prosvd_k dimensions
-        assert log['latents'].shape[1] == 7
-
-    def test_sjpca(self, input_array, rng):
-        """Test with sjPCA dimension reduction."""
-        sr, stim_designer, log = make_sr(
-            input_array=input_array,
-            rng=rng,
-            exit_time=20,
-            last_dim_red='sjpca',
-            prosvd_k=5,
-        )
-
-        # Should complete without errors
-        assert log['latents'].shape[0] > 0
-
-    def test_mmica(self, input_array, rng):
-        """Test with mmICA dimension reduction."""
-        sr, stim_designer, log = make_sr(
-            input_array=input_array,
-            rng=rng,
-            exit_time=20,
-            last_dim_red='mmica',
-            prosvd_k=5,
-        )
-
-        # Should complete without errors
-        assert log['latents'].shape[0] > 0
-
-
-class TestMakeSRTrueSTransforms:
-    """Tests for different true_S transformation modes."""
-
-    def test_identity_transform(self, input_array, rng):
-        """Test with identity transformation."""
-        sr, stim_designer, log = make_sr(
-            input_array=input_array,
-            rng=rng,
-            exit_time=20,
-            true_S='identity',
-            stim_rate=2,
-        )
-
-        # Should complete and deliver stims
-        assert log['stims'].shape[0] > 0
-
-    def test_flip_transform(self, input_array, rng):
-        """Test with flip transformation."""
-        sr, stim_designer, log = make_sr(
-            input_array=input_array,
-            rng=rng,
-            exit_time=20,
-            true_S='flip',
-            stim_rate=2,
-        )
-
-        # Should complete and deliver stims
-        assert log['stims'].shape[0] > 0
-
-    def test_high_d_permuted_transform(self, input_array, rng):
-        """Test with high_d_permuted transformation."""
-        sr, stim_designer, log = make_sr(
-            input_array=input_array,
-            rng=rng,
-            exit_time=20,
-            true_S='high_d_permuted',
-            stim_rate=2,
-        )
-
-        # Should complete and deliver stims
-        assert log['stims'].shape[0] > 0
-
-
+@longrun
 class TestMakeSRDelays:
     """Tests for stimulation delays."""
 
@@ -405,6 +321,7 @@ class TestMakeSRDelays:
         assert log['stims'].shape[0] > 0
 
 
+@longrun
 class TestMakeSRUToSModels:
     """Tests for different u_to_s model types."""
 

@@ -5,7 +5,7 @@ from adaptive_latents.regressions import BaseVanillaOnlineRegressor
 
 from .input_sources.lds_simulation import LDS
 from .timed_data_source import ArrayWithTime
-from .transformer import TypicalTransformer
+from .estimator import TypicalEstimator
 from .utils import align_column_spaces, principle_angles
 
 
@@ -103,10 +103,10 @@ class BaseSJPCA:
 
 
 
-class sjPCA(TypicalTransformer, BaseSJPCA):
+class sjPCA(TypicalEstimator, BaseSJPCA):
     base_algorithm = BaseSJPCA
     def __init__(self, *, init_size=10, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
-        TypicalTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)
+        TypicalEstimator.__init__(self, input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)
         BaseSJPCA.__init__(self)
         self.log |= {'U': [], 't':[]}
         self.init_size = init_size

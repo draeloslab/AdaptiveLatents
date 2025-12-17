@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from adaptive_latents import ArrayWithTime, CenteringTransformer, KernelSmoother, Pipeline, proSVD, sjPCA
+from adaptive_latents import ArrayWithTime, CenteringEstimator, KernelSmoother, Pipeline, proSVD, sjPCA
 
 rng = np.random.default_rng(0)
 
@@ -21,7 +21,7 @@ def main(show_pots=True):
     # timesteps are np.arange(len(X)).
 
     p = Pipeline([
-        CenteringTransformer(),
+        CenteringEstimator(),
         KernelSmoother(),
         pro := proSVD(k=6, log_level=2),
         sjPCA()

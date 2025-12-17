@@ -19,7 +19,7 @@ from .prosvd import RandomProjection, proSVD
 from .regressions import VanillaOnlineRegressor, BaseMultiKernelRegressor
 from .stim_regressor import StimRegressor
 from .timed_data_source import ArrayWithTime
-from .transformer import CenteringTransformer, Concatenator, KernelSmoother, Pipeline, Tee, ZScoringTransformer
+from .estimator import CenteringEstimator, Concatenator, KernelSmoother, Pipeline, Tee, ZScoringEstimator
 from . import sim_stim
 
 try:

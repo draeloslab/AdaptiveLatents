@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg
 
-from .transformer import TypicalTransformer
+from .estimator import TypicalEstimator
 from .utils import save_to_cache, column_space_distance
 from .timed_data_source import ArrayWithTime
 
@@ -105,11 +105,11 @@ class BaseProSVD:
 
 
 
-class proSVD(TypicalTransformer, BaseProSVD):
+class proSVD(TypicalEstimator, BaseProSVD):
     base_algorithm = BaseProSVD
 
     def __init__(self, *, init_size=None, k=None, decay_alpha=None, whiten=None, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
-        TypicalTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)
+        TypicalEstimator.__init__(self, input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)
         BaseProSVD.__init__(self, k=k, decay_alpha=decay_alpha, whiten=whiten)
         self.init_size = init_size or self.k * 2
         self.on_nan_width = self.k
@@ -194,7 +194,7 @@ class proSVD(TypicalTransformer, BaseProSVD):
         return pro.offline_run_on(input_arr, convinient_return=True)
 
 
-class RandomProjection(TypicalTransformer):
+class RandomProjection(TypicalEstimator):
 
     def __init__(self, *, rng_seed=0, k=100, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
         super().__init__(input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)

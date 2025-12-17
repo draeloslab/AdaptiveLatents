@@ -6,10 +6,10 @@ import warnings
 import numpy as np
 
 from .timed_data_source import ArrayWithTime
-from .transformer import StreamingTransformer
+from .estimator import StreamingEstimator
 
 
-class Predictor(StreamingTransformer):
+class Predictor(StreamingEstimator):
     stream_to_update_log_on = None
     def __init__(self, input_streams=None, output_streams=None, log_level=None, check_dt=False, n_steps_to_predict=1):
         input_streams = input_streams or {0: 'X', 1: 'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}

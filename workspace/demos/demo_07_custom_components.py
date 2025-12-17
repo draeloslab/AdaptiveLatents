@@ -1,12 +1,13 @@
 import numpy as np
 
-from adaptive_latents.transformer import DecoupledTransformer, StreamingTransformer, TypicalTransformer
+from adaptive_latents.estimator import DecoupledEstimator, StreamingEstimator, TypicalEstimator
+from adaptive_latents.tests import check_api_compatible
 
 """
 Demo: Writing a new transformer component
 """
 
-class FlippingTransformer0(StreamingTransformer):
+class FlippingEstimator0(StreamingEstimator):
     """
     StreamingTransformer is the most basic class.
     With this base class, you need to do all the logging and NaN handling manually.
@@ -19,7 +20,7 @@ class FlippingTransformer0(StreamingTransformer):
         return (data[:, ::-1], stream) if return_output_stream else data
 
 
-class FlippingTransformer1(DecoupledTransformer):
+class FlippingTransformer1(DecoupledEstimator):
     """
     DecoupledTransformer lets you separate the fit and transform steps.
     A few transformers (like Bubblewrap and KernelSmoother) can't do this, or this would be the base class.
@@ -37,7 +38,7 @@ class FlippingTransformer1(DecoupledTransformer):
         return (data, stream) if return_output_stream else data
 
 
-class FlippingTransformer2(TypicalTransformer):
+class FlippingEstimator2(TypicalEstimator):
     """
     TypicalTransformer encapsulates a lot of the routing and logging information shared between transformers.
     For example, most transformers will operate on one stream, which they treat as an X variable.
@@ -63,8 +64,8 @@ class FlippingTransformer2(TypicalTransformer):
         return {}
 
 def main():
-    for FlippingTransformer in [FlippingTransformer0, FlippingTransformer1, FlippingTransformer2]:
-        FlippingTransformer.test_if_api_compatible()
+    for FlippingTransformer in [FlippingEstimator0, FlippingTransformer1, FlippingEstimator2]:
+        check_api_compatible(FlippingTransformer)
 
         f = FlippingTransformer()
         to_flip = np.array([[1, 2, 3], [4, 5, 6]])

@@ -2,7 +2,7 @@ import copy
 from collections import deque
 import jax
 
-from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap, proSVD, CenteringTransformer, VJF, KernelSmoother, mmICA, sjPCA, datasets
+from adaptive_latents import StreamingKalmanFilter, ArrayWithTime, Pipeline, StimRegressor, Bubblewrap, proSVD, CenteringEstimator, VJF, KernelSmoother, mmICA, sjPCA, datasets
 from adaptive_latents.regressions import BaseKernelRegressor
 import numpy as np
 from adaptive_latents.stim_designer import StimDesigner

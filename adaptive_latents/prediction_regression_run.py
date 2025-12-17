@@ -4,9 +4,9 @@ import warnings
 
 import numpy as np
 
-from adaptive_latents import Bubblewrap, CenteringTransformer, Concatenator, KernelSmoother, Pipeline, VanillaOnlineRegressor, datasets, mmICA, proSVD, sjPCA
+from adaptive_latents import Bubblewrap, CenteringEstimator, Concatenator, KernelSmoother, Pipeline, VanillaOnlineRegressor, datasets, mmICA, proSVD, sjPCA
 from adaptive_latents.timed_data_source import ArrayWithTime
-from adaptive_latents.transformer import PassThroughDict, Tee
+from adaptive_latents.estimator import PassThroughDict, Tee
 from adaptive_latents.utils import evaluate_regression
 
 
@@ -85,7 +85,7 @@ def pred_reg_run(
     ] if predict else []
 
     pipeline = Pipeline([
-        CenteringTransformer(init_size=100, log_level=log_level),
+        CenteringEstimator(init_size=100, log_level=log_level),
         KernelSmoother(tau=neural_smoothing_tau / neural_data.dt, log_level=log_level),
         Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 0, 1: 0, 'skip': -1}, stream_scaling_factors=stream_scaling_factors, log_level=log_level),
         proSVD(k=6, log_level=log_level),

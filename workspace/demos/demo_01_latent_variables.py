@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 import adaptive_latents as al
-from adaptive_latents import CenteringTransformer, KernelSmoother, Pipeline, proSVD, sjPCA
+from adaptive_latents import CenteringEstimator, KernelSmoother, Pipeline, proSVD, sjPCA
 
 """
 Demo: Constructing latent variables
@@ -14,7 +14,7 @@ def main(show_plots=True):
 
     # define a sequence of processing steps
     p = Pipeline([
-        CenteringTransformer(),  # center the data
+        CenteringEstimator(),  # center the data
         KernelSmoother(),  # smooth the data
         proSVD(k=6),  # dimension reduce
         sjPCA()  # define a additional dimension reduction step

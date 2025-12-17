@@ -12,7 +12,7 @@ from tqdm.auto import tqdm
 from contextlib import nullcontext
 
 from .timed_data_source import ArrayWithTime
-from .transformer import Pipeline, CenteringTransformer, KernelSmoother, StreamingTransformer
+from .estimator import Pipeline, CenteringEstimator, KernelSmoother, StreamingEstimator
 from .stim_regressor import StimRegressor
 from .bubblewrap import Bubblewrap
 from .ica import mmICA
@@ -190,7 +190,7 @@ def make_sr(
     log = {}
 
 
-    centerer = CenteringTransformer(init_size=centerer_init_size, nan_when_uninitialized=True)
+    centerer = CenteringEstimator(init_size=centerer_init_size, nan_when_uninitialized=True)
     if smoothing_tau is not None:
         smoother = KernelSmoother(tau=smoothing_tau/input_array.dt)
     else:

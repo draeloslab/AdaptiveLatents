@@ -4,8 +4,9 @@ import numpy as np
 import pytest
 from conftest import get_all_subclasses
 
-from adaptive_latents import ArrayWithTime, CenteringTransformer, Pipeline, proSVD
-from adaptive_latents.transformer import StreamingTransformer
+from adaptive_latents import ArrayWithTime, CenteringEstimator, Pipeline, proSVD
+from adaptive_latents.estimator import StreamingEstimator
+from adaptive_latents.tests import check_api_compatible
 
 DIM = 6
 
@@ -13,7 +14,7 @@ class TestStreamingTransformer:
     """
     This tests the code found in the StreamingTransformer class (as opposed to its subclasses).
     """
-    transformer = CenteringTransformer()
+    transformer = CenteringEstimator()
 
     def test_streaming_run_on(self, valid_sources):
         for source in valid_sources:
@@ -43,19 +44,17 @@ class TestStreamingTransformer:
 
 
 
-to_test = get_all_subclasses(StreamingTransformer)
-to_test += [
+special_cases = [
     functools.partial(proSVD, k=DIM, whiten=True),
     functools.partial(Pipeline, [
-        CenteringTransformer(),
+        CenteringEstimator(),
         proSVD(k=DIM, whiten=False),
     ]),
     functools.partial(Pipeline, []),
 ]
-@pytest.mark.parametrize('transformer_maker', to_test)
+@pytest.mark.parametrize('transformer_maker', get_all_subclasses(StreamingEstimator) + special_cases)
 def test_all_transformers_are_api_compatible(transformer_maker, rng):
-    t: StreamingTransformer = transformer_maker()
-    t.test_if_api_compatible(constructor=transformer_maker, rng=rng, DIM=DIM)
+    check_api_compatible(constructor=transformer_maker, rng=rng, DIM=DIM)
 
 
 # TODO: test if the appropriate logs are called for all iterations and all transformers (with mock functions)

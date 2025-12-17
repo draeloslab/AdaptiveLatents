@@ -21,7 +21,7 @@ from PIL import Image
 from pynwb import NWBHDF5IO
 from scipy.io import loadmat
 
-import adaptive_latents.transformer
+import adaptive_latents.estimator
 from adaptive_latents import CONFIG
 from adaptive_latents.timed_data_source import ArrayWithTime
 from adaptive_latents.utils import save_to_cache
@@ -733,7 +733,7 @@ class Naumann24uDataset(Dataset):
         "output_012824_ds6_fish3",
     )
 
-    class BehaviorClassifier(adaptive_latents.transformer.StreamingTransformer):
+    class BehaviorClassifier(adaptive_latents.estimator.StreamingEstimator):
         def __init__(self, threshold=.3, input_streams=None, output_streams=None, log_level=None):
             input_streams = input_streams or {0:'X'}
             super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)

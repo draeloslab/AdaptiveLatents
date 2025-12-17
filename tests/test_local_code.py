@@ -7,7 +7,7 @@ import typing
 import pytest
 from conftest import get_all_subclasses
 
-from adaptive_latents import CenteringTransformer, datasets
+from adaptive_latents import CenteringEstimator, datasets
 from adaptive_latents import prediction_regression_run as prr
 from workspace.main import main
 
@@ -49,7 +49,7 @@ def test_all_datasets(dataset):
     d = dataset()
     assert d.neural_data is not None
 
-    iterator = CenteringTransformer().streaming_run_on(d.neural_data)
+    iterator = CenteringEstimator().streaming_run_on(d.neural_data)
     for _ in range(10):
         next(iterator)
 

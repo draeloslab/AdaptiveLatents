@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.linalg
 
-from adaptive_latents.transformer import DecoupledTransformer
+from adaptive_latents.estimator import DecoupledEstimator
 from adaptive_latents.utils import column_space_distance, is_orthonormal
 
 
@@ -96,12 +96,12 @@ class BaseProPLS:
         return self.u @ self.s @ self.vh
 
 
-class proPLS(DecoupledTransformer, BaseProPLS):
+class proPLS(DecoupledEstimator, BaseProPLS):
     base_algorithm = BaseProPLS
 
     def __init__(self, *, input_streams=None, output_streams=None, log_level=None, k=None, decay_alpha=None):
         input_streams = input_streams or {0: 'X', 1: 'Y'}
-        DecoupledTransformer.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level)
+        DecoupledEstimator.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level)
         BaseProPLS.__init__(self, k=k, decay_alpha=decay_alpha)
         self.log |= {'u': [], 'vh': [], 't': []}
         self.last_seen = {}

@@ -2,7 +2,7 @@ import importlib
 import numpy as np
 import matplotlib.pyplot as plt
 
-from adaptive_latents import datasets, proSVD, Pipeline, CenteringTransformer, StreamingKalmanFilter, Bubblewrap, sjPCA, mmICA, ArrayWithTime, plotting_functions, KernelSmoother, VJF
+from adaptive_latents import datasets, proSVD, Pipeline, CenteringEstimator, StreamingKalmanFilter, Bubblewrap, sjPCA, mmICA, ArrayWithTime, plotting_functions, KernelSmoother, VJF
 from adaptive_latents.utils import save_to_cache
 from tqdm.auto import tqdm
 from IPython import display
@@ -22,7 +22,7 @@ def main():
 
     @save_to_cache("parallel_compare")
     def f():
-        p = Pipeline([CenteringTransformer(), KernelSmoother(tau=2*.68/d.neural_data.dt), proSVD(k=prosvd_k)])
+        p = Pipeline([CenteringEstimator(), KernelSmoother(tau=2 * .68 / d.neural_data.dt), proSVD(k=prosvd_k)])
 
         dim_red_methods = [Pipeline(), sjPCA(), mmICA()]
         # predictors = [StreamingKalmanFilter(log_level=2, check_dt=True, n_steps_to_predict=1, steps_between_refits=50) for _ in dim_red_methods]

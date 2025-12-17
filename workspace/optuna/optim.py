@@ -7,7 +7,7 @@ import optuna
 
 import numpy as np
 from adaptive_latents import (
-    StreamingKalmanFilter, StimRegressor, CenteringTransformer, proSVD, Pipeline, ArrayWithTime, datasets, Bubblewrap, KernelSmoother,
+    StreamingKalmanFilter, StimRegressor, CenteringEstimator, proSVD, Pipeline, ArrayWithTime, datasets, Bubblewrap, KernelSmoother,
 )
 from adaptive_latents.regressions import BaseKernelRegressor
 from adaptive_latents.stim_designer import StimDesigner
@@ -44,7 +44,7 @@ def objective(trial):
             stim_delay=stim_delay,
         )
 
-        centerer = CenteringTransformer()
+        centerer = CenteringEstimator()
         pro = proSVD(k=prosvd_k)
         smoother = KernelSmoother(tau=trial.suggest_float('tau', 1.19, 1.19))
         latents = []
