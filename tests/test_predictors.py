@@ -106,7 +106,7 @@ def fitted_predictor_tuple(request, rng):
             n_rotations = 250
         case 'VJF':
             predictor = VJF(latent_d=2, rng=np.random.default_rng(18))
-            rng = np.random.default_rng(18)
+            rng = np.random.default_rng(19)
 
             n_rotations = 500
         case _:
@@ -162,6 +162,16 @@ def test_predictor_accuracy(fitted_predictor_tuple, show_plots):
     half_idx = len(trajectory) // 2
     assert np.abs((np.atan2(trajectory[-1, 1], trajectory[-1, 0]) - np.atan2(Y_train[-1, 1], Y_train[-1, 0])) * 180 / np.pi) < 90  # TODO: make this tighter than 90 degrees
     assert np.abs((np.atan2(trajectory[half_idx, 1], trajectory[half_idx, 0]) - np.atan2(Y_train[-1, 1], Y_train[-1, 0])) * 180 / np.pi) > 110
+
+
+
+    def angle_between(v1, v2):
+        v1 = v1 / np.linalg.norm(v1)
+        v2 = v2 / np.linalg.norm(v2)
+        return np.arccos(np.clip(v1@ v2, -1.0, 1.0))
+
+    assert np.abs(angle_between(trajectory[-1,:3], Y_train[-1,:3]) * 180 / np.pi) < 90  # TODO: make this tighter than 90 degrees
+    assert np.abs(angle_between(trajectory[half_idx,:3], Y_train[-1,:3]) * 180 / np.pi) > 110
 
 
 def test_predictor_pdf(fitted_predictor_tuple, show_plots):

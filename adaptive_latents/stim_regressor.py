@@ -122,7 +122,7 @@ class StimRegressor(Predictor):
         saftey_margin = self.dt*1.2 if self.dt else self.stim_delay # TODO: check this timing/synchronization logic
         while self.last_seen_stims and (current_t - self.last_seen_stims[0].t) > (self.stim_delay + saftey_margin):
             if self.error_on_missed_stim and self.heed_stimuli and np.isfinite(self.autoreg.get_arbitrary_dynamics_parameter()).all():
-                raise Exception(f"Missed stim. {current_t=:.3f} {self.last_seen_stims[0].t=:.3f} (diff={current_t-self.last_seen_stims[0].t:.2f}) {(self.stim_delay + saftey_margin)=:.3f}")
+                raise MissedStimulusError(f"Missed stim. {current_t=:.3f} {self.last_seen_stims[0].t=:.3f} (diff={current_t-self.last_seen_stims[0].t:.2f}) {(self.stim_delay + saftey_margin)=:.3f}")
             self.last_seen_stims.popleft()
 
     def get_stim_to_correct_for(self, current_t, remove=False):
@@ -238,3 +238,7 @@ class StimRegressor(Predictor):
         # TODO: check for jax?
         self.unevaluated_log_pred_ps = {}
         return super().__getstate__()
+
+
+class MissedStimulusError(RuntimeError):
+    pass

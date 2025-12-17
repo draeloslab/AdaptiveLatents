@@ -130,9 +130,12 @@ def clip(*args, maxlen=float("inf")):
 
 def check_same(v: np.ndarray, var_name='temp', overwrite=True):
     """
-    >>> check_same(1) # reports new
-    >>> check_same(1) # reports true
-    >>> check_same(2) # reports false
+    >>> check_same(1)
+    temp: False
+    >>> check_same(1)
+    temp: True
+    >>> check_same(2)
+    temp: False
     """
     try:
         import torch

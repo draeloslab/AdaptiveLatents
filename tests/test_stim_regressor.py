@@ -1,5 +1,6 @@
 from adaptive_latents.input_sources import LDS
 from adaptive_latents import StreamingKalmanFilter, StimRegressor, ArrayWithTime, Pipeline, Bubblewrap
+from adaptive_latents.stim_regressor import MissedStimulusError
 import numpy as np
 import pytest
 
@@ -123,14 +124,19 @@ def test_sub_dt_delay_works(rng):
     ]:
         stim_offset = ArrayWithTime(stim, stim.t - dt)
 
-        sr4 = StimRegressor(autoreg=StreamingKalmanFilter(steps_between_refits=3), log_level=3, stim_delay=0)
+
+        sr4 = StimRegressor(autoreg=StreamingKalmanFilter(steps_between_refits=3), log_level=3, stim_delay=0, error_on_missed_stim=False)
         sr4.offline_run_on(sources=[(stim_offset, 'stim'), (Y, 'X')])
         e4 = ArrayWithTime.from_list(sr4.log['pred_error'], squeeze_type='to_2d')
         assert np.array_equal(e_utilized, e4, equal_nan=True) == unaware_of_delay_should_match_utilized
         assert np.array_equal(e_unaware_of_stim, e4, equal_nan=True) != unaware_of_delay_should_match_utilized
 
+        if not unaware_of_delay_should_match_utilized:
+            with pytest.raises(MissedStimulusError):
+                StimRegressor(autoreg=StreamingKalmanFilter(steps_between_refits=3), log_level=3, stim_delay=0, error_on_missed_stim=True).offline_run_on(sources=[(stim_offset, 'stim'), (Y, 'X')])
+
         sr5 = StimRegressor(autoreg=StreamingKalmanFilter(steps_between_refits=3), log_level=3, stim_delay=dt)
-        sr5.offline_run_on(sources=[(stim_offset, 'stim'), (Y, 'X')])
+        sr5.offline_run_on(sources=[(stim_offset, 'stim'), (Y, 'X')] )
         e5 = ArrayWithTime.from_list(sr5.log['pred_error'], squeeze_type='to_2d')
         assert np.array_equal(e_utilized, e5, equal_nan=True)
 
@@ -187,9 +193,8 @@ def test_super_dt_delay_works(show_plots):
 
 
 
-@pytest.mark.parametrize("rng_seed,xfail_due_to_teleport", [(16, False), (17, True)])
-def test_skips_steps(rng_seed, xfail_due_to_teleport):
-    rng = np.random.default_rng(rng_seed)
+def test_skips_training_while_stim_pending():
+    rng = np.random.default_rng(16)
     _, Y, _ = LDS.circular_lds(rng=rng).simulate(20, rng=rng)
     Y = ArrayWithTime.from_notime(Y)
     Y1 = Y.slice(slice(None, 10))
@@ -197,8 +202,7 @@ def test_skips_steps(rng_seed, xfail_due_to_teleport):
 
     for stim_delay in np.array([0,1,2]):
 
-        bw = Bubblewrap(num=10, M=5)
-        sr = StimRegressor(autoreg=bw, log_level=3, stim_delay=stim_delay* Y.dt)
+        sr = StimRegressor(autoreg=StreamingKalmanFilter(steps_between_refits=1), log_level=3, stim_delay=stim_delay* Y.dt)
         sr.offline_run_on([(Y1, 'X')])
 
         par = sr.get_arbitrary_dynamics_parameter()
@@ -211,19 +215,15 @@ def test_skips_steps(rng_seed, xfail_due_to_teleport):
             s = Y2.slice(slice(i,i+1))
             s.t = s.t[0]
             sr.partial_fit_transform(s, stream='X')
-            assert (sr.get_arbitrary_dynamics_parameter() == par).all() == should_be_same  # this can fail if a bubble relocates
+            assert (sr.get_arbitrary_dynamics_parameter() == par).all() == should_be_same
             par = sr.get_arbitrary_dynamics_parameter()
 
 
         step()
         step()
         sr.partial_fit_transform(ArrayWithTime([1], s.t+1), stream='stim')
-
-        for j in range(stim_delay+1):
-            if j == 0 and xfail_due_to_teleport:
-                step(False)
-            else:
-                step(True)
+        for j in range(stim_delay+2):
+            step(True)
         step()
 
 def test_not_heeding_works(rng):

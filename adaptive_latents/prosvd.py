@@ -29,7 +29,8 @@ class BaseProSVD:
         self.n_samples_observed = n_samples
 
     def add_new_input_channels(self, n):
-        self.Q = np.vstack([self.Q, np.zeros(shape=(n, self.Q.shape[1]))])
+        if self.Q is not None:
+            self.Q = np.vstack([self.Q, np.zeros(shape=(n, self.Q.shape[1]))])
 
     def updateSVD(self, x):
         x_along = self.Q.T @ x
@@ -144,6 +145,8 @@ class proSVD(TypicalTransformer, BaseProSVD):
         return self.project_up(X.T).T
 
     def partial_fit_for_X(self, X):
+        if X.shape[1] > self.Q.shape[0]:
+            self.add_new_input_channels(X.shape[1] - self.Q.shape[0])
         self.updateSVD(X.T)
 
     def log_for_partial_fit(self, data, stream=0):

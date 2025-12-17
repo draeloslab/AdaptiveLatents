@@ -132,8 +132,8 @@ def test_cross_validate_length_scale(rng, show_plots):
 def test_multi_kernel_inconsistent_with_single(rng):
     # 1 ~ 2 ~ 3 != 4 ~ 4_jit
     reg1 = BaseKernelRegressor(length_scale=1)
-    reg2 = BaseMultiKernelRegressor(length_scales=[1])
-    reg3 = BaseMultiKernelRegressor(length_scales=[1,1])
+    reg2 = BaseMultiKernelRegressor(length_scales=[1], reweight_every=np.inf)
+    reg3 = BaseMultiKernelRegressor(length_scales=[1,1], reweight_every=np.inf)
     reg4 = BaseMultiKernelRegressor(length_scales=[1,.1])
 
     for _ in range(10):
@@ -157,7 +157,7 @@ def test_multi_kernel_inconsistent_with_single(rng):
 
 
 def test_multi_kernel_length_scales(rng):
-    reg1 = BaseMultiKernelRegressor(length_scales=[1,1])
+    reg1 = BaseMultiKernelRegressor(length_scales=[1,1], reweight_every=np.inf)
 
     for _ in range(100):
         x1 = rng.normal(size=2)

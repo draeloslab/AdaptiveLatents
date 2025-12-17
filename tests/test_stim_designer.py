@@ -29,21 +29,6 @@ def test_kernel_regression_integration(show_plots):
 
     target = np.array([[0,1]]).T
     if show_plots:
-        ####################################################################################################################
-        #
-        # fig, ax = plt.subplots()
-        # for theta in np.linspace(0, 2*np.pi, 50):
-        #     x = np.array([np.cos(theta), np.sin(theta)])
-        #     y = np.array([np.cos(theta + theta_shift), np.sin(theta + theta_shift)])
-        #     pred = reg.predict(x)
-        #     ax.plot([x[0], y[0]], [x[1], y[1]], 'k-', alpha=.25)
-        #     ax.plot([x[0], pred[0]], [x[1], pred[1]])
-        #
-        # ax.plot(train_xs[:,0], train_xs[:,1], color='k')
-        # ax.axis('equal')
-        # plt.show(block=True)
-
-        ####################################################################################################################
         fig, ax = plt.subplots()
 
         # u_to_s_function = lambda x: x

@@ -23,17 +23,11 @@ from .regressions import BaseMultiKernelRegressor
 from .stim_designer import StimDesigner
 
 
-class SimulatedStimAdder(StreamingTransformer):
-    def __init__(self, *, true_S='identity', static_S_seed=0, decay=.8, stim_time_delay=0, input_streams=None, output_streams=None, log_level=None):
-        input_streams = input_streams or {0:'X'}
-        super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
-
+class SimulatedStimAdder:
+    def __init__(self, *, true_S='identity', static_S_seed=0, decay=.8, stim_time_delay=0):
         self.true_S = true_S
         self.static_S_seed = static_S_seed
 
-        # self.tau = tau
-        # delta_t = 1
-        # self.alpha = 1 - np.exp(-delta_t/tau)
         self.alpha = decay
 
         self.to_add = 0
@@ -44,17 +38,11 @@ class SimulatedStimAdder(StreamingTransformer):
     def register_stim(self, true_stim_result):
         self.stim_delay_queue.appendleft(true_stim_result)
 
-    def _partial_fit_transform(self, data, stream, return_output_stream):
-        if self.input_streams[stream] == 'X':
-            self.to_add += self.stim_delay_queue.pop()
-            data = data + self.to_add
-            self.to_add = self.to_add * self.alpha
-        if self.input_streams[stream] == 'stim':
-            # TODO: check for regularity?
-            self.register_stim(data)
-
-        stream = self.output_streams[stream]
-        return (data, stream) if return_output_stream else data
+    def run_for_X(self, data):
+        self.to_add += self.stim_delay_queue.pop()
+        data = data + self.to_add
+        self.to_add = self.to_add * self.alpha
+        return data
 
     def true_stim_result(self, instantaneous_stim, equivalent_projection_matrix=None):
         if self.true_S == 'identity':
@@ -253,11 +241,11 @@ def make_sr(
 
             true_stim_result = sim_stim_adder.true_stim_result(instantaneous_stim, equivalent_projection_matrix)
 
-            sim_stim_adder.partial_fit_transform(true_stim_result, stream='stim')
+            sim_stim_adder.register_stim(true_stim_result)
 
             high_d_without_stim.append(data)
             pre_stim_data = data
-            data = sim_stim_adder.partial_fit_transform(data, stream='X')
+            data = sim_stim_adder.run_for_X(data)
             high_d_with_stim.append(data)
             high_d_stims.append(data - pre_stim_data)
 

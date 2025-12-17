@@ -1,6 +1,6 @@
 **/al_generated/*
 htmlcov/*
-workspace/datasets/*
+workspace/datasets
 workspace/**/*.ipynb
 scripts/*
 *.sh
