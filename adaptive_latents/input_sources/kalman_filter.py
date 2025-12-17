@@ -102,7 +102,7 @@ class KalmanFilter:
         return state + X_mean, state_var
 
 
-    def step(self, Y=None):
+    def kf_step(self, Y=None):
         self.state, self.state_var = self.inference_step(self.state, self.state_var, Y=Y, A=self.A, C=self.C, W=self.W, Q=self.Q, Y_mean=self.Y_mean, X_mean=self.X_mean, kalman_gain=None if not self.use_steady_state_K else self.steady_state_K)
         return self.state
 
@@ -158,7 +158,7 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
                 self.latent_state_history[-1].append(self.last_seen['X' if self.no_hidden_state else 'Y'])
 
             if semantic_stream == 'X' and self.A is not None:
-                self.step(X)
+                self.kf_step(X)
 
             assert len(self.latent_state_history[-1]) == len(self.observation_history[-1])
             n_seen = sum(len(x) if len(x) > 1 else 0 for x in self.observation_history)
@@ -183,7 +183,7 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
                 constant = min(self.steps_between_refits, len(obs)) # TODO: set this more rigorously
                 self.state = latent[obs.shape[0]-constant]
                 for i in range(constant):
-                    self.step(Y=obs[obs.shape[0]-constant+i])
+                    self.kf_step(Y=obs[obs.shape[0] - constant + i])
 
     def toggle_parameter_fitting(self, value=None):
         before = self.parameter_fitting

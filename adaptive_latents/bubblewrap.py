@@ -23,7 +23,7 @@ epsilon = 1e-10
 class BaseBubblewrap:
     @use_config_defaults
     # note the defaults in this signature are overridden by the defaults in adaptive_latents_config
-    def __init__(self, num=1000, seed=42, M=30, lam=1, nu=1e-2, eps=3e-2, B_thresh=1e-4, step=1e-6, n_thresh=5e-4, go_fast=False, copy_row_on_teleport=True, num_grad_q=1, sigma_orig_adjustment=0, dead_nodes_unlikely=False):
+    def __init__(self, num=1000, seed=42, M=30, lam=1, nu=1e-2, eps=3e-2, B_thresh=1e-4, step_size=1e-6, n_thresh=5e-4, go_fast=False, copy_row_on_teleport=True, num_grad_q=1, sigma_orig_adjustment=0, dead_nodes_unlikely=False):
 
         self.N = num  # Number of nodes
         self.seed = seed
@@ -34,7 +34,7 @@ class BaseBubblewrap:
         self.eps = eps
         self.B_thresh = B_thresh
         self.n_thresh = n_thresh
-        self.step = step
+        self.step_size = step_size
         self.copy_row_on_teleport = copy_row_on_teleport
         self.num_grad_q = num_grad_q
         self.sigma_orig_adjust = sigma_orig_adjustment
@@ -272,10 +272,10 @@ class BaseBubblewrap:
 
     def run_adam(self, mu, L, L_diag, A):
         ## inputs are gradients
-        self.m_mu, self.v_mu, self.mu = single_adam(self.step, self.m_mu, self.v_mu, mu, self.t, self.mu)
-        self.m_L_lower, self.v_L_lower, self.L_lower = single_adam(self.step, self.m_L_lower, self.v_L_lower, L, self.t, self.L_lower)
-        self.m_L_diag, self.v_L_diag, self.L_diag = single_adam(self.step, self.m_L_diag, self.v_L_diag, L_diag, self.t, self.L_diag)
-        self.m_A, self.v_A, self.log_A = single_adam(self.step, self.m_A, self.v_A, A, self.t, self.log_A)
+        self.m_mu, self.v_mu, self.mu = single_adam(self.step_size, self.m_mu, self.v_mu, mu, self.t, self.mu)
+        self.m_L_lower, self.v_L_lower, self.L_lower = single_adam(self.step_size, self.m_L_lower, self.v_L_lower, L, self.t, self.L_lower)
+        self.m_L_diag, self.v_L_diag, self.L_diag = single_adam(self.step_size, self.m_L_diag, self.v_L_diag, L_diag, self.t, self.L_diag)
+        self.m_A, self.v_A, self.log_A = single_adam(self.step_size, self.m_A, self.v_A, A, self.t, self.log_A)
 
 
     def unevaluated_log_pred_p(self, n_steps):
@@ -333,7 +333,7 @@ class BaseBubblewrap:
         lam=1e-3,
         nu=1e-3,
         eps=1e-4,
-        step=8e-2,
+        step_size=8e-2,
         M=100,
         B_thresh=-5,
         go_fast=False,
@@ -352,12 +352,12 @@ beta2 = 0.999
 
 
 @jit
-def single_adam(step, m, v, grad, t, val):
+def single_adam(step_size, m, v, grad, t, val):
     m = beta1*m + (1-beta1) * grad
     v = beta2*v + (1-beta2) * grad**2
     m_hat = m / (1 - jnp.power(beta1, t + 1))
     v_hat = v / (1 - jnp.power(beta2, t + 1))
-    update = step * m_hat / (jnp.sqrt(v_hat) + epsilon)
+    update = step_size * m_hat / (jnp.sqrt(v_hat) + epsilon)
     val -= update
     return m, v, val
 
@@ -616,7 +616,7 @@ class Bubblewrap(Predictor, BaseBubblewrap):
             num=self.N,
             seed=self.seed,
             M=self.M,
-            step=self.step,
+            step_size=self.step_size,
             lam=self.lam_0,
             eps=self.eps,
             nu=self.nu,
@@ -634,7 +634,7 @@ class Bubblewrap(Predictor, BaseBubblewrap):
 
     def uninitialized_copy(self):
         bw = Bubblewrap(**self.get_params())
-        bw.step = self.step
+        bw.step_size = self.step_size
         bw.log = self.log
         return bw
 

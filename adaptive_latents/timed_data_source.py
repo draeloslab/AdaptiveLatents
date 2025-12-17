@@ -14,6 +14,11 @@ class DataSource(ABC):
     def current_sample_time(self) -> float:
         pass
 
+    @abstractmethod
+    def __next__(self):
+        "all data sources should be iterable"
+        pass
+
 
 class GeneratorDataSource(DataSource):
     def __init__(self, source, dt=1):

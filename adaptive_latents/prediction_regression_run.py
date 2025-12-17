@@ -66,7 +66,7 @@ def pred_reg_run(
         lam=1e-3,
         nu=1e-3,
         eps=1e-4,
-        step=bw_step,
+        step_size=bw_step,
         num_grad_q=1,
         sigma_orig_adjustment=100,
         log_level=log_level,

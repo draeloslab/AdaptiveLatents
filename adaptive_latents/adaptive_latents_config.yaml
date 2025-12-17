@@ -20,7 +20,7 @@ default_parameters:
     lam: 1.0e-3
     nu: 1.0e-3
     eps: 1.0e-3
-    step: 8.0e-2
+    step_size: 8.0e-2
     M: 30
     B_thresh: -10
     go_fast: False
