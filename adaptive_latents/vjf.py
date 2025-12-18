@@ -5,8 +5,7 @@ import vjf.online
 from scipy.special import logsumexp
 from scipy.stats import multivariate_normal
 
-from adaptive_latents.predictor import Predictor
-from adaptive_latents.timed_data_source import ArrayWithTime
+from .estimator import Predictor
 
 
 class BaseVJF:

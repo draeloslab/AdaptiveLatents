@@ -3,7 +3,7 @@ import warnings
 import numpy as np
 from scipy.stats import multivariate_normal
 
-from adaptive_latents.predictor import Predictor
+from adaptive_latents.estimator import Predictor
 
 
 class KalmanFilter:

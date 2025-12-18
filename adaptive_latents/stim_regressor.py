@@ -7,7 +7,6 @@ from .input_sources.kalman_filter import StreamingKalmanFilter
 from .predictor import Predictor
 from .regressions import BaseKNearestNeighborRegressor, OnlineRegressor, BaseMultiKernelRegressor
 from .timed_data_source import ArrayWithTime
-from .stim_designer import StimDesigner
 
 # TODO: make the time comparisons more uniform
 
@@ -69,7 +68,7 @@ class StimAutoReg():
 
 class StimRegressor(Predictor):
     stream_to_update_log_on = 'stim'
-    def __init__(self, autoreg=None, stim_reg=None, stim_designer=None, heed_stimuli=True, attempt_correction=True, error_on_missed_stim=True, input_streams=None, output_streams=None, log_level=None, check_dt=True, n_steps_to_predict=1, stim_delay=0):
+    def __init__(self, autoreg=None, stim_reg=None, heed_stimuli=True, attempt_correction=True, error_on_missed_stim=True, input_streams=None, output_streams=None, log_level=None, check_dt=True, n_steps_to_predict=1, stim_delay=0):
         input_streams = input_streams or {0: 'X', 1: 'stim', 2: 'dt_X'}
         assert n_steps_to_predict == 1
         assert heed_stimuli or not attempt_correction  # correcting without learning doesn't make sense
@@ -78,9 +77,6 @@ class StimRegressor(Predictor):
         if autoreg is None:
             autoreg = StreamingKalmanFilter()
         self.autoreg: Predictor = autoreg
-        if stim_designer is None:
-            stim_designer = StimDesigner()  # TODO: remove
-        self.stim_designer = stim_designer
         if stim_reg is None:
             stim_reg = BaseMultiKernelRegressor(maxlen=100)
         self.stim_reg: BaseMultiKernelRegressor = stim_reg
@@ -232,7 +228,7 @@ class StimRegressor(Predictor):
             self.log['stim_intended_samples'] = stim_intended_samples.slice((stim_intended_samples > 0).any(axis=1))
 
     def get_params(self, deep=True):
-        return super().get_params(deep) | dict(autoreg=self.autoreg, stim_reg=self.stim_reg, attempt_correction=self.attempt_correction, heed_stimuli=self.heed_stimuli, stim_designer=self.stim_designer, stim_delay=self.stim_delay, error_on_missed_stim=self.error_on_missed_stim)
+        return super().get_params(deep) | dict(autoreg=self.autoreg, stim_reg=self.stim_reg, attempt_correction=self.attempt_correction, heed_stimuli=self.heed_stimuli, stim_delay=self.stim_delay, error_on_missed_stim=self.error_on_missed_stim)
 
     def __getstate__(self):
         # TODO: check for jax?

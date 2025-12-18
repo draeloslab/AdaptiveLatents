@@ -178,3 +178,55 @@ class DecoupledEstimatorTests:
             assert output.shape == (3, DIM)
         except NotImplementedError:
             pass
+
+class PredictorTests:
+    @classmethod
+    def test_if_api_compatible(cls, constructor=None, rng=None, DIM=None):
+        constructor, rng, DIM = super().test_if_api_compatible(constructor, rng, DIM)
+        cls._test_checks_dt(constructor, rng, DIM)
+        cls._test_output_t_is_origin_t(constructor, rng, DIM)
+
+
+    @staticmethod
+    def _test_output_t_is_origin_t(constructor, rng, DIM):
+        predictor: Predictor = constructor()
+
+        predictor.offline_run_on(rng.normal(size=(100, DIM)))
+
+        output = predictor.step(ArrayWithTime([[1]], t=100), stream='dt_X')
+        assert np.all(output.t == 100)
+
+
+    @staticmethod
+    def _test_checks_dt(constructor, rng, DIM):
+        import pytest
+
+        predictor: Predictor = constructor(check_dt=True)
+        dt = 1 / np.pi
+        predictor.step(ArrayWithTime(rng.normal(size=(1, DIM)), 0), stream='X')
+        predictor.step(ArrayWithTime(rng.normal(size=(1, DIM)), 1 * dt), stream='X')
+
+        assert np.isclose(predictor.dt, dt)
+
+        predictor_backup = copy.deepcopy(predictor)
+
+        # pytest_condition = pytest.raises(AssertionError)
+        pytest_condition = pytest.warns(UserWarning, match='time steps for training are not consistent')
+
+        with pytest_condition:
+            warnings.warn('time steps for training are not consistent')
+
+        predictor = copy.deepcopy(predictor_backup)
+        with pytest.raises(AssertionError):
+            predictor.step(ArrayWithTime(rng.normal(size=(1, DIM)), 1 * dt), stream='X')
+
+        predictor = copy.deepcopy(predictor_backup)
+        with pytest_condition:
+            predictor.step(ArrayWithTime(rng.normal(size=(1, DIM)), 3 * dt), stream='X')
+
+        predictor = copy.deepcopy(predictor_backup)
+        predictor.step(ArrayWithTime(rng.normal(size=(1, DIM)), 2 * dt), stream='X')
+
+        predictor = copy.deepcopy(predictor_backup)
+        with pytest.raises(AssertionError):
+            predictor.step(ArrayWithTime([[1]], 3 * dt), stream='dt_X')

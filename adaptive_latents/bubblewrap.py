@@ -12,7 +12,7 @@ from matplotlib.patches import Ellipse
 from scipy.linalg import fractional_matrix_power
 
 from .config import use_config_defaults
-from .predictor import Predictor
+from .estimator import Predictor
 from .timed_data_source import ArrayWithTime
 
 # TODO: save frozen vs estimator frozen
