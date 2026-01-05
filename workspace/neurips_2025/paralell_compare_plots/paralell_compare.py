@@ -10,8 +10,7 @@ from adaptive_latents.plotting_functions import plot_flow_fields, AnimationManag
 import adaptive_latents
 import importlib
 
-from adaptive_latents.predictor import Predictor
-from adaptive_latents.regressions import BaseKernelRegressor
+from adaptive_latents.regressions import BaseMultiKernelRegressor
 
 
 def main():
@@ -29,7 +28,7 @@ def main():
         predictors = [Bubblewrap(log_level=2, check_dt=True, n_steps_to_predict=1) for _ in dim_red_methods]
         # predictors = [VJF(log_level=2, check_dt=True, n_steps_to_predict=1) for _ in dim_red_methods]
 
-        regs = [BaseKernelRegressor(maxlen=10000, length_scale=0.1725) for _ in dim_red_methods]
+        regs = [BaseMultiKernelRegressor(maxlen=10000, length_scales=[0.1725], reweight_every=np.inf) for _ in dim_red_methods]
 
         outputs = [[] for _ in dim_red_methods]
 
