@@ -8,6 +8,9 @@ import copy
 import warnings
 from enum import Enum
 
+# jax.config.update("jax_debug_nans", True)
+# jax.config.update("jax_disable_jit", True)
+
 class OptimizationMethod(str, Enum):
     JAXOPT = 'jaxopt'
     PREV_SEEN = 'prev_seen'
@@ -201,12 +204,14 @@ class StimDesigner:
         v = jnp.ravel(jnp.asarray(v))
         
         def objective(u):
-            # u = jnp.nan_to_num(u, nan=0.0, posinf=1.0, neginf=-1.0)
-
             s = u_to_s_function(u)
             s = jnp.ravel(s)
             s_norm = jnp.linalg.norm(s) + 1e-10
 
+            # jax.debug.print("finite u? {}  finite s? {}  s_norm {}", 
+            #     jnp.all(jnp.isfinite(u)),
+            #     jnp.all(jnp.isfinite(s)),
+            #     jnp.linalg.norm(s))
 
             dot_sv = jnp.dot(s, v) 
             cos_sim = dot_sv / (s_norm)
@@ -231,7 +236,7 @@ class StimDesigner:
             # loss = -cos_sim + self.lam_1 * (jnp.sum(jnp.abs(u))) # old
             regterm = self.lam_1 * (self.max_l0_norm - jnp.sum(jnp.abs(u)))
                 
-            loss = -(cos_sim) + regterm 
+            loss = -(cos_sim) - regterm 
             regtrack = regterm
             
             align_proj = dot_sv**2 / (s_norm)
@@ -278,9 +283,17 @@ class StimDesigner:
         # res2 = runner2.run(u1, bounds=bounds)
         # u = numpy.array(res2.params)
 
+        # --- HARD SANITIZE OPT OUTPUT ---
+        if not numpy.isfinite(u).all():
+            # safest behavior: abort stim for this timestep
+            print("encountered nans")
+            u = numpy.zeros_like(u)
+            u[self.rng.integers(len(u))] = 1.0
+
         # look into it
-        if u.max() > 0:
-            u = numpy.array(u / u.max())
+        umax = u.max()
+        if umax > 0:
+            u = numpy.array(u / umax)
         # 30 neuron
         idx = numpy.argsort(u)
         u[idx[:-self.max_l0_norm]] = 0
@@ -600,6 +613,15 @@ class StimDesigner:
         timeforopt = end_opt - start_opt
 
         u_final = numpy.array(z)
+
+         # --- HARD SANITIZE OPT OUTPUT ---
+        if not numpy.isfinite(u_final).all():
+            # safest behavior: abort stim for this timestep
+            print("encountered nans")
+            u_final = numpy.zeros_like(u_final)
+            u_final[self.rng.integers(len(u_final))] = 1.0
+
+
         if u_final.max() > 0:
             u_final = u_final / u_final.max()
         idx = numpy.argsort(u_final)
@@ -689,12 +711,14 @@ class StimDesigner:
             optimization_method = 'cheat_highd_vec_many_neurons'
 
 
-        if optimization_method in {'jaxopt', 'prev_seen'}:
+        if optimization_method in {'jaxopt', 'prev_seen','admm'}:
             stim_reg = sr.stim_reg
             previous_us = stim_reg.input_histories[1][:stim_reg.n_observed] if optimization_method == 'prev_seen' else None
             if u_to_s_model_type == 'kernel_regressed':
                 f = stim_reg.make_jax_pred_f()
                 pred = sr.autoreg.predict(n_steps=0)
+                pred = jnp.nan_to_num(jnp.asarray(pred), nan=0.0, posinf=0.0, neginf=0.0)
+
                 def u_to_s_function(u):
                     return stim_magnitude * f([pred, u, current_t])
                 designed_stim = self.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0], previous_us=previous_us)
@@ -712,6 +736,12 @@ class StimDesigner:
         self.log[-1]['stim_reg'] = copy.deepcopy(sr.stim_reg)
         self.log[-1]['time_of_stim'] = current_t
         self.log[-1]['equiv_proj_mat'] = equivalent_projection_matrix
+
+        # this is for when designed_stim contains nans
+        designed_stim = numpy.asarray(designed_stim)
+        if not numpy.isfinite(designed_stim).all():
+            warnings.warn("Stimulus contained NaN/Inf; zeroing it out.")
+            designed_stim = numpy.zeros_like(designed_stim)
 
         if (designed_stim == 0).all():
             designed_stim[0] = 1e-10

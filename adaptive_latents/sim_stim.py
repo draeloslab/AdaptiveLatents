@@ -42,16 +42,16 @@ class SimulatedStimAdder(StreamingTransformer):
         self.stim_delay_queue = deque([0] * stim_time_delay)
 
     def register_stim(self, true_stim_result):
-        self.stim_delay_queue.appendleft(true_stim_result)
+        self.stim_delay_queue.appendleft(np.asarray(true_stim_result))
 
     def _partial_fit_transform(self, data, stream, return_output_stream):
         if self.input_streams[stream] == 'X':
-            self.to_add += self.stim_delay_queue.pop()
+            self.to_add += self.stim_delay_queue.pop() 
             data = data + self.to_add
             self.to_add = self.to_add * self.alpha
         if self.input_streams[stream] == 'stim':
             # TODO: check for regularity?
-            self.register_stim(data)
+            self.register_stim(np.asarray(data))
 
         stream = self.output_streams[stream]
         return (data, stream) if return_output_stream else data
@@ -204,7 +204,7 @@ def make_sr(
     log = {}
 
 
-    centerer = CenteringTransformer(init_size=centerer_init_size, nan_when_uninitialized=True)
+    centerer = CenteringTransformer(init_size=centerer_init_size, nan_when_uninitialized=False)
     if smoothing_tau is not None:
         smoother = KernelSmoother(tau=smoothing_tau/input_array.dt)
     else:
@@ -257,7 +257,7 @@ def make_sr(
 
             sim_stim_adder.partial_fit_transform(true_stim_result, stream='stim')
 
-            high_d_without_stim.append(data)
+            high_d_without_stim.append(data)        
             pre_stim_data = data
             data = sim_stim_adder.partial_fit_transform(data, stream='X')
             high_d_with_stim.append(data)
@@ -286,15 +286,28 @@ def make_sr(
                 stim_t = list(resolved_stim_ts)[0]
                 for l in reversed(stim_designer.log):
                     if stim_t == l['time_of_stim']:
-                        obs = sr.stim_reg.get_obs(t=stim_t + sr.stim_delay)
-                        # TODO: is this correct?
-                        # obs = sr.stim_reg.get_obs(t=stim_t + sr.dt * len(sim_stim_adder.stim_delay_queue))
-
-                        l['observed_s_hat'] = obs.pop('output')
-                        l['observed_reg_input'] = [v for v in obs.values()]
+                        if getattr(sr.stim_reg, "input_histories", None) is None:
+                            l["observed_s_hat"] = None
+                            l["observed_reg_input"] = None
+                        else:
+                            try:
+                                obs = sr.stim_reg.get_obs(t=stim_t + sr.stim_delay)
+                                l['observed_s_hat'] = obs.pop('output')
+                                l['observed_reg_input'] = [v for v in obs.values()]
+                            except Exception as e:
+                                l["observed_s_hat"] = None
+                                l["observed_reg_input"] = None
+                                l["observed_obs_error"] = repr(e)
                         break
-                else:
-                    raise Exception('resolved stim is not in stim_designer log')
+                #         obs = sr.stim_reg.get_obs(t=stim_t + sr.stim_delay)
+                #         # TODO: is this correct?
+                #         # obs = sr.stim_reg.get_obs(t=stim_t + sr.dt * len(sim_stim_adder.stim_delay_queue))
+
+                #         l['observed_s_hat'] = obs.pop('output')
+                #         l['observed_reg_input'] = [v for v in obs.values()]
+                #         break
+                # else:
+                #     raise Exception('resolved stim is not in stim_designer log')
 
             if show_tqdm:
                 pbar.update(round(float(data.t), 2) - pbar.n)
