@@ -8,8 +8,9 @@ if CONFIG.jax_supress_xla_bridge_warnings:
 
 jax.config.update('jax_enable_x64', CONFIG.jax_enable_x64)
 jax.config.update('jax_platform_name', CONFIG.jax_platform_name)
+# jax.config.update('jax_debug_nans', True)
 
-from . import input_sources, plotting_functions, predictor, profiling_functions, utils
+from . import input_sources, plotting_functions, estimator, profiling_functions, utils
 from .bubblewrap import Bubblewrap
 from .input_sources.kalman_filter import StreamingKalmanFilter
 from .jpca import sjPCA

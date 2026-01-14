@@ -80,7 +80,7 @@ def save_to_cache(file, location=None, override_config_and_cache=False):
                 with CONFIG.open_with_parents(cache_file, "wb") as fhan:
                     pickle.dump(result, fhan)
 
-                cache_index[all_args_as_key] = {'cache_file': cache_file, 'execute_time': execute_time, 'args': str(all_args), 'filesize_gb': pathlib.Path(cache_file).stat().st_size/1e9}
+                cache_index[all_args_as_key] = {'cache_file': cache_file, 'execute_time': execute_time, 'args': str(all_args), 'filesize_gb': pathlib.Path(cache_file).stat().st_size/1e9, 'save_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}
                 with CONFIG.open_with_parents(cache_index_file, 'w') as fhan:
                     json.dump(cache_index, fhan, indent=4)
 
@@ -193,6 +193,12 @@ def align_column_spaces(A, B):
     u, s, vh = np.linalg.svd(C)
     R = vh.T @ u.T
     return (R @ A).T, (B).T
+
+
+def angle_between(v1, v2):
+    v1_u = v1.flatten() / np.linalg.norm(v1)
+    v2_u = v2.flatten() / np.linalg.norm(v2)
+    return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)) * 180.0 / np.pi
 
 
 def principle_angles(Q1, Q2):

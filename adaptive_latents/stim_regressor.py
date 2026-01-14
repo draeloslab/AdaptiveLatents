@@ -4,7 +4,7 @@ from collections import deque
 import numpy as np
 
 from .input_sources.kalman_filter import StreamingKalmanFilter
-from .predictor import Predictor
+from .estimator import Predictor
 from .regressions import BaseKNearestNeighborRegressor, OnlineRegressor, BaseMultiKernelRegressor
 from .timed_data_source import ArrayWithTime
 
