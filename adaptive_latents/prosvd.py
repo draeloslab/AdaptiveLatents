@@ -196,20 +196,26 @@ class proSVD(TypicalEstimator, BaseProSVD):
 
 class RandomProjection(TypicalEstimator):
 
-    def __init__(self, *, rng_seed=0, k=100, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
+    def __init__(self, *, mode='gaussian', rng_seed=0, k=100, input_streams=None, output_streams=None, on_nan_width=None, log_level=None):
         super().__init__(input_streams=input_streams, output_streams=output_streams, on_nan_width=on_nan_width, log_level=log_level)
         self.k = k
-        self.input_d = None
+        self.mode=mode
         self.rng_seed = rng_seed
         self.rng: np.random.Generator = np.random.default_rng(self.rng_seed)
         self.random_matrix = None
         self.inv = None
 
     def pre_initialization_fit_for_X(self, X):
-        self.input_d = X.shape[1]
+        input_d = X.shape[1]
 
         # TODO: other modes?
-        self.random_matrix = self.rng.normal(size=(self.input_d, self.k), scale=1 / (self.input_d * self.k))
+        if self.mode == 'gaussian':
+            self.random_matrix = self.rng.normal(size=(input_d, self.k), scale=1 / (input_d * self.k))
+        elif self.mode == 'orthonormal':
+            from scipy.stats import special_ortho_group
+            self.random_matrix = special_ortho_group.rvs(dim=input_d, random_state=self.rng_seed)[:,:self.k]
+        else:
+            raise ValueError('Unknown mode')
         self.is_initialized = True
 
     def partial_fit_for_X(self, X):
