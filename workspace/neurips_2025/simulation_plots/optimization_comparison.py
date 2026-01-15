@@ -481,9 +481,12 @@ def plot_optim_open_vs_closed(args):
     ax.set_title(f'{args.dataset} {args.type_of_dim_red} {args.type_of_autoreg} 1 step pred error')
     ax.legend()
 
-    exit()
+    fig4, axs4 = plt.subplots(figsize=(8, 8), squeeze=False, layout='constrained')
+    l_df['n_opt_iterations'] = l_df.l.apply(lambda d: len(d['intermediate_xs']) if 'intermediate_xs' in d else np.nan)
+    sns.stripplot(data=l_df, x='sr_key', y='n_opt_iterations', ax=axs4[0,0])
 
-    return fig, [fig2, fig3]
+
+    return fig, [fig2, fig3, fig4]
 
 def plot_optim_open_vs_closed_toy():
     @save_to_cache('optim_open_vs_closed_toy')

@@ -116,6 +116,8 @@ def make_sr(
         centerer_init_size=0,
         last_dim_red='prosvd',
         show_tqdm=False,
+        stim_reg=None,
+        lam_1=0.001,
 ):
     _init_time = time.time()
     timing_log = SimpleNamespace()
@@ -157,10 +159,13 @@ def make_sr(
 
     stim_time_rng, other_rng = rng.spawn(2)
 
+    if stim_reg is None:
+        stim_reg = BaseMultiKernelRegressor(length_scales=[0.04, 0.04, 0.04], maxlen=stim_reg_maxlen)
+
 
     sr = StimRegressor(
         autoreg=autoreg(),
-        stim_reg=BaseMultiKernelRegressor(length_scales=[0.04, 0.04, 0.04], maxlen=stim_reg_maxlen),
+        stim_reg=stim_reg,
         log_level=2,
         check_dt=True,
         attempt_correction=attempt_correction,
@@ -176,7 +181,8 @@ def make_sr(
         inter_stim_interval_generator=isi_generator,
         optimization_method=optimization_method, # todo:fix
         u_to_s_model_type=u_to_s_model_type,
-        n_random_initialization=n_identity_prior
+        n_random_initialization=n_identity_prior,
+        lam_1=lam_1,
     )
 
     static_S_seed = other_rng.integers(2 ** 32)

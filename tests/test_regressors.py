@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import copy
 
 from adaptive_latents.regressions import BaseKNearestNeighborRegressor, BaseVanillaOnlineRegressor, VanillaOnlineRegressor, BaseKernelRegressor, auto_regression_decorator, BaseMultiKernelRegressor
+import adaptive_latents
 
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
@@ -179,6 +180,86 @@ def test_multi_kernel_length_scales(rng):
 
     assert np.linalg.norm(e2) < np.linalg.norm(e1)
 
+# this is mostly a backwards-compatibility test, it can eventually be removed
+def test_new_and_old_way_equivalent(rng):
+    import numpy
+    import jax.numpy as jnp
+    import jax
+
+    def make_jax_pred_f_1(self):
+        if self.input_histories is None:
+            def f(x):
+                return numpy.array([[numpy.nan]])
+        else:
+            input_histories = [jnp.nan_to_num(h, nan=jnp.inf) for h in self.input_histories]
+            output_history = jnp.array(self.output_history)
+            ones = jnp.ones(len(self.output_history))
+            def f(x, length_scales=jnp.array(self.length_scales), weight_modifiers=ones):
+                log_weights = 0
+                for (sub_x, history, length_scale) in zip(x, input_histories, length_scales):
+                    distances = jnp.linalg.norm(history - jnp.squeeze(sub_x), axis=1)
+                    distances = jnp.nan_to_num(distances, nan = jnp.inf)
+                    log_weights += -length_scale * jnp.square(distances)
+                log_weights = jnp.nan_to_num(log_weights, nan=-numpy.inf, neginf=-numpy.inf)
+                log_sum = jax.scipy.special.logsumexp(log_weights, b=weight_modifiers)
+                log_weights = log_weights - log_sum
+
+                return jnp.exp(log_weights) @ output_history
+        return f
+
+    def make_jax_pred_f_2(self):
+        if self.input_histories is None:
+            def f(x):
+                return numpy.array([[numpy.nan]])
+        else:
+            input_histories = [jnp.array(h) for h in self.input_histories]
+            output_history = jnp.array(self.output_history)
+            zeros = jnp.zeros(len(self.output_history))
+            def f(x, length_scales=jnp.array(self.length_scales), log_external_weight_vec=zeros):
+                # log_external_weight_vec is for cross-validation
+                distances = [-length_scale * jnp.linalg.norm(history - jnp.squeeze(sub_x), axis=1) ** 2 for
+                             (sub_x, history, length_scale) in zip(x, input_histories, length_scales)]
+                log_weights = jnp.array(distances).sum(axis=0)
+                log_weights = jnp.nan_to_num(log_weights, nan=-numpy.inf)
+                log_weights = log_weights + log_external_weight_vec
+                log_sum = jax.scipy.special.logsumexp(log_weights)
+                log_weights = log_weights - log_sum
+
+                return jnp.exp(log_weights) @ output_history
+        return f
+
+    reg1 = BaseMultiKernelRegressor(length_scales=[1,.1], maxlen=50, reweight_every=np.inf)
+    reg2 = adaptive_latents.regressions._OutmodedBaseMultiKernelRegressor(length_scales=[1,.1], maxlen=50, reweight_every=np.inf)
+
+    # with jax.debug_nans(False):
+    for i in range(60):
+        x1 = rng.normal(size=2)
+        x2 = rng.normal(size=1)
+        y = np.hstack([np.sin(x1), 10]) + rng.normal(size=3)
+        reg1.observe([x1, x2], y)
+        reg2.observe([x1, x2], y)
+
+        for j in range(2):
+            pre_f1 = make_jax_pred_f_1(reg1)
+            f1 = lambda x: pre_f1([x, x2]).sum()
+
+            pre_f2 = make_jax_pred_f_2(reg1)
+            f2 = lambda x: pre_f2([x,x2]).sum()
+
+            pre_f3 = reg1.make_jax_pred_f()
+            f3 = lambda x: pre_f3([x,x2]).sum()
+
+            pre_f4 = reg2.make_jax_pred_f()
+            f4 = lambda x: pre_f4([x,x2]).sum()
+
+            x1 = rng.normal(size=2)
+            x2 = rng.normal(size=1)
+            assert np.allclose(f1(x1), f2(x1))
+            assert np.allclose(f2(x1), f3(x1))
+            assert np.allclose(f2(x1), f4(x1))
+            # print(np.allclose(jax.grad(f1)(x1), jax.grad(f2)(x1)), jax.grad(f1)(x1), jax.grad(f2)(x1))
+            print(np.array([jax.grad(f)(x1) for f in [f1, f3, f2, f4]]))
+            print()
 
 
 # todo:

@@ -233,8 +233,8 @@ class BaseKernelRegressor(NonParametricRegressor):
         return length_scales[numpy.argmin(errors + error_stds / numpy.sqrt(depth))], (length_scales, errors, error_stds)
 
 
-
-class BaseMultiKernelRegressor:
+# TODO: delete, eventually, but keep for now for comparisons
+class _OutmodedBaseMultiKernelRegressor:
     def __init__(self, length_scales=(1e-1,1e-1,1e-9), maxlen=100, input_names=('stim_location', 'stim_vector', 'stim_time'), reweight_every=1, rng=None):
         self.maxlen = maxlen
         self.input_histories = None
@@ -273,6 +273,8 @@ class BaseMultiKernelRegressor:
             self.reweight()
 
     def reweight(self):
+        if self.n_observed < 2:
+            return
         sample_size = min(self.n_observed, 15)
         sample = self.rng.permutation(min(self.n_observed, self.maxlen))[:sample_size]
         log_external_weight_vec = numpy.zeros(self.maxlen)
@@ -335,6 +337,128 @@ class BaseMultiKernelRegressor:
                 log_weights = log_weights - log_sum
 
                 return jnp.exp(log_weights) @ output_history
+        return f
+
+    def predict(self, x):
+        return numpy.array(self.make_jax_pred_f()(x))
+
+    def get_obs(self, i=None, t=None):
+        """gets last by default"""
+        if t is not None: # use time
+            assert i is None
+            candidates = numpy.nonzero(numpy.abs(t - self.input_histories[self.input_names.index('stim_time')].flatten()) < 1e-12)
+            assert len(candidates) == 1
+            assert len(candidates[0]) == 1
+            i = candidates[0][0]
+        else: # use i
+            if i is None: # get last obs
+                i = (self.n_observed - 1) % self.maxlen
+        return {k:v[i] for k, v in zip(self.input_names, self.input_histories)} | {'output': self.output_history[i]}
+
+
+class BaseMultiKernelRegressor:
+    def __init__(self, length_scales=(1e-1,1e-1,1e-9), maxlen=100, input_names=('stim_location', 'stim_vector', 'stim_time'), reweight_every=1, rng=None):
+        self.maxlen = maxlen
+        self.input_histories = None
+        self.output_history = None
+        self.n_observed = 0
+        self.input_names = input_names
+        self.reweight_every = reweight_every
+        if rng is None:
+            rng = numpy.random.default_rng(0)
+        self.rng = rng
+        self.log = {'length_scales': [], 'preq_errors':[]}
+
+        self.length_scales = numpy.array(length_scales)
+
+    def observe(self, x, y):
+        if any([numpy.any(~numpy.isfinite(sub_x)) for sub_x in x]) or numpy.any(~numpy.isfinite(y)):
+            warnings.warn("ignoring non-finite input")
+            return
+
+        self.log['preq_errors'].append(y - self.predict(x))
+
+        if self.input_histories is None:
+            self.input_histories = [numpy.zeros(shape=(self.maxlen, sub_x.size)) * numpy.nan for sub_x in x]
+            self.output_history = numpy.zeros(shape=(self.maxlen, y.size))
+
+        if self.n_observed == self.maxlen:
+            warnings.warn("history is full, overwriting old observations")
+        index = self.n_observed % self.maxlen
+
+        for history, sub_x in zip(self.input_histories, x):
+            history[index, :] = sub_x
+        self.output_history[index, :] = y
+        self.n_observed += 1
+
+        if self.n_observed % self.reweight_every == 0:
+            self.reweight()
+
+    def reweight(self):
+        if self.n_observed < 2:
+            return
+        sample_size = min(self.n_observed, 15)
+        sample = self.rng.permutation(min(self.n_observed, self.maxlen))[:sample_size]
+        external_weight_vec = numpy.ones(self.maxlen)
+        external_weight_vec[sample] = 0
+        f = self.make_jax_pred_f()
+        def evaluate(length_scales):
+            if numpy.any(length_scales <= 1e-10) or numpy.any(length_scales > 1e6):
+                return numpy.inf
+
+            errors = numpy.zeros(sample_size)
+            for i, idx in enumerate(sample):
+                try:
+                    errors[i] = numpy.linalg.norm(f([h[idx] for h in self.input_histories], length_scales, weight_modifiers=external_weight_vec) - self.output_history[idx])**2
+                except (OverflowError, ZeroDivisionError):
+                    errors[i] = numpy.inf
+            return numpy.mean(errors)
+
+        current = evaluate(self.length_scales)
+        new_length_scales = numpy.array(self.length_scales)
+
+        coefs = numpy.logspace(-1, 1, 5)
+        for i in range(len(self.length_scales)):
+            errors = numpy.zeros(5)
+            for j, coef in enumerate(coefs):
+                if coef == 1:
+                    errors[j] = current
+                    continue
+                test_length_scales = numpy.array(self.length_scales)
+                test_length_scales[i] *= coef
+                errors[j] = evaluate(test_length_scales)
+            new_length_scales[i] *= coefs[numpy.argmin(errors)]
+
+        self.log['length_scales'].append(numpy.array(self.length_scales))
+        lr = 0.05
+        self.length_scales = numpy.exp(numpy.log(self.length_scales) * lr + numpy.log(new_length_scales) * (1-lr))
+
+    def plot_length_scales(self, ax):
+        for series, label in zip(numpy.array(self.log['length_scales']).T, self.input_names):
+            ax.plot(series, label=label + ' curvy')
+        ax.semilogy()
+
+
+    def make_jax_pred_f(self):
+        # TODO: precompute
+        if self.input_histories is None:
+            def f(x):
+                return numpy.array([[numpy.nan]])
+        else:
+            input_histories = [jnp.nan_to_num(h, nan=jnp.inf) for h in self.input_histories]
+            output_history = jnp.array(self.output_history)
+            ones = jnp.ones(len(self.output_history))
+            def f(x, length_scales=jnp.array(self.length_scales), weight_modifiers=ones):
+                log_weights = 0
+                for (sub_x, history, length_scale) in zip(x, input_histories, length_scales):
+                    distances = jnp.linalg.norm(history - jnp.squeeze(sub_x), axis=1)
+                    distances = jnp.nan_to_num(distances, nan = jnp.inf)
+                    log_weights += -length_scale * jnp.square(distances)
+                log_weights = jnp.nan_to_num(log_weights, nan=-numpy.inf, neginf=-numpy.inf)
+                log_sum = jax.scipy.special.logsumexp(log_weights, b=weight_modifiers)
+                log_weights = log_weights - log_sum
+
+                return jnp.exp(jnp.clip(log_weights, max=0, min=-30)) @ output_history
         return f
 
     def predict(self, x):
