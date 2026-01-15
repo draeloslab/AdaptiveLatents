@@ -7,6 +7,7 @@ import itertools
 import copy
 import warnings
 from enum import Enum
+from adaptive_latents.utils import angle_between
 
 class OptimizationMethod(str, Enum):
     JAXOPT = 'jaxopt'
@@ -14,6 +15,7 @@ class OptimizationMethod(str, Enum):
     CHEAT_LOWD_VEC = 'cheat_lowd_vec'
     CHEAT_HIGHD_VEC_SINGLE_NEURONS = 'cheat_highd_vec_single_neurons'
     CHEAT_HIGHD_VEC_MANY_NEURONS = 'cheat_highd_vec_many_neurons'  # TODO: this isn't really cheating, change the name?
+    HOMOGENOUS = 'homogenous'
 
 
 class StimDesigner:
@@ -155,7 +157,8 @@ class StimDesigner:
         def objective(u):
             s = u_to_s_function(u)
             s_norm = jnp.linalg.norm(s)
-            loss = self.lam_1 * (self.max_l0_norm - jnp.sum(jnp.abs(u)))
+            loss = 0
+            loss += self.lam_1 * (self.max_l0_norm - jnp.sum(jnp.abs(u)))
             loss += jnp.dot(s, v) / (s_norm + 1e-10)
             return -loss.reshape()
 
@@ -167,6 +170,7 @@ class StimDesigner:
         runner = ScipyBoundedMinimize(fun=objective, method='l-bfgs-b', callback=lambda xk: intermediate_xs.append(xk) if self.should_log else None)
         result = runner.run(u, bounds=bounds)
         u = numpy.array(result.params)
+        intermediate_xs.append(u)
 
         if u.max() > 0:
             u = numpy.array(u / u.max())
@@ -175,7 +179,15 @@ class StimDesigner:
         idx = numpy.argsort(u)
         u[idx[:-self.max_l0_norm]] = 0
 
-        return u, {'s': u_to_s_function(u), 'intermediate_xs': numpy.array(intermediate_xs)}
+        l = {'s': u_to_s_function(u), 'intermediate_xs': numpy.array(intermediate_xs)}
+        if self.should_log:
+            l['result'] = result
+            l['intermediate_objective'] = [objective(xk) for xk in intermediate_xs]
+            l['intermediate_objective_l1'] = [-self.lam_1 * (self.max_l0_norm - jnp.sum(jnp.abs(xk))) for xk in intermediate_xs]
+            l['intermediate_objective_proj'] = numpy.array(l['intermediate_objective']) - numpy.array(l['intermediate_objective_l1'])
+
+
+        return u, l
 
     # design_stim_jaxopt_unconstrained
     def design_stim_jaxopt_unconstrained(self, v, u_dimension, u_to_s_function=None):
@@ -214,6 +226,25 @@ class StimDesigner:
         return u, {'s': u_to_s_function(u), 'intermediate_xs': numpy.array(intermediate_xs)}
 
 
+    def design_stim_homogenous(self, v, u_dimension, u_to_s_function=None):
+        u, l = self.design_stim_jaxopt(v, u_dimension, u_to_s_function)
+
+        thresholds = numpy.linspace(.05, .7, 12)
+        angles = []
+        for threshold in thresholds:
+            u_thresh = u.copy()
+            u_thresh[u_thresh > threshold] = 1
+            u_thresh[u_thresh <= threshold] = 0
+            angles.append(angle_between(v, u_to_s_function(u_thresh)))
+        threshold = thresholds[numpy.argmin(angles)]
+
+        if threshold in {thresholds[0], thresholds[-1]}:
+            warnings.warn("Threshold found at edge of search space.")
+
+        u[u > threshold] = 1
+        u[u <= threshold] = 0
+        l['s'] = u_to_s_function(u)
+        return u, l
 
     def design_stim(self, v, optimization_method=None, **kwargs):
         start_time = time.time()
@@ -226,6 +257,8 @@ class StimDesigner:
         match optimization_method:
             case OptimizationMethod.JAXOPT:
                 u, l = self.design_stim_jaxopt(v, kwargs['u_dimension'], kwargs['u_to_s_function'])
+            case OptimizationMethod.HOMOGENOUS:
+                u, l = self.design_stim_homogenous(v, kwargs['u_dimension'], kwargs['u_to_s_function'])
             case OptimizationMethod.PREV_SEEN:
                 u, l = self.design_stim_prev_seen(v, kwargs['previous_us'], kwargs['u_to_s_function'])
             case OptimizationMethod.CHEAT_LOWD_VEC:
@@ -257,12 +290,12 @@ class StimDesigner:
         if sr.stim_reg.n_observed <= self.n_random_initialization and (u_to_s_model_type == 'kernel_regressed' or optimization_method == 'prev_seen'):
             # u_to_s_model_type = 'identity'
             u_to_s_model_type = None
-            optimization_method = 'cheat_highd_vec_many_neurons'
+            optimization_method = OptimizationMethod.CHEAT_HIGHD_VEC_MANY_NEURONS
 
 
-        if optimization_method in {'jaxopt', 'prev_seen'}:
+        if optimization_method in {OptimizationMethod.JAXOPT, OptimizationMethod.PREV_SEEN, OptimizationMethod.HOMOGENOUS}:
             stim_reg = sr.stim_reg
-            previous_us = stim_reg.input_histories[1][:stim_reg.n_observed] if optimization_method == 'prev_seen' else None
+            previous_us = stim_reg.input_histories[1][:stim_reg.n_observed] if optimization_method == OptimizationMethod.PREV_SEEN else None
             if u_to_s_model_type == 'kernel_regressed':
                 f = stim_reg.make_jax_pred_f()
                 pred = sr.autoreg.predict(n_steps=0)
@@ -273,9 +306,9 @@ class StimDesigner:
                 def u_to_s_function(u):
                     return stim_magnitude * equivalent_projection_matrix.T @ u
                 designed_stim = self.design_stim(desired_stim, u_to_s_function=u_to_s_function, u_dimension=equivalent_projection_matrix.shape[0], previous_us=previous_us)
-        elif optimization_method == 'cheat_lowd_vec' and u_to_s_model_type == 'identity':
+        elif optimization_method == OptimizationMethod.CHEAT_LOWD_VEC and u_to_s_model_type == 'identity':
             designed_stim = self.design_stim(desired_stim, equivalent_projection_matrix=equivalent_projection_matrix)
-        elif optimization_method in {'cheat_highd_vec_single_neurons','cheat_highd_vec_many_neurons'} and u_to_s_model_type is None:
+        elif optimization_method in {OptimizationMethod.CHEAT_HIGHD_VEC_SINGLE_NEURONS, OptimizationMethod.CHEAT_HIGHD_VEC_MANY_NEURONS,} and u_to_s_model_type is None:
             designed_stim = self.design_stim(desired_stim, equivalent_projection_matrix=equivalent_projection_matrix, optimization_method=optimization_method)
         else:
             raise ValueError()
