@@ -152,8 +152,6 @@ class StimDesigner:
         if u_to_s_function is None:
             u_to_s_function = lambda x: x
 
-        u = self.rng.uniform(size=(u_dimension,)) * .1
-
         def objective(u):
             s = u_to_s_function(u)
             s_norm = jnp.linalg.norm(s)
@@ -162,19 +160,29 @@ class StimDesigner:
             loss += jnp.dot(s, v) / (s_norm + 1e-10)
             return -loss.reshape()
 
-        lb = jnp.zeros_like(u)
-        ub = jnp.ones_like(u)
-
-        bounds = (lb, ub)
         intermediate_xs = []
-        runner = ScipyBoundedMinimize(fun=objective, method='l-bfgs-b', callback=lambda xk: intermediate_xs.append(xk) if self.should_log else None)
-        result = runner.run(u, bounds=bounds)
-        u = numpy.array(result.params)
-        intermediate_xs.append(u)
+        for i in range(5):
+            u = self.rng.uniform(size=(u_dimension,))
+
+            lb = jnp.zeros_like(u)
+            ub = jnp.ones_like(u)
+
+            bounds = (lb, ub)
+            runner = ScipyBoundedMinimize(tol=0,fun=objective, method='l-bfgs-b', options=dict(ftol=0, gtol=0), callback=lambda xk: intermediate_xs.append(xk) if self.should_log else None)
+            result = runner.run(u, bounds=bounds)
+            u = numpy.array(result.params)
+            intermediate_xs.append(u)
+            if i == 4:
+                intermediate_xs.append(numpy.nan * u)
+                import inspect
+                _u,_ = self.design_stim_prev_seen(v, inspect.stack()[3][0].f_locals['stim_reg'].input_histories[1], u_to_s_function=u_to_s_function)
+                intermediate_xs.append(_u)
+            else:
+                intermediate_xs.append(numpy.nan * u)
+
 
         if u.max() > 0:
             u = numpy.array(u / u.max())
-
 
         idx = numpy.argsort(u)
         u[idx[:-self.max_l0_norm]] = 0
@@ -185,6 +193,8 @@ class StimDesigner:
             l['intermediate_objective'] = [objective(xk) for xk in intermediate_xs]
             l['intermediate_objective_l1'] = [-self.lam_1 * (self.max_l0_norm - jnp.sum(jnp.abs(xk))) for xk in intermediate_xs]
             l['intermediate_objective_proj'] = numpy.array(l['intermediate_objective']) - numpy.array(l['intermediate_objective_l1'])
+            l['u_to_s_function'] = u_to_s_function
+            l['objective'] = objective
 
 
         return u, l
