@@ -195,10 +195,10 @@ def align_column_spaces(A, B):
     return (R @ A).T, (B).T
 
 
-def angle_between(v1, v2):
+def angle_between(v1, v2, radians=False):
     v1_u = v1.flatten() / np.linalg.norm(v1)
     v2_u = v2.flatten() / np.linalg.norm(v2)
-    return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)) * 180.0 / np.pi
+    return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)) * (180.0 / np.pi if not radians else 1.0)
 
 
 def principle_angles(Q1, Q2):

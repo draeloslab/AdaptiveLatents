@@ -8,7 +8,7 @@ from copy import deepcopy
 from adaptive_latents import ArrayWithTime, proSVD
 
 def load_daie():
-    f = h5py.File('/mnt/data/datasets/daie21/Daie_et_al_2020_targeted_photostim.mat')
+    f = h5py.File('/mnt/data/daie21/Daie_et_al_2020_targeted_photostim.mat')
 
     n_sessions = f['data']['dt_si'].shape[0]
     session_n = 0

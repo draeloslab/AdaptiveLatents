@@ -19,6 +19,7 @@ from .pro_pls import proPLS
 from .prosvd import RandomProjection, proSVD
 from .regressions import VanillaOnlineRegressor, BaseMultiKernelRegressor
 from .stim_regressor import StimRegressor
+from .stim_designer import StimDesigner
 from .timed_data_source import ArrayWithTime
 from .estimator import CenteringEstimator, Concatenator, KernelSmoother, Pipeline, Tee, ZScoringEstimator
 from . import sim_stim
