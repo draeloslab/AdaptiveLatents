@@ -24,17 +24,17 @@ from . import sim_stim
 
 try:
     from .input_sources import datasets
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     pass
 
 try:
     from .ica import mmICA
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     pass
 
 try:
     from .vjf import VJF
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     pass
 
 # TODO: remove https://kmichel.github.io/python-importtime-graph/

@@ -15,8 +15,17 @@ from .timed_data_source import ArrayWithTime
 from .transformer import Pipeline, CenteringTransformer, KernelSmoother, StreamingTransformer
 from .stim_regressor import StimRegressor
 from .bubblewrap import Bubblewrap
-from .ica import mmICA
-from .jpca import sjPCA
+
+try:
+    from .ica import mmICA
+except (ImportError, ModuleNotFoundError):
+    pass
+
+try:
+    from .jpca import sjPCA
+except (ImportError, ModuleNotFoundError):
+    pass
+
 from .prosvd import proSVD
 from .input_sources.kalman_filter import StreamingKalmanFilter
 from .regressions import BaseMultiKernelRegressor
