@@ -2,3 +2,4 @@ jax_platform_name: 'cpu'
 dataset_path: ../datasets
 cache_path: ../al_generated/caches
 attempt_to_cache: False
+dataset_path: /mnt/data/datasets
