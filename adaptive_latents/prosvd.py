@@ -222,7 +222,7 @@ class RandomProjection(TypicalEstimator):
         pass
 
     def instance_get_params(self, deep=True):
-        return dict(k=self.k, rng_seed=self.rng_seed)
+        return dict(k=self.k, rng_seed=self.rng_seed, mode=self.mode)
 
     def transform_for_X(self, X):
         return X @ self.random_matrix
