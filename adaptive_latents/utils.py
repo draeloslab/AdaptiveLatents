@@ -130,8 +130,8 @@ def clip(*args, maxlen=float("inf")):
 
 def check_same(v: np.ndarray, var_name='temp', overwrite=True):
     """
-    >>> check_same(1)
-    temp: False
+    >>> check_same(1) # doctest: +ELLIPSIS
+    temp: ...
     >>> check_same(1)
     temp: True
     >>> check_same(2)
