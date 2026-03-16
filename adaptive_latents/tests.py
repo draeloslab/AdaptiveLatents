@@ -1,5 +1,6 @@
 import numpy as np
-from adaptive_latents.estimator import StreamingEstimator, DecoupledEstimator, pickle, copy
+from adaptive_latents.estimator import StreamingEstimator, DecoupledEstimator, pickle, copy, Predictor, ArrayWithTime
+import warnings
 
 def check_api_compatible(constructor, rng=None, DIM=None):
     check_streaming_estimator_api_compatible(constructor, rng, DIM)
@@ -60,8 +61,9 @@ class StreamingEstimatorTests:
             transformer = pickle.load(f)
 
         for data, s in transformer.expected_data_streams(rng, DIM):
-            assert np.array_equal(transformer.step(data, s), t2.step(data, s),
-                                  equal_nan=True)
+            a = transformer.step(data, s)
+            b = t2.step(data, s)
+            assert np.array_equal(a, b, equal_nan=True)
 
 
     @staticmethod

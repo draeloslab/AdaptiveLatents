@@ -234,7 +234,7 @@ class VJF(Predictor, BaseVJF):
             if len(self.last_seen) == (1 + self.take_U):
                 y, u = self.get_y_and_u()
 
-                grad_kwargs = {m:self.parameter_fitting for m in ['decoder', 'encoder', 'dynamics', 'noise']}
+                grad_kwargs = {m:self.currently_parameter_fitting for m in ['decoder', 'encoder', 'dynamics', 'noise']}
                 BaseVJF.observe(self, y, u, grad_kwargs=grad_kwargs)
 
     def predict(self, n_steps):

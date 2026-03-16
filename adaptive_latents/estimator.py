@@ -372,12 +372,16 @@ class Pipeline(DecoupledEstimator):
 class Predictor(StreamingEstimator):
     stream_to_update_log_on = None
     def __init__(self, input_streams=None, output_streams=None, log_level=None, check_dt=False, n_steps_to_predict=1):
-        input_streams = input_streams or {0: 'X', 1: 'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}
+        input_streams = input_streams or {0: 'X', 1: 'dt_X'}
         super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level)
         self.check_dt = check_dt
         self.dt = None
         self._last_X_t = None
-        self.parameter_fitting = True
+        self.currently_parameter_fitting = True
+        self.currently_observing = True
+
+        self.no_parameter_fitting_intervals = []
+        self.no_observation_intervals = []
 
         self.n_steps_to_predict = n_steps_to_predict
         self.unevaluated_log_pred_ps = {}
@@ -463,9 +467,9 @@ class Predictor(StreamingEstimator):
 
     def toggle_parameter_fitting(self, value=None):
         if value is not None:
-            self.parameter_fitting = bool(value)
+            self.currently_parameter_fitting = bool(value)
         else:
-            self.parameter_fitting = not self.parameter_fitting
+            self.currently_parameter_fitting = not self.currently_parameter_fitting
 
     def _step(self, data, stream, return_output_stream):
         if self.input_streams[stream] == 'X':
@@ -484,6 +488,23 @@ class Predictor(StreamingEstimator):
                         self.dt = dt
                 self._last_X_t = data.t
 
+            self.no_parameter_fitting_intervals = [i for i in self.no_parameter_fitting_intervals if i[1] >= data.t]
+            for interval in self.no_parameter_fitting_intervals:
+                if interval[0] <= data.t <= interval[1]:
+                    self.toggle_parameter_fitting(False)
+                    break
+            else:
+                self.toggle_parameter_fitting(True)
+
+
+            self.no_observation_intervals = [i for i in self.no_observation_intervals if i[1] >= data.t]
+            for interval in self.no_observation_intervals:
+                if interval[0] <= data.t <= interval[1]:
+                    self.currently_observing = False
+                    break
+            else:
+                pass
+
             data_depth = 1
             assert data.shape[0] == data_depth
 
@@ -498,8 +519,6 @@ class Predictor(StreamingEstimator):
             steps = self.data_to_n_steps(data)
             pred = self.predict(n_steps=steps)
             data = ArrayWithTime.from_transformed_data(pred, data)
-        elif self.input_streams[stream] == 'toggle_parameter_fitting':
-            self.toggle_parameter_fitting(data)
 
         return (data, stream) if return_output_stream else data
 
@@ -563,7 +582,6 @@ class Predictor(StreamingEstimator):
         for i in range(1, cycles+1):
             yield ArrayWithTime(rng.normal(size=(1, DIM)), t=i*dt + start_t), 'X'
             yield ArrayWithTime(np.ones((1, 1)) * dt, t=i*dt+ start_t), 'dt_X'
-            yield ArrayWithTime(np.ones((1, 1)) * (rng.random() > .9), t=i*dt+ start_t), 'toggle_parameter_fitting'
 
 
 
