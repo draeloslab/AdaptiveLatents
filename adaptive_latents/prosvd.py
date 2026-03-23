@@ -157,12 +157,12 @@ class proSVD(TypicalEstimator, BaseProSVD):
     def get_distance_from_subspace_over_time(self, subspace):
         assert self.log_level >= 2
         m = len(self.log['Q'])
-        distances = np.empty(m)
+        distances = []
         for j, Q in enumerate(self.log['Q']):
             if np.any(np.isnan(Q)):
-                distances[j] = np.nan
+                distances.append(np.nan)
                 continue
-            distances[j] = ArrayWithTime(column_space_distance(Q, subspace, method='angles'), Q.t)
+            distances.append(ArrayWithTime(column_space_distance(Q, subspace, method='angles'), Q.t))
         distances = ArrayWithTime.from_list(distances)
         return distances
 

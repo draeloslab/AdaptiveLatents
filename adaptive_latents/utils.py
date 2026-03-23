@@ -222,7 +222,7 @@ def column_space_distance(Q1, Q2, method='angles', override_ortho_check=False):
         warnings.warn('this method is intended to be used for only orthogonal matrices')
 
     if method == 'angles':
-        return np.abs(principle_angles(Q1, Q2)).sum()
+        return np.linalg.norm(principle_angles(Q1, Q2))
     elif method == 'aligned_diff':
         Q1_rotated, Q2 = align_column_spaces(Q1, Q2)
         return np.linalg.norm(Q1_rotated - Q2)
