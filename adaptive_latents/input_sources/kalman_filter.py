@@ -128,12 +128,13 @@ class KalmanFilter:
 class StreamingKalmanFilter(Predictor, KalmanFilter):
     base_algorithm = KalmanFilter
     def __init__(self, *, steps_between_refits = 25, use_steady_state_k=False, subtract_means=True, no_hidden_state=True, input_streams=None, output_streams=None, log_level=None, check_dt=False, n_steps_to_predict=1, max_history_length=5000):
-        input_streams = input_streams or {0: 'X', 1: 'Y', 2: 'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}
+        input_streams = input_streams or {0: 'X', 1: 'Y', 2: 'dt_X'}
         Predictor.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level, check_dt=check_dt, n_steps_to_predict=n_steps_to_predict)
         KalmanFilter.__init__(self, use_steady_state_k=use_steady_state_k, subtract_means=subtract_means)
         self.no_hidden_state = no_hidden_state
         self.steps_between_refits = steps_between_refits
         self.max_history_length = max_history_length
+        self.trim_on_next_observation = False
 
         self.last_seen = {}
         self.latent_state_history = [[]]
@@ -148,47 +149,62 @@ class StreamingKalmanFilter(Predictor, KalmanFilter):
         return predicted_observation
 
     def observe(self, X, stream=None):
+        if self.trim_on_next_observation:
+            self.trim_from_parameter_fitting_gap()
+            self.trim_on_next_observation = False
+
         semantic_stream = self.input_streams[stream]
         if semantic_stream in {'X', 'Y'}:
-            if self.parameter_fitting:
-                self.last_seen[semantic_stream] = X
+            if self.get_data_observation_state():
+                if self.get_parameter_fitting_state():
+                    self.last_seen[semantic_stream] = X
 
-            if ('Y' in self.last_seen or self.no_hidden_state) and 'X' in self.last_seen and self.parameter_fitting:
-                self.observation_history[-1].append(self.last_seen['X'])
-                self.latent_state_history[-1].append(self.last_seen['X' if self.no_hidden_state else 'Y'])
+                if ('Y' in self.last_seen or self.no_hidden_state) and 'X' in self.last_seen and self.get_parameter_fitting_state():
+                    self.observation_history[-1].append(self.last_seen['X'])
+                    self.latent_state_history[-1].append(self.last_seen['X' if self.no_hidden_state else 'Y'])
 
-            if semantic_stream == 'X' and self.A is not None:
-                self.kf_step(X)
+                if semantic_stream == 'X' and self.A is not None:
+                    self.kf_step(X)
 
-            assert len(self.latent_state_history[-1]) == len(self.observation_history[-1])
-            n_seen = sum(len(x) if len(x) > 1 else 0 for x in self.observation_history)
-            if (
-                    n_seen % self.steps_between_refits == 0
-                    and len(self.observation_history[-1]) > 1
-                    and self.parameter_fitting
-            ):
-                self.fit(X=self.latent_state_history, Y=self.observation_history)
-                latent = np.squeeze(self.latent_state_history[-1])
-                obs = np.squeeze(self.observation_history[-1])
+                assert len(self.latent_state_history[-1]) == len(self.observation_history[-1])
+                n_seen = sum(len(x) if len(x) > 1 else 0 for x in self.observation_history)
+                if (
+                        n_seen % self.steps_between_refits == 0
+                        and len(self.observation_history[-1]) > 1
+                        and self.get_parameter_fitting_state()
+                ):
+                    self.fit(X=self.latent_state_history, Y=self.observation_history)
+                    latent = np.squeeze(self.latent_state_history[-1])
+                    obs = np.squeeze(self.observation_history[-1])
 
-                while sum([len(x) for x in self.observation_history]) > self.max_history_length:
-                    if len(self.observation_history[0]) == 2:
-                        self.observation_history.pop(0)
-                        self.latent_state_history.pop(0)
-                    else:
-                        self.observation_history[0].pop(0)
-                        self.latent_state_history[0].pop(0)
+                    while sum([len(x) for x in self.observation_history]) > self.max_history_length:
+                        if len(self.observation_history[0]) == 2:
+                            self.observation_history.pop(0)
+                            self.latent_state_history.pop(0)
+                        else:
+                            self.observation_history[0].pop(0)
+                            self.latent_state_history[0].pop(0)
 
 
-                constant = min(self.steps_between_refits, len(obs)) # TODO: set this more rigorously
-                self.state = latent[obs.shape[0]-constant]
-                for i in range(constant):
-                    self.kf_step(Y=obs[obs.shape[0] - constant + i])
+                    constant = min(self.steps_between_refits, len(obs)) # TODO: set this more rigorously
+                    self.state = latent[obs.shape[0]-constant]
+                    for i in range(constant):
+                        self.kf_step(Y=obs[obs.shape[0] - constant + i])
+            else:
+                # autonomous dynamics
+                self.kf_step()
 
-    def toggle_parameter_fitting(self, value=None):
-        before = self.parameter_fitting
-        super().toggle_parameter_fitting(value)
-        if before and not self.parameter_fitting:
+    def set_parameter_fitting_state(self, value=None):
+        before = self.get_parameter_fitting_state()
+        super().set_parameter_fitting_state(value)
+        if before and not self.get_parameter_fitting_state():
+            self.trim_on_next_observation = True
+
+        if self.get_parameter_fitting_state():
+            self.trim_on_next_observation = False
+
+
+    def trim_from_parameter_fitting_gap(self):
             self.last_seen = {}
             if len(self.latent_state_history[-1]) > 1:
                 self.latent_state_history.append([])

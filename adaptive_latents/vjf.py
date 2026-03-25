@@ -124,6 +124,10 @@ class BaseVJF:
 
         self.q, loss = self._vjf.feed((y_t, u_t), self.q, **grad_kwargs)
 
+    def evolve_autonomously(self, n_steps=1):
+        # TODO
+        raise NotImplementedError()
+
     @staticmethod
     def diagonal_normal_logpdf(mean, variance, sample):
         mean = mean.flatten()
@@ -234,8 +238,11 @@ class VJF(Predictor, BaseVJF):
             if len(self.last_seen) == (1 + self.take_U):
                 y, u = self.get_y_and_u()
 
-                grad_kwargs = {m:self.currently_parameter_fitting for m in ['decoder', 'encoder', 'dynamics', 'noise']}
-                BaseVJF.observe(self, y, u, grad_kwargs=grad_kwargs)
+                grad_kwargs = {m:self.get_parameter_fitting_state() for m in ['decoder', 'encoder', 'dynamics', 'noise']}
+                if self.get_data_observation_state():
+                    BaseVJF.observe(self, y, u, grad_kwargs=grad_kwargs)
+                else:
+                    BaseVJF.evolve_autonomously(self, n_steps=1)
 
     def predict(self, n_steps):
         if self.q is None:

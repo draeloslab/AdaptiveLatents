@@ -6,8 +6,10 @@ import pytest
 
 import adaptive_latents
 from adaptive_latents import VJF, ArrayWithTime, Bubblewrap
+from adaptive_latents.estimator import Predictor, Pipeline
 from adaptive_latents.input_sources import AR_K, LDS, KalmanFilter
 from adaptive_latents.input_sources.kalman_filter import StreamingKalmanFilter
+from adaptive_latents.stim_regressor import StimRegressor
 
 longrun = pytest.mark.skipif("not config.getoption('longrun')")
 
@@ -91,15 +93,19 @@ def test_ar_k(rng, rank_limit, show_plots):
 
 
 @pytest.fixture(params=[
+    pytest.param('stim_regressor', marks=pytest.mark.skip),
     pytest.param('kalman_filter', marks=()),
     pytest.param('bubblewrap', marks=longrun),
     pytest.param('VJF', marks=longrun),
 ])
 def fitted_predictor_tuple(request, rng):
-    predictor: adaptive_latents.predictor.Predictor
+    predictor: Predictor
     match request.param:
         case 'kalman_filter':
             predictor = StreamingKalmanFilter()
+            n_rotations = 10
+        case 'stim_regressor':
+            predictor = StimRegressor()
             n_rotations = 10
         case 'bubblewrap':
             predictor = Bubblewrap()
@@ -208,7 +214,8 @@ def test_predictor_pdf(fitted_predictor_tuple, show_plots):
     assert pdf_b_to_b(b) > pdf_a_to_b(b) > pdf_b_to_a(b) >= pdf_a_to_a(b)
 
 
-def test_can_turn_off_parameter_learning(fitted_predictor_tuple, rng):
+@pytest.mark.parametrize('subordinate_mode', ['autonomous', 'subordinate'])
+def test_can_turn_off_parameter_learning(fitted_predictor_tuple, rng, subordinate_mode):
     predictor, Y_train, Y_test, transitions_per_rotation = fitted_predictor_tuple
 
     Y2, Y3 = (
@@ -216,15 +223,63 @@ def test_can_turn_off_parameter_learning(fitted_predictor_tuple, rng):
         Y_test.slice(slice(len(Y_test)//2, None)),
     )
 
+    # test manual switching case
     dynamics_param = copy.deepcopy(predictor.get_arbitrary_dynamics_parameter())
 
-    predictor.toggle_parameter_fitting(False)
-    predictor.offline_run_on([(Y2, 'X')], convinient_return=False)
-    assert (dynamics_param == predictor.get_arbitrary_dynamics_parameter()).all()
+    match subordinate_mode:
+        case 'subordinate':
+            predictor.set_parameter_fitting_state(False)
+            predictor.offline_run_on([(Y2, 'X')], convinient_return=False)
 
-    predictor.toggle_parameter_fitting(True)
+            predictor.set_parameter_fitting_state(True)
+        case 'autonomous':
+            predictor.add_event((Y2.t[0], Y2.t[-1]))
+            predictor.offline_run_on([(Y2, 'X')], convinient_return=False)
+
+
+    assert np.array_equal(dynamics_param, predictor.get_arbitrary_dynamics_parameter())
+
     predictor.offline_run_on([(Y3, 'X')], convinient_return=False)
-    assert not np.isclose(dynamics_param, predictor.get_arbitrary_dynamics_parameter()).all()
+    assert not np.array_equal(dynamics_param, predictor.get_arbitrary_dynamics_parameter())
+
+
+@pytest.mark.parametrize('subordinate_mode', ['autonomous', 'subordinate'])
+def test_can_turn_off_observations(fitted_predictor_tuple, rng, subordinate_mode):
+    predictor, Y_train, Y_test, transitions_per_rotation = fitted_predictor_tuple
+    control_predictor = copy.deepcopy(predictor)
+
+    Y2, Y3 = (
+        Y_test.slice(slice(None, len(Y_test)//2)),
+        Y_test.slice(slice(len(Y_test)//2, None)),
+    )
+
+
+    state1 = copy.deepcopy(predictor.get_state())
+    dynamics_param1 = copy.deepcopy(predictor.get_arbitrary_dynamics_parameter())
+
+
+    match subordinate_mode:
+        case 'subordinate':
+            predictor.set_data_observation_state(False)
+            for p in [predictor, control_predictor]:
+                p.offline_run_on([(Y2, 'X')], convinient_return=False)
+            predictor.set_data_observation_state(True)
+        case 'autonomous':
+            predictor.add_event((Y2.t[0], Y2.t[-1]))
+            for p in [predictor, control_predictor]:
+                p.offline_run_on([(Y2, 'X')], convinient_return=False)
+
+
+    state2 = predictor.get_state()
+    state3 = control_predictor.get_state()
+    assert (state1 != state2).all()
+    assert (state1 != state3).all()
+    assert (state2 != state3).all()
+
+    dynamics_param2 = predictor.get_arbitrary_dynamics_parameter()
+    dynamics_param3 = control_predictor.get_arbitrary_dynamics_parameter()
+    assert (dynamics_param1 == dynamics_param2).all()
+    assert not np.isclose(dynamics_param1, dynamics_param3).all()
 
 def test_kf_refit_every_step(rng):
     transitions_per_rotation = 30 + 1/np.pi
@@ -234,3 +289,42 @@ def test_kf_refit_every_step(rng):
     kf = StreamingKalmanFilter(steps_between_refits=1)
 
     kf.offline_run_on(Y)
+
+def test_state_toggle_cycle_has_no_side_effects(fitted_predictor_tuple):
+    predictor, Y_train, Y_test, transitions_per_rotation = fitted_predictor_tuple
+    predictor: Predictor
+
+    Y2, Y3 = (
+        Y_test.slice(slice(None, len(Y_test)//2)),
+        Y_test.slice(slice(len(Y_test)//2, None)),
+    )
+
+    negative_control_predictor = copy.deepcopy(predictor)
+    negative_control_predictor.offline_run_on([(Y2, 'X')])
+    negative_control_predictor.offline_run_on([(Y3, 'X')])
+
+    positive_control_predictor = copy.deepcopy(predictor)
+    positive_control_predictor.offline_run_on([(Y2, 'X')])
+    positive_control_predictor.set_data_observation_state(False)
+    positive_control_predictor.offline_run_on([(Y3, 'X')])
+
+    param_test_predictor = copy.deepcopy(predictor)
+    param_test_predictor.offline_run_on([(Y2, 'X')])
+    param_test_predictor.set_parameter_fitting_state(False)
+    param_test_predictor.set_parameter_fitting_state(True)
+    param_test_predictor.offline_run_on([(Y3, 'X')])
+
+    data_obs_test_predictor = copy.deepcopy(predictor)
+    data_obs_test_predictor.offline_run_on([(Y2, 'X')])
+    data_obs_test_predictor.set_data_observation_state(False)
+    data_obs_test_predictor.set_data_observation_state(True)
+    data_obs_test_predictor.offline_run_on([(Y3, 'X')])
+
+    neg = negative_control_predictor.get_arbitrary_dynamics_parameter()
+    pos = positive_control_predictor.get_arbitrary_dynamics_parameter()
+    par = param_test_predictor.get_arbitrary_dynamics_parameter()
+    dat = data_obs_test_predictor.get_arbitrary_dynamics_parameter()
+
+    assert np.array_equal(neg, par)
+    assert np.array_equal(neg, dat)
+    assert not np.array_equal(neg, pos)

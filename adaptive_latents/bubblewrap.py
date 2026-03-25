@@ -546,7 +546,7 @@ class Bubblewrap(Predictor, BaseBubblewrap):
                  n_steps_to_predict=1, check_dt=False,
                  **kwargs,  # see BaseBubblewrap parameters, there are too many
              ):
-        input_streams = input_streams or {0: 'X', 'dt': 'dt', 'dt_X':'dt_X', 'toggle_parameter_fitting': 'toggle_parameter_fitting'}
+        input_streams = input_streams or {0: 'X', 'dt': 'dt', 'dt_X':'dt_X'}
         Predictor.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level, check_dt=check_dt)
         BaseBubblewrap.__init__(self, **kwargs)
         self.unevaluated_predictions = {}
@@ -555,15 +555,19 @@ class Bubblewrap(Predictor, BaseBubblewrap):
 
     def observe(self, X, stream=None):
         assert X.shape[0] == 1
-        BaseBubblewrap.observe(self, X[0])
+        if self.get_data_observation_state():
+            BaseBubblewrap.observe(self, X[0])
 
-        if not self.is_initialized and self.obs.n_obs > self.M:
-            self.init_nodes()
+            if not self.is_initialized and self.obs.n_obs > self.M:
+                self.init_nodes()
 
-        if self.is_initialized:
-            self.e_step()
-            if self.parameter_fitting:
-                self.grad_Q()
+            if self.is_initialized:
+                self.e_step()
+                if self.get_parameter_fitting_state():
+                    self.grad_Q()
+        else:
+            if self.is_initialized: # autonomous dynamics
+                self.alpha = self.alpha @ self.A
 
     def predict(self, n_steps):
         if not self.is_initialized:

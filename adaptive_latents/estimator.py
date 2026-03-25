@@ -368,6 +368,30 @@ class Pipeline(DecoupledEstimator):
     def __str__(self):
         return f"{self.__class__.__name__}([{', '.join(str(s) for s in self.steps)}])"
 
+class IgnoreDataEvent:
+    def __init__(self, no_fit_interval, no_observe_interval=None):
+        self.no_fit_interval = no_fit_interval
+
+        if no_observe_interval is None:
+            no_observe_interval = no_fit_interval
+        self.no_observe_interval = no_observe_interval
+
+    def get_data_observation_state(self, current_time) -> bool:
+        return not (self.no_observe_interval[0] <= current_time <= self.no_observe_interval[1])
+
+    def get_parameter_fitting_state(self, current_time) -> bool:
+        return not (self.no_fit_interval[0] <= current_time <= self.no_fit_interval[1])
+
+    def in_effect(self, current_time) -> bool:
+        return min(self.no_fit_interval[0], self.no_observe_interval[0]) <= current_time <= max(self.no_fit_interval[1], self.no_observe_interval[1])
+
+    def has_passed(self, current_time) -> bool:
+        return current_time > max(self.no_fit_interval[1], self.no_observe_interval[1])
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(no_fit_interval={self.no_fit_interval}, no_observe_interval={self.no_observe_interval})"
+
+
 
 class Predictor(StreamingEstimator):
     stream_to_update_log_on = None
@@ -377,11 +401,9 @@ class Predictor(StreamingEstimator):
         self.check_dt = check_dt
         self.dt = None
         self._last_X_t = None
-        self.currently_parameter_fitting = True
-        self.currently_observing = True
-
-        self.no_parameter_fitting_intervals = []
-        self.no_observation_intervals = []
+        self._parameter_fitting_state = True
+        self._data_observation_state = True
+        self.ignore_data_events: None | list[IgnoreDataEvent] = None
 
         self.n_steps_to_predict = n_steps_to_predict
         self.unevaluated_log_pred_ps = {}
@@ -408,6 +430,43 @@ class Predictor(StreamingEstimator):
     def unevaluated_log_pred_p(self, n_steps):
         pass
 
+    def get_data_observation_state(self):
+        return self._data_observation_state
+    def get_parameter_fitting_state(self):
+        return self._parameter_fitting_state
+
+    def set_parameter_fitting_state(self, value):
+        assert self.ignore_data_events is None
+        self._parameter_fitting_state = value
+    def set_data_observation_state(self, value):
+        assert self.ignore_data_events is None
+        self._data_observation_state = value
+
+    def update_states_based_on_events(self, current_time):
+        if self.ignore_data_events is None:
+            return
+
+        self.ignore_data_events = [e for e in self.ignore_data_events if not e.has_passed(current_time)]
+        current_events = [e for e in self.ignore_data_events if e.in_effect(current_time)]
+        if len(current_events):
+            assert len(current_events) == 1, 'overlapping events are not currently supported'
+            event = current_events[0]
+            self._parameter_fitting_state = event.get_parameter_fitting_state(current_time)
+            self._data_observation_state = event.get_data_observation_state(current_time)
+        else:
+            self._parameter_fitting_state = True
+            self._data_observation_state = True
+
+    def add_event(self, event):
+        if self.ignore_data_events is None:
+            self.ignore_data_events = []
+
+        if isinstance(event, tuple):
+            assert len(event) == 2
+            assert isinstance(event[0], float) or isinstance(event[0], int)
+            event = IgnoreDataEvent(no_fit_interval=event, no_observe_interval=event)
+
+        self.ignore_data_events.append(event)
 
     def step(self, data, stream=0, return_output_stream=False):
         original_data = None
@@ -465,11 +524,6 @@ class Predictor(StreamingEstimator):
                     self.unevaluated_log_pred_ps[current_t + real_time_offset] = (current_t, self.unevaluated_log_pred_p(self.n_steps_to_predict))
 
 
-    def toggle_parameter_fitting(self, value=None):
-        if value is not None:
-            self.currently_parameter_fitting = bool(value)
-        else:
-            self.currently_parameter_fitting = not self.currently_parameter_fitting
 
     def _step(self, data, stream, return_output_stream):
         if self.input_streams[stream] == 'X':
@@ -488,22 +542,7 @@ class Predictor(StreamingEstimator):
                         self.dt = dt
                 self._last_X_t = data.t
 
-            self.no_parameter_fitting_intervals = [i for i in self.no_parameter_fitting_intervals if i[1] >= data.t]
-            for interval in self.no_parameter_fitting_intervals:
-                if interval[0] <= data.t <= interval[1]:
-                    self.toggle_parameter_fitting(False)
-                    break
-            else:
-                self.toggle_parameter_fitting(True)
-
-
-            self.no_observation_intervals = [i for i in self.no_observation_intervals if i[1] >= data.t]
-            for interval in self.no_observation_intervals:
-                if interval[0] <= data.t <= interval[1]:
-                    self.currently_observing = False
-                    break
-            else:
-                pass
+            self.update_states_based_on_events(data.t)
 
             data_depth = 1
             assert data.shape[0] == data_depth
