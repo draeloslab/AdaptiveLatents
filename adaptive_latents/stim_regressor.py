@@ -1,10 +1,12 @@
 import functools
+import warnings
 from collections import deque
 
 import numpy as np
+from numba.core.ir import Raise
 
 from .input_sources.kalman_filter import StreamingKalmanFilter
-from .estimator import Predictor
+from .estimator import Predictor, IgnoreDataEvent
 from .regressions import BaseKNearestNeighborRegressor, OnlineRegressor, BaseMultiKernelRegressor
 from .timed_data_source import ArrayWithTime
 
@@ -66,12 +68,55 @@ class StimAutoReg():
             self.coeffs, _, _, _ = np.linalg.lstsq(corrections.reshape((-1, 1)), errors.reshape((-1, self.n_steps_to_consider)))
             self.coeffs = self.coeffs.flatten()
 
+class StimEvent(IgnoreDataEvent):
+    def __init__(self, no_fit_interval, difference_interval, u, no_observe_interval=None, delivery_time=None, eps=0, error_on_missed=True):
+        super().__init__(no_fit_interval=no_fit_interval, no_observe_interval=no_observe_interval, eps=eps)
+
+        self.delivery_time = delivery_time
+        self.difference_interval = difference_interval
+        self.u = u
+        self.state_at_pred = None
+        self.fufilled = False
+        self.error_on_missed = error_on_missed
+        self.predictions = {}
+
+        if difference_interval[1] < difference_interval[0]:
+            raise ValueError()
+
+    def in_effect(self, current_time) -> bool:
+        return min(self.no_fit_interval[0], self.no_observe_interval[0], self.difference_interval[0]) - self.eps <= current_time <= max(self.no_fit_interval[1], self.no_observe_interval[1], self.difference_interval[1]) + self.eps
+
+    def has_passed(self, current_time) -> bool:
+        has_passed = current_time > max(self.no_fit_interval[1], self.no_observe_interval[1], self.difference_interval[1]) + self.eps
+        if has_passed and not self.fufilled and self.error_on_missed:
+            raise MissedStimulusError()
+        return has_passed
+
+    def time_to_predict(self, current_time) -> bool:
+        return self.difference_interval[0] - self.eps <= current_time <= self.difference_interval[0] + self.eps
+
+    def time_to_correct(self, current_time) -> bool:
+        return self.difference_interval[1] - self.eps <= current_time <= self.difference_interval[1] + self.eps
+
+    def get_prediction_for_time(self, current_time):
+        to_return = []
+        for k, v in self.predictions.items():
+            if k - self.eps <= current_time <= k + self.eps:
+                to_return.append(v)
+        assert len(to_return) > 0, 'missed prediction?'
+        assert len(to_return) < 2, 'multiple predictions for the same time'
+        return to_return[0]
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(no_fit_interval={self.no_fit_interval}, no_observe_interval={self.no_observe_interval}, difference_interval={self.difference_interval})"
+
+
 class StimRegressor(Predictor):
     stream_to_update_log_on = 'stim'
     def __init__(self, autoreg=None, stim_reg=None, heed_stimuli=True, attempt_correction=True, error_on_missed_stim=True, input_streams=None, output_streams=None, log_level=None, check_dt=True, n_steps_to_predict=1, stim_delay=0):
         input_streams = input_streams or {0: 'X', 1: 'stim', 2: 'dt_X'}
         assert n_steps_to_predict == 1
-        assert heed_stimuli or not attempt_correction  # correcting without learning doesn't make sense
+        assert heed_stimuli or not attempt_correction, "correcting without learning doesn't make sense"
         super().__init__(input_streams=input_streams, output_streams=output_streams, log_level=log_level, check_dt=check_dt, n_steps_to_predict=n_steps_to_predict)
 
         if autoreg is None:
@@ -82,7 +127,7 @@ class StimRegressor(Predictor):
         self.stim_reg: BaseMultiKernelRegressor = stim_reg
         self.attempt_correction = attempt_correction
         self.heed_stimuli = heed_stimuli
-        self.last_seen_stims = deque()
+        self.ignore_data_events: list[StimEvent] = []
         self.stim_autoreg = StimAutoReg(n_steps_to_consider=0)
         assert stim_delay >= 0
         self.stim_delay = stim_delay  # in units of time (wrt the data)
@@ -90,55 +135,25 @@ class StimRegressor(Predictor):
 
     def _step(self, data, stream, return_output_stream):
         if self.input_streams[stream] == 'stim':
-            if self.is_notable_stim(data):
-                self.last_seen_stims.append(data)
+            if self.is_notable_stim_u(data):
+                self.add_event(StimEvent(
+                    no_fit_interval=(data.t, data.t + self.stim_delay),
+                    no_observe_interval=None,
+                    difference_interval=(data.t + self.stim_delay - self.dt, data.t + self.stim_delay),
+                    delivery_time=data.t,
+                    u=data,
+                    error_on_missed=self.error_on_missed_stim,
+                    eps=self.dt/8
+                ))
             ret =  (data, stream) if return_output_stream else data
         else:
             ret = super()._step(data, stream, return_output_stream)
 
-        if hasattr(data, 't'):
-            self.trim_last_seen_stims(current_t=data.t)
-
         return ret
 
     @staticmethod
-    def is_notable_stim(stim):
+    def is_notable_stim_u(stim):
         return (stim!=0).any()
-
-    def in_stim_lag(self, current_t):
-        for stim in self.last_seen_stims:
-            dt = self.dt
-            if dt is None:
-                dt = self.stim_delay # TODO: is this a good idea?
-            if stim.t + self.stim_delay + dt/10 >= current_t and self.is_notable_stim(stim):
-                return True
-        return False
-
-    def trim_last_seen_stims(self, current_t):
-        saftey_margin = self.dt*1.2 if self.dt else self.stim_delay # TODO: check this timing/synchronization logic
-        while self.last_seen_stims and (current_t - self.last_seen_stims[0].t) > (self.stim_delay + saftey_margin):
-            if self.error_on_missed_stim and self.heed_stimuli and np.isfinite(self.autoreg.get_arbitrary_dynamics_parameter()).all():
-                raise MissedStimulusError(f"Missed stim. {current_t=:.3f} {self.last_seen_stims[0].t=:.3f} (diff={current_t-self.last_seen_stims[0].t:.2f}) {(self.stim_delay + saftey_margin)=:.3f}")
-            self.last_seen_stims.popleft()
-
-    def get_stim_to_correct_for(self, current_t, remove=False):
-        to_return = []
-        for stim in self.last_seen_stims:
-            if np.isclose(stim.t + self.stim_delay, current_t, atol=self.dt/20):
-                to_return.append(stim)
-
-        if remove:
-            for stim in to_return:
-                self.last_seen_stims.remove(stim)
-
-        if len(to_return) == 0:
-            return []
-        elif len(to_return) == 1:
-            return to_return[0].flatten()
-        else:
-            raise Exception("Can only correct for one stimulus at a time.")
-
-
 
     def log_for_step(self, data, stream, original_data=None):
         super().log_for_step(data, stream, original_data=original_data)
@@ -158,30 +173,79 @@ class StimRegressor(Predictor):
 
 
     def predict_stim_response(self, stim_to_correct_for, current_t):
-        # TODO: is current_t correct here?
+        # from the present
         stim_reg_input = [self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for, current_t]
         return self.stim_reg.predict(stim_reg_input)
 
-    def observe(self, X, stream=None):
-        if self.heed_stimuli and self.in_stim_lag(current_t=X.t):
-            self.autoreg.toggle_parameter_fitting(False)
+    def update_states_based_on_events(self, current_time):
+        if not self.heed_stimuli:
+            return
+        super().update_states_based_on_events(current_time)
+        self.autoreg.set_parameter_fitting_state(self._parameter_fitting_state)
+        self.autoreg.set_data_observation_state(self._data_observation_state)
 
-            stim_to_correct_for = self.get_stim_to_correct_for(current_t=X.t, remove=True)
-            if len(stim_to_correct_for):
-                self.autoreg.toggle_parameter_fitting(False)
-                pred = self.autoreg.predict(n_steps=1)
-                residual = X - pred
-                stim_reg_input = [self.autoreg.predict(n_steps=0).flatten(), stim_to_correct_for, X.t]  # TODO: deal with nan from autoreg
-                self.stim_reg.observe(stim_reg_input, residual)
-                self.stim_autoreg.observe_new_correction(ArrayWithTime(self.stim_reg.predict(stim_reg_input), X.t))
+    def get_stim_to_predict_for(self, current_t) -> StimEvent | None:
+        if self.ignore_data_events is None:
+            return
+        hits = []
+        for stim in self.ignore_data_events:
+            if hasattr(stim, 'time_to_predict') and stim.time_to_predict(current_t):
+                hits.append(stim)
 
-            # TODO: make a decision about wheither autoreg needs to be a transformer
-            # self.autoreg.observe(X, stream=self.input_streams[stream])
-            self.autoreg.step(data=X, stream=self.input_streams[stream])
+        if len(hits) > 1:
+            raise ValueError()
+        elif len(hits) == 1:
+            return hits[0]
         else:
-            self.autoreg.toggle_parameter_fitting(True)
-            self.stim_autoreg.observe(X,functools.partial(self.autoreg.predict,n_steps=1), self.dt)
-            self.autoreg.step(data=X, stream=self.input_streams[stream])
+            return None
+
+    def get_stim_to_correct_for(self, current_t) -> StimEvent | None:
+        if self.ignore_data_events is None:
+            return
+        hits = []
+        for stim in self.ignore_data_events:
+            if hasattr(stim, 'time_to_correct') and stim.time_to_correct(current_t):
+                hits.append(stim)
+
+        if len(hits) > 1:
+            raise ValueError()
+        elif len(hits) == 1:
+            return hits[0]
+        else:
+            return None
+
+    def observe(self, X, stream=None):
+        if self.dt is not None:
+            stim_to_predict_for = self.get_stim_to_predict_for(current_t=X.t-self.dt)
+            if self.heed_stimuli and stim_to_predict_for is not None:
+                n_steps = self.data_to_n_steps(np.array([[stim_to_predict_for.difference_interval[1] - stim_to_predict_for.difference_interval[0]]]))
+                assert n_steps == 1
+                pred = self.autoreg.predict(n_steps=n_steps)
+                stim_to_predict_for.predictions[X.t - self.dt + n_steps * self.dt] = pred
+                stim_to_predict_for.state_at_pred = self.autoreg.predict(n_steps=0).flatten()
+
+
+        stim_to_correct_for = self.get_stim_to_correct_for(current_t=X.t)
+        if self.heed_stimuli and stim_to_correct_for is not None:
+            stim_to_correct_for: StimEvent
+
+            pred = stim_to_correct_for.get_prediction_for_time(X.t)
+            stim_to_correct_for.fufilled = True
+            state_at_pred = stim_to_correct_for.state_at_pred
+            u = stim_to_correct_for.u
+            delivery_time = stim_to_correct_for.delivery_time
+
+            residual = X - pred
+            stim_reg_input = [state_at_pred, u, np.array(delivery_time)]  # TODO: deal with nan from autoreg
+            self.stim_reg.observe(stim_reg_input, residual)
+            self.stim_autoreg.observe_new_correction(ArrayWithTime(self.stim_reg.predict(stim_reg_input), X.t))
+
+        else:
+            self.stim_autoreg.observe(X,functools.partial(self.autoreg.predict,n_steps=1), self.dt) # TODO: why is there a partial here?
+
+        self.autoreg.step(data=X, stream=self.input_streams[stream])
+
+
 
     def get_state(self):
         return self.autoreg.get_state()
@@ -192,28 +256,30 @@ class StimRegressor(Predictor):
     def predict(self, n_steps, current_t=None):
         if current_t is None:
             current_t = self._last_X_t
-        assert n_steps in {0,1}
+        if n_steps not in {0,1}:
+            warnings.warn("predicting ahead more than 1 step with StimRegressor isn't officially supported, and may give inaccurate results")
         pred = self.autoreg.predict(n_steps=n_steps)
 
         if self.attempt_correction and np.isfinite(pred).all():
             current_t = current_t + self.dt * n_steps
             stim_to_correct_for = self.get_stim_to_correct_for(current_t=current_t)
-            if len(stim_to_correct_for):
-                pred = pred + self.predict_stim_response(stim_to_correct_for, current_t)
+            if stim_to_correct_for is not None:
+                pred = pred + self.predict_stim_response(stim_to_correct_for.u, current_t)
             pred = pred + self.stim_autoreg.correct(current_t, self.dt)
         return pred
 
     def unevaluated_log_pred_p(self, n_steps, current_t=None):
         if current_t is None:
             current_t = self._last_X_t
-        assert n_steps in {0,1}
+        if n_steps not in {0,1}:
+            warnings.warn("predicting ahead more than 1 step with StimRegressor isn't officially supported, and may give inaccurate results")
         f = self.autoreg.unevaluated_log_pred_p(n_steps=n_steps)
 
         if self.attempt_correction:
             current_t = self.dt * n_steps + current_t
             stim_to_correct_for = self.get_stim_to_correct_for(current_t=current_t)
-            if len(stim_to_correct_for):
-                correction = self.predict_stim_response(stim_to_correct_for, current_t)
+            if stim_to_correct_for is not None:
+                correction = self.predict_stim_response(stim_to_correct_for.u, current_t)
             else:
                 correction = 0
             def corrected_f(future_point):
@@ -234,6 +300,12 @@ class StimRegressor(Predictor):
         # TODO: check for jax?
         self.unevaluated_log_pred_ps = {}
         return super().__getstate__()
+
+    def add_event(self, event):
+        if self.ignore_data_events is None:
+            self.ignore_data_events = []
+
+        self.ignore_data_events.append(event)
 
 
 class MissedStimulusError(RuntimeError):

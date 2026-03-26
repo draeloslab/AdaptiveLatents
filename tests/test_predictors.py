@@ -6,7 +6,7 @@ import pytest
 
 import adaptive_latents
 from adaptive_latents import VJF, ArrayWithTime, Bubblewrap
-from adaptive_latents.estimator import Predictor, Pipeline
+from adaptive_latents.estimator import Predictor, IgnoreDataEvent
 from adaptive_latents.input_sources import AR_K, LDS, KalmanFilter
 from adaptive_latents.input_sources.kalman_filter import StreamingKalmanFilter
 from adaptive_latents.stim_regressor import StimRegressor
@@ -93,7 +93,7 @@ def test_ar_k(rng, rank_limit, show_plots):
 
 
 @pytest.fixture(params=[
-    pytest.param('stim_regressor', marks=pytest.mark.skip),
+    pytest.param('stim_regressor', marks=()),
     pytest.param('kalman_filter', marks=()),
     pytest.param('bubblewrap', marks=longrun),
     pytest.param('VJF', marks=longrun),
@@ -138,8 +138,8 @@ def test_predictor_accuracy(fitted_predictor_tuple, show_plots):
 
     trajectory = []
     for i in range(0, transitions_per_rotation+2):  # TODO: what's the correct number of transitions here? +1 or +2?
-        stream = 'dt_X'
-        prediction = predictor.step(ArrayWithTime([[i]], Y_train.t[-1]), stream=stream)
+        dt_X = i if not predictor.check_dt else i * Y_train.dt
+        prediction = predictor.step(ArrayWithTime([[dt_X]], Y_train.t[-1]), stream='dt_X')
         trajectory.append(prediction)
 
     assert not np.isclose(trajectory[1].t, Y_train.t[-1] + Y_train.dt)
@@ -228,12 +228,13 @@ def test_can_turn_off_parameter_learning(fitted_predictor_tuple, rng, subordinat
 
     match subordinate_mode:
         case 'subordinate':
+            predictor.ignore_data_events = None
             predictor.set_parameter_fitting_state(False)
             predictor.offline_run_on([(Y2, 'X')], convinient_return=False)
 
             predictor.set_parameter_fitting_state(True)
         case 'autonomous':
-            predictor.add_event((Y2.t[0], Y2.t[-1]))
+            predictor.add_event(IgnoreDataEvent(no_fit_interval=(Y2.t[0], Y2.t[-1])))
             predictor.offline_run_on([(Y2, 'X')], convinient_return=False)
 
 
@@ -260,12 +261,13 @@ def test_can_turn_off_observations(fitted_predictor_tuple, rng, subordinate_mode
 
     match subordinate_mode:
         case 'subordinate':
+            predictor.ignore_data_events = None
             predictor.set_data_observation_state(False)
             for p in [predictor, control_predictor]:
                 p.offline_run_on([(Y2, 'X')], convinient_return=False)
             predictor.set_data_observation_state(True)
         case 'autonomous':
-            predictor.add_event((Y2.t[0], Y2.t[-1]))
+            predictor.add_event(IgnoreDataEvent(no_fit_interval=(Y2.t[0], Y2.t[-1]), no_observe_interval=(Y2.t[0], Y2.t[-1])))
             for p in [predictor, control_predictor]:
                 p.offline_run_on([(Y2, 'X')], convinient_return=False)
 
@@ -293,6 +295,7 @@ def test_kf_refit_every_step(rng):
 def test_state_toggle_cycle_has_no_side_effects(fitted_predictor_tuple):
     predictor, Y_train, Y_test, transitions_per_rotation = fitted_predictor_tuple
     predictor: Predictor
+    predictor.ignore_data_events = None # forces estimators into subordinate mode
 
     Y2, Y3 = (
         Y_test.slice(slice(None, len(Y_test)//2)),

@@ -276,9 +276,9 @@ def make_sr(
             timing_log.stim_reg_updated.append(sr.stim_reg.n_observed)
             timing_log.sr_update.append(time.time())
             sr.step(ArrayWithTime(true_stim_result, data.t), stream='stim')
-            stims_before_obs = set([stim.t for stim in sr.last_seen_stims])
+            stims_before_obs = set([stim.delivery_time for stim in sr.ignore_data_events])
             data = sr.step(data, stream='X')
-            resolved_stim_ts = stims_before_obs - set([stim.t for stim in sr.last_seen_stims])
+            resolved_stim_ts = stims_before_obs - set([stim.delivery_time for stim in sr.ignore_data_events])
             timing_log.sr_update[-1] = time.time() - timing_log.sr_update[-1]
             timing_log.stim_reg_updated[-1] = timing_log.stim_reg_updated[-1] != sr.stim_reg.n_observed
 

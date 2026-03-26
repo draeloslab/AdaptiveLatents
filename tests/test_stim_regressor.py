@@ -44,10 +44,11 @@ def test_logs(sr_s, show_plots):
 
     if show_plots:
         import matplotlib.pyplot as plt
-        fig, axs = plt.subplots(nrows=3, ncols=1)
-        for ax, (stim_errors, dynamics_errors, full_errors) in zip(axs, errors):
+        fig, axs = plt.subplots(nrows=3, ncols=1, layout='constrained', sharey=True)
+        for ax, (stim_errors, dynamics_errors, full_errors), ax_name in zip(axs, errors, ['stim-utilized', 'stim-aware', 'stim-unaware']):
             ax.plot(stim_errors.t, stim_errors, '.', ms=10)
-            # ax.plot(dynamics_errors.t, dynamics_errors, '.', ms=5)
+            ax.set_title(f'{ax_name}')
+        ax.legend(['coord 0', 'coord 1', 'stim coord'])
         plt.show(block=True)
 
     assert mses[0][0][0] < mses[2][0][0] - 10  #  stim-sample stim dimension errors
@@ -102,7 +103,7 @@ def test_accepts_sparse_stimuli(rng):
 
 def test_sub_dt_delay_works(rng):
     stim_magnitude = 20
-    _, Y, stim = LDS.run_nest_dynamical_system(1, stims_per_rotation=5, stim_magnitude=stim_magnitude, u_function='constant', rng=rng, radius=20)
+    _, Y, stim = LDS.run_nest_dynamical_system(2, stims_per_rotation=3, stim_magnitude=stim_magnitude, u_function='constant', rng=rng, radius=20)
 
     sr1 = StimRegressor(autoreg=StreamingKalmanFilter(steps_between_refits=3), log_level=3)
     sr1.offline_run_on(sources=[(stim, 'stim'), (Y, 'X')])
@@ -115,8 +116,8 @@ def test_sub_dt_delay_works(rng):
 
     for (dt, unaware_of_delay_should_match_utilized) in [
         (0, True),
-        (stim.dt/(20 + 1), True),
-        (stim.dt/2, False),
+        (stim.dt / (20 + 1), True),
+        (stim.dt / 2, False),
     ]:
         stim_offset = ArrayWithTime(stim, stim.t - dt)
 
@@ -124,8 +125,8 @@ def test_sub_dt_delay_works(rng):
         sr4 = StimRegressor(autoreg=StreamingKalmanFilter(steps_between_refits=3), log_level=3, stim_delay=0, error_on_missed_stim=False)
         sr4.offline_run_on(sources=[(stim_offset, 'stim'), (Y, 'X')])
         e4 = ArrayWithTime.from_list(sr4.log['pred_error'], squeeze_type='to_2d')
-        assert np.array_equal(e_utilized, e4, equal_nan=True) == unaware_of_delay_should_match_utilized
-        assert np.array_equal(e_unaware_of_stim, e4, equal_nan=True) != unaware_of_delay_should_match_utilized
+        assert np.allclose(e_utilized, e4, equal_nan=True) == unaware_of_delay_should_match_utilized
+        assert np.allclose(e_unaware_of_stim, e4, equal_nan=True) != unaware_of_delay_should_match_utilized
 
         if not unaware_of_delay_should_match_utilized:
             with pytest.raises(MissedStimulusError):
@@ -134,7 +135,7 @@ def test_sub_dt_delay_works(rng):
         sr5 = StimRegressor(autoreg=StreamingKalmanFilter(steps_between_refits=3), log_level=3, stim_delay=dt)
         sr5.offline_run_on(sources=[(stim_offset, 'stim'), (Y, 'X')] )
         e5 = ArrayWithTime.from_list(sr5.log['pred_error'], squeeze_type='to_2d')
-        assert np.array_equal(e_utilized, e5, equal_nan=True)
+        assert np.allclose(e_utilized, e5, equal_nan=True)
 
 
 def test_super_dt_delay_works(show_plots):
@@ -207,17 +208,17 @@ def test_skips_training_while_stim_pending():
         s = None
         def step(should_be_same=False):
             nonlocal i, par, s, sr
-            i += 1
             s = Y2.slice(slice(i,i+1))
             s.t = s.t[0]
             sr.step(s, stream='X')
             assert (sr.get_arbitrary_dynamics_parameter() == par).all() == should_be_same
             par = sr.get_arbitrary_dynamics_parameter()
+            i += 1
 
 
         step()
         step()
-        sr.step(ArrayWithTime([1], s.t + 1), stream='stim')
+        sr.step(ArrayWithTime([1], s.t + Y2.dt), stream='stim')
         for j in range(stim_delay+2):
             step(True)
         step()

@@ -369,24 +369,31 @@ class Pipeline(DecoupledEstimator):
         return f"{self.__class__.__name__}([{', '.join(str(s) for s in self.steps)}])"
 
 class IgnoreDataEvent:
-    def __init__(self, no_fit_interval, no_observe_interval=None):
-        self.no_fit_interval = no_fit_interval
-
+    def __init__(self, no_fit_interval, no_observe_interval=None, eps=0):
         if no_observe_interval is None:
-            no_observe_interval = no_fit_interval
+            no_observe_interval = (np.inf, -np.inf)
+
+
+        self.no_fit_interval = no_fit_interval
         self.no_observe_interval = no_observe_interval
+        self.eps=eps
+
+        for interval in [self.no_fit_interval, self.no_observe_interval]:
+            if interval[1] < interval[0] and not (interval[0] == np.inf and interval[1] == -np.inf):
+                raise ValueError()
+
 
     def get_data_observation_state(self, current_time) -> bool:
-        return not (self.no_observe_interval[0] <= current_time <= self.no_observe_interval[1])
+        return not (self.no_observe_interval[0] - self.eps <= current_time <= self.no_observe_interval[1] + self.eps)
 
     def get_parameter_fitting_state(self, current_time) -> bool:
-        return not (self.no_fit_interval[0] <= current_time <= self.no_fit_interval[1])
+        return not (self.no_fit_interval[0] - self.eps <= current_time <= self.no_fit_interval[1] + self.eps)
 
     def in_effect(self, current_time) -> bool:
-        return min(self.no_fit_interval[0], self.no_observe_interval[0]) <= current_time <= max(self.no_fit_interval[1], self.no_observe_interval[1])
+        return min(self.no_fit_interval[0], self.no_observe_interval[0]) - self.eps <= current_time <= max(self.no_fit_interval[1], self.no_observe_interval[1]) + self.eps
 
     def has_passed(self, current_time) -> bool:
-        return current_time > max(self.no_fit_interval[1], self.no_observe_interval[1])
+        return current_time > max(self.no_fit_interval[1], self.no_observe_interval[1]) + self.eps
 
     def __repr__(self):
         return f"{self.__class__.__name__}(no_fit_interval={self.no_fit_interval}, no_observe_interval={self.no_observe_interval})"
@@ -449,7 +456,8 @@ class Predictor(StreamingEstimator):
         self.ignore_data_events = [e for e in self.ignore_data_events if not e.has_passed(current_time)]
         current_events = [e for e in self.ignore_data_events if e.in_effect(current_time)]
         if len(current_events):
-            assert len(current_events) == 1, 'overlapping events are not currently supported'
+            warnings.warn(f"there are currently {len(current_events)} overlapping events; this may cause unexpected behavior")
+            # assert len(current_events) == 1, 'overlapping events are not currently supported'
             event = current_events[0]
             self._parameter_fitting_state = event.get_parameter_fitting_state(current_time)
             self._data_observation_state = event.get_data_observation_state(current_time)
@@ -464,7 +472,7 @@ class Predictor(StreamingEstimator):
         if isinstance(event, tuple):
             assert len(event) == 2
             assert isinstance(event[0], float) or isinstance(event[0], int)
-            event = IgnoreDataEvent(no_fit_interval=event, no_observe_interval=event)
+            event = IgnoreDataEvent(no_fit_interval=event, no_observe_interval=None)
 
         self.ignore_data_events.append(event)
 
