@@ -1058,50 +1058,90 @@ class Zong22Dataset(Dataset):
             'part_of_F': (f_part,f_total)
         }
 
+    def make_open_field_entry(area, animal_id, date, f_part, f_total, recording_date=None):
+        recording_date = date if recording_date is None else recording_date
+        return {
+            'basepath': f'{area}_recordings/{animal_id}/{date}/',
+            'part_of_F': (f_part, f_total),
+            'raw_frames': f'{animal_id}_{recording_date}_ML-400_AL-400_1Openfiled_0000{f_part}.tif',
+            'behavior_csv': f'{animal_id}_{recording_date}_ML-400_AL-400_1Openfiled_0000{f_part}_trackingVideoDLC_resnet_50_OPENMINI2P_topcamera_20210305Mar5shuffle1_1030000.csv',
+        }
+
     sub_datset_info = pd.DataFrame([
         make_cookie_entry('VC', '93562', '20200817', 1, 2, False, True),
         make_cookie_entry('VC', '93562', '20200817', 2, 2, True, True),
 
         make_cookie_entry('MEC', '94557', '20200822', 1, 2, False, False),
-        make_cookie_entry('MEC', '94557', '20200822', 1, 2, True, False),
+        make_cookie_entry('MEC', '94557', '20200822', 2, 2, True, False),
 
         make_object_entry('MEC', '94557', '20201008', 1, 3, None, True),
         make_object_entry('MEC', '94557', '20201008', 2, 3, 1, True),
         make_object_entry('MEC', '94557', '20201008', 3, 3, 2, True),
+
+        make_open_field_entry(area='MEC', animal_id='97045', date='20210305', f_part=1, f_total=6, recording_date='20210304'),
+        make_open_field_entry(area='MEC', animal_id='97045', date='20210305', f_part=2, f_total=6, recording_date='20210304'),
+        make_open_field_entry(area='MEC', animal_id='97045', date='20210305', f_part=3, f_total=6, recording_date='20210304'),
+        make_open_field_entry(area='MEC', animal_id='97045', date='20210305', f_part=4, f_total=6, recording_date='20210304'),
+        make_open_field_entry(area='MEC', animal_id='97045', date='20210305', f_part=5, f_total=6, recording_date='20210304'),
+        make_open_field_entry(area='MEC', animal_id='97045', date='20210305', f_part=6, f_total=6, recording_date='20210304'),
     ])
 
     sub_datasets = list(sub_datset_info.index)
 
     def __init__(self, sub_dataset_identifier=sub_datasets[0], neural_lag=0, neural_scale=1, pos_scale=1, hd_scale=1, h2b_scale=1):
-        if isinstance(sub_dataset_identifier, int):
-            sub_dataset_identifier = self.sub_datasets[sub_dataset_identifier]
-
         self.sub_dataset = sub_dataset_identifier
+        self.sdi_row = self.sub_datset_info.loc[self.sub_dataset]
         self.neural_Fs = 15
         self.neural_lag = neural_lag
         self.neural_scale = neural_scale
         self.bin_width = 1/self.neural_Fs  # todo: make this universal?
-        self.F, self.raw_images, self.behavior_video, self.behavior_df, self.n_cells, self.stat, self.ops = self.acquire()
+        self.F, self.raw_images, self.behavior_video, self.behavior_df, self.n_cells, self.stat, self.ops, self.cells_per_pane = self.acquire()
 
+        n_panes = len(self.cells_per_pane)
 
-        self.neural_data = ArrayWithTime(self.F.T * self.neural_scale, (np.arange(self.F.shape[1]) * 1 / self.neural_Fs) + self.neural_lag)
-        self.behavioral_data = ArrayWithTime(self.behavior_df.loc[:, ['x', 'y', 'hd', 'h2b']] * np.array([pos_scale, pos_scale, hd_scale, h2b_scale]), self.behavior_df.loc[:, 't'])
+        self.neural_data = ArrayWithTime(self.F.T * self.neural_scale, (np.arange(self.F.shape[1]) * n_panes / self.neural_Fs) + self.neural_lag)
+        self.behavioral_data = ArrayWithTime(self.behavior_df.loc[:, ['x', 'y', 'hd', 'h2b']] * np.array([pos_scale, pos_scale, hd_scale, h2b_scale]), np.array(self.behavior_df.loc[:, 't']))
 
         self.video_t = np.squeeze(self.behavioral_data.t)
 
+    def acquire_plane(self, sub_dataset_base_path, plane=0):
+        iscell = np.load(sub_dataset_base_path / 'suite2p' / f'plane{plane}' / 'iscell.npy')
+        F_all = np.load(sub_dataset_base_path / 'suite2p' / f'plane{plane}' / 'F.npy')
+        n_cells = int(sum(iscell[:, 0]))
+
+        stat = np.load(sub_dataset_base_path / 'suite2p' / f'plane{plane}' / 'stat.npy', allow_pickle=True)
+        ops = np.load(sub_dataset_base_path / 'suite2p' / f'plane{plane}' / 'ops.npy', allow_pickle=True).item()
+        return iscell, F_all, n_cells, stat, ops
+
+    def acquire_planes(self, sub_dataset_base_path):
+        n_planes = len(list((sub_dataset_base_path / 'suite2p').glob('plane*')))
+        if n_planes > 1:
+            warnings.warn('Currently ignoring plane imaging lag.')
+        iscell = []
+        F_all = []
+        stat = []
+        ops = []
+        cells_per_pane = []
+        for plane in range(n_planes):
+            sub_iscell, sub_F_all, sub_n_cells, sub_stat, sub_ops = self.acquire_plane(sub_dataset_base_path, plane)
+            iscell.append(sub_iscell)
+            F_all.append(sub_F_all)
+            cells_per_pane.append(sub_n_cells)
+            stat.append(sub_stat)
+            ops.append(sub_ops)
+        iscell = np.vstack(iscell)
+        F_all = np.vstack(F_all)
+        stat = np.concatenate(stat)
+        return iscell, F_all, sum(cells_per_pane), stat, ops, cells_per_pane
+
+
+
     def acquire(self):
-        sub_dataset_base_path = self.dataset_base_path / self.sub_datset_info.basepath[self.sub_dataset]
+        sub_dataset_base_path = self.dataset_base_path / self.sdi_row.basepath
         if not sub_dataset_base_path.is_dir():
             print(f"Go download the dataset from {self.doi}. (Or remount the external drive on Tycho)")
             raise FileNotFoundError()
 
-        iscell = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'iscell.npy')
-        F_all = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'F.npy')
-        self.F_all = F_all
-        n_cells = int(sum(iscell[:, 0]))
-
-        stat = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'stat.npy', allow_pickle=True)
-        ops = np.load(sub_dataset_base_path / 'suite2p' / 'plane0' / 'ops.npy', allow_pickle=True).item()
 
         def make_beh(fpath):
             pre_beh = pd.read_csv(fpath)
@@ -1111,7 +1151,9 @@ class Zong22Dataset(Dataset):
             beh.t = beh.t / self.neural_Fs
             return beh
 
-        part, total = self.sub_datset_info.part_of_F[self.sub_dataset]
+        iscell, F_all, n_cells, stat, ops, cells_per_pane = self.acquire_planes(sub_dataset_base_path)
+        self.F_all = F_all
+        part, total = self.sdi_row.part_of_F
         block_length = F_all.shape[1] // total
 
         F_all = F_all - F_all.min(axis=1, keepdims=True)
@@ -1123,23 +1165,33 @@ class Zong22Dataset(Dataset):
         F_all[np.isnan(F_all)] = 0
 
         F = F_all[:, (part - 1) * block_length: part * block_length]
-        img = Image.open(sub_dataset_base_path / self.sub_datset_info.raw_frames[self.sub_dataset])
+        img = Image.open(sub_dataset_base_path / self.sdi_row.raw_frames)
         video = None
-        if isinstance(video_filename:=self.sub_datset_info.behavior_video[self.sub_dataset], str):
+        if isinstance(video_filename:=self.sdi_row.behavior_video, str):
             video = pims.Video(sub_dataset_base_path / video_filename)
-        beh = make_beh(sub_dataset_base_path / self.sub_datset_info.behavior_csv[self.sub_dataset])
+        beh = make_beh(sub_dataset_base_path / self.sdi_row.behavior_csv)
 
-        nose = self.get_behavior_trace(beh, 'nose')
+        if 'nose_x' in beh:
+            nose = self.get_behavior_trace(beh, 'nose')
+
+        if 'mouse_x' in beh:
+            head = self.get_behavior_trace(beh, 'mouse')
+        else:
+            head = (self.get_behavior_trace(beh, 'leftear') + self.get_behavior_trace(beh, 'rightear'))/2
+
         body = self.get_behavior_trace(beh, 'bodycenter')
-        head = self.get_behavior_trace(beh, 'mouse')
 
-        beh['hd'] = np.arctan2(*(nose - head).T)
+
+        if 'nose_x' in beh:
+            beh['hd'] = np.arctan2(*(nose - head).T)
+        else:
+            beh['hd'] = np.nan
         beh['h2b'] = np.linalg.norm(head - body, axis=1)
         beh['x'] = head[:,0]
         beh['y'] = head[:,1]
 
 
-        return F, img, video, beh, n_cells, stat, ops
+        return F, img, video, beh, n_cells, stat, ops, cells_per_pane
 
     def show_stim_pattern(self, ax, desired_stim):
         ax.matshow(self.ops['meanImg'], cmap='Grays')
