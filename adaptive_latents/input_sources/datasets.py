@@ -26,6 +26,13 @@ from adaptive_latents import CONFIG
 from adaptive_latents.timed_data_source import ArrayWithTime
 from adaptive_latents.utils import save_to_cache
 
+"""
+possible future datasets:
+https://doi.org/10.5281/zenodo.17524409 "Cortical and subcortical single neuron activity during value-based tasks in macaque monkey"
+https://doi.org/10.5281/zenodo.17488067  "Spontaneous behavior is a series of self-directed tasks" (also see /mnt/data/)
+https://doi.org/10.64898/2026.02.14.705560 "Active pursuit gates egocentric coding in the retrosplenial cortex"
+"""
+
 DATA_BASE_PATH = CONFIG.dataset_path
 
 
