@@ -159,7 +159,7 @@ class StimDesigner:
             s_norm = jnp.linalg.norm(s)
             loss = 0
             loss += self.lam_1 * (self.max_l0_norm - jnp.sum(jnp.abs(u)))
-            loss += jnp.dot(s, v) / (s_norm + 1e-10)
+            loss += jnp.abs(jnp.dot(s, v)) / (s_norm + 1e-10)
             return -loss.reshape()
 
         lb = jnp.zeros_like(u)
