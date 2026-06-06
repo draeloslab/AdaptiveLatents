@@ -357,7 +357,7 @@ class _OutmodedBaseMultiKernelRegressor:
 
 
 class BaseMultiKernelRegressor:
-    def __init__(self, length_scales=(1e-1,1e-1,1e-9), maxlen=100, input_names=('stim_location', 'stim_vector', 'stim_time'), reweight_every=1, rng=None):
+    def __init__(self, length_scales=(1e-1,1e-1,1e-9), maxlen=100, input_names=('stim_location', 'stim_vector', 'stim_time'), reweight_every=1, rng=None, should_log=False):
         self.maxlen = maxlen
         self.input_histories = None
         self.output_history = None
@@ -367,6 +367,7 @@ class BaseMultiKernelRegressor:
         if rng is None:
             rng = numpy.random.default_rng(0)
         self.rng = rng
+        self.should_log = should_log
         self.log = {'length_scales': [], 'preq_errors':[]}
 
         self.length_scales = numpy.array(length_scales)
@@ -376,7 +377,8 @@ class BaseMultiKernelRegressor:
             warnings.warn("ignoring non-finite input")
             return
 
-        self.log['preq_errors'].append(y - self.predict(x))
+        if self.should_log:
+            self.log['preq_errors'].append(y - self.predict(x))
 
         if self.input_histories is None:
             self.input_histories = [numpy.zeros(shape=(self.maxlen, sub_x.size)) * numpy.nan for sub_x in x]

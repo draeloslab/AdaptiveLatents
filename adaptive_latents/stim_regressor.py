@@ -80,7 +80,7 @@ class StimEvent(IgnoreDataEvent):
         self.error_on_missed = error_on_missed
         self.predictions = {}
 
-        if difference_interval[1] < difference_interval[0]:
+        if all([d is not None for d in difference_interval]) and difference_interval[1] < difference_interval[0]:
             raise ValueError()
 
     def in_effect(self, current_time) -> bool:
@@ -299,7 +299,7 @@ class StimRegressor(Predictor):
     def __getstate__(self):
         # TODO: check for jax?
         self.unevaluated_log_pred_ps = {}
-        return super().__getstate__()
+        return self.__dict__.copy()
 
     def add_event(self, event):
         if self.ignore_data_events is None:
