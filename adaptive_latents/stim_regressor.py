@@ -218,7 +218,7 @@ class StimRegressor(Predictor):
         if self.dt is not None:
             stim_to_predict_for = self.get_stim_to_predict_for(current_t=X.t-self.dt)
             if self.heed_stimuli and stim_to_predict_for is not None:
-                n_steps = self.data_to_n_steps(np.array([[stim_to_predict_for.difference_interval[1] - stim_to_predict_for.difference_interval[0]]]))
+                n_steps = self.data_to_n_steps(stim_to_predict_for.difference_interval[1] - stim_to_predict_for.difference_interval[0])
                 assert n_steps == 1
                 pred = self.autoreg.predict(n_steps=n_steps)
                 stim_to_predict_for.predictions[X.t - self.dt + n_steps * self.dt] = pred

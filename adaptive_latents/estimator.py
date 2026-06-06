@@ -456,7 +456,8 @@ class Predictor(StreamingEstimator):
         self.ignore_data_events = [e for e in self.ignore_data_events if not e.has_passed(current_time)]
         current_events = [e for e in self.ignore_data_events if e.in_effect(current_time)]
         if len(current_events):
-            warnings.warn(f"there are currently {len(current_events)} overlapping events; this may cause unexpected behavior")
+            if len(current_events) > 1:
+                warnings.warn(f"there are currently {len(current_events)} overlapping events; this may cause unexpected behavior")
             # assert len(current_events) == 1, 'overlapping events are not currently supported'
             event = current_events[0]
             self._parameter_fitting_state = event.get_parameter_fitting_state(current_time)
@@ -549,6 +550,8 @@ class Predictor(StreamingEstimator):
                     else:
                         self.dt = dt
                 self._last_X_t = data.t
+                if isinstance(self.dt, np.ndarray):
+                    warnings.warn('dt is a numpy array; it is recommended that it is a hashable type')
 
             self.update_states_based_on_events(data.t)
 
@@ -570,13 +573,14 @@ class Predictor(StreamingEstimator):
         return (data, stream) if return_output_stream else data
 
     def data_to_n_steps(self, data):
-        assert data.size == 1
-        q_dt = data[0, 0]
+        if isinstance(data, np.ndarray):
+            assert data.size == 1
+        q_dt = float(np.squeeze(data))
         if self.check_dt and self.dt is not None:
             steps = q_dt / self.dt
         else:
             steps = q_dt
-
+        steps = float(steps)
         assert np.isclose(steps, steps := round(steps)), "without tracking dt, queries must be an integer number of steps"
         steps = int(steps)
         return steps
