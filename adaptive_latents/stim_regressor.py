@@ -79,6 +79,7 @@ class StimEvent(IgnoreDataEvent):
         self.fufilled = False
         self.error_on_missed = error_on_missed
         self.predictions = {}
+        self.used_prediction = None
 
         if all([d is not None for d in difference_interval]) and difference_interval[1] < difference_interval[0]:
             raise ValueError()
@@ -230,6 +231,7 @@ class StimRegressor(Predictor):
             stim_to_correct_for: StimEvent
 
             pred = stim_to_correct_for.get_prediction_for_time(X.t)
+            stim_to_correct_for.used_prediction = pred
             stim_to_correct_for.fufilled = True
             state_at_pred = stim_to_correct_for.state_at_pred
             u = stim_to_correct_for.u

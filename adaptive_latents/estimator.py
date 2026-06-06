@@ -453,7 +453,6 @@ class Predictor(StreamingEstimator):
         if self.ignore_data_events is None:
             return
 
-        self.ignore_data_events = [e for e in self.ignore_data_events if not e.has_passed(current_time)]
         current_events = [e for e in self.ignore_data_events if e.in_effect(current_time)]
         if len(current_events):
             if len(current_events) > 1:
