@@ -35,6 +35,18 @@ class TestKernelSmoother:
         t = KernelSmoother()
         t.plot_impulse_response(ax)
 
+    def test_adds_new_channels(self, rng):
+        X1 = rng.normal(size=(100, 10)) * np.arange(10)
+        X2 = rng.normal(size=(100, 10)) * np.arange(10)
+
+        k = KernelSmoother()
+
+        k.offline_run_on(X1)
+        k.add_new_input_channels(X2.shape[1])
+        k.offline_run_on(np.hstack((X1, X2)))
+
+
+
 class TestCenterer:
     def test_correct(self, rng):
         X = rng.normal(size=(100, 10)) * np.arange(10)

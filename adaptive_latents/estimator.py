@@ -816,6 +816,10 @@ class KernelSmoother(StreamingEstimator):
         stream = self.output_streams[stream]
         return (data, stream) if return_output_stream else data
 
+    def add_new_input_channels(self, n):
+        for i in range(len(self.history)):
+            self.history[i] = np.hstack((self.history[i], np.zeros(n)))
+
     def get_params(self, deep=True):
         return dict(tau=self.tau, kernel_length=self.kernel_length, custom_kernel=self.custom_kernel) | super().get_params()
 
