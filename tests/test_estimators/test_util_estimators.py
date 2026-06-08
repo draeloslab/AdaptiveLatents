@@ -1,7 +1,7 @@
 import matplotlib
 import numpy as np
 
-from adaptive_latents import Concatenator, KernelSmoother
+from adaptive_latents import Concatenator, KernelSmoother, CenteringEstimator
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -34,3 +34,25 @@ class TestKernelSmoother:
         fig, ax = plt.subplots()
         t = KernelSmoother()
         t.plot_impulse_response(ax)
+
+class TestCenterer:
+    def test_correct(self, rng):
+        X = rng.normal(size=(100, 10)) * np.arange(10)
+
+        c = CenteringEstimator()
+
+        c.offline_run_on(X)
+
+        assert np.allclose(c.center, X.mean(axis=0))
+
+    def test_adds_new_channels(self, rng):
+        X1 = rng.normal(size=(100, 10)) * np.arange(10)
+        X2 = rng.normal(size=(100, 10)) * np.arange(10)
+
+        c = CenteringEstimator()
+
+        c.offline_run_on(X1)
+        c.add_new_input_channels(X2.shape[1])
+        c.offline_run_on(np.hstack((X1, X2)))
+
+        assert np.allclose(c.center, np.hstack((X1, X2)).mean(axis=0))

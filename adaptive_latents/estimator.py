@@ -714,13 +714,18 @@ class CenteringEstimator(TypicalEstimator):
         self.center = 0
         self.nan_when_uninitialized = nan_when_uninitialized
 
+    def add_new_input_channels(self, n):
+        self.center = np.hstack([self.center, np.zeros(n)])
+        self.samples_seen = np.hstack([self.samples_seen, np.zeros(n)])
+
     def pre_initialization_fit_for_X(self, X):
         self.partial_fit_for_X(X)
-        if self.samples_seen >= self.init_size:
+        # TODO: NaN for zero entries dynamically?
+        if self.samples_seen.max() >= self.init_size:
             self.is_initialized = True
 
     def partial_fit_for_X(self, X):
-        self.samples_seen += X.shape[0]
+        self.samples_seen += np.ones(X.shape[1])
         self.center = self.center + (X.sum(axis=0) - X.shape[0] * self.center) / self.samples_seen
 
     def transform_for_X(self, X):
