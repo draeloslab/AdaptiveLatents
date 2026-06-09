@@ -16,6 +16,7 @@ class OptimizationMethod(str, Enum):
     CHEAT_HIGHD_VEC_SINGLE_NEURONS = 'cheat_highd_vec_single_neurons'
     CHEAT_HIGHD_VEC_MANY_NEURONS = 'cheat_highd_vec_many_neurons'  # TODO: this isn't really cheating, change the name?
     HOMOGENOUS = 'homogenous'
+    HOMOGENOUS_OPENLOOP = 'homogenous_open'
 
 
 class StimDesigner:
@@ -225,17 +226,17 @@ class StimDesigner:
 
         return u, {'s': u_to_s_function(u), 'intermediate_xs': numpy.array(intermediate_xs)}
 
-
-    def design_stim_homogenous(self, v, u_dimension, u_to_s_function=None):
-        u, l = self.design_stim_jaxopt(v, u_dimension, u_to_s_function)
-
-        thresholds = numpy.linspace(.05, .7, 12)
+    def homogenize_stim(self, v, u, l, u_to_s_function=None):
+        thresholds = numpy.linspace(.01, .9, 12)
         angles = []
         for threshold in thresholds:
             u_thresh = u.copy()
             u_thresh[u_thresh > threshold] = 1
             u_thresh[u_thresh <= threshold] = 0
-            angles.append(angle_between(v, u_to_s_function(u_thresh)))
+
+            n_nonzero_entries = (u_thresh > 0).sum()
+            sparsity_penalty = numpy.inf if n_nonzero_entries > self.max_l0_norm else 0
+            angles.append(angle_between(v, u_to_s_function(u_thresh)) + sparsity_penalty)
         threshold = thresholds[numpy.argmin(angles)]
 
         if threshold in {thresholds[0], thresholds[-1]}:
@@ -245,6 +246,11 @@ class StimDesigner:
         u[u <= threshold] = 0
         l['s'] = u_to_s_function(u)
         return u, l
+
+    def design_stim_homogenous(self, v, u_dimension, u_to_s_function=None):
+        u, l = self.design_stim_jaxopt(v, u_dimension, u_to_s_function)
+
+        return self.homogenize_stim(v,u,l,u_to_s_function)
 
     def design_stim(self, v, optimization_method=None, **kwargs):
         start_time = time.time()
@@ -258,7 +264,13 @@ class StimDesigner:
             case OptimizationMethod.JAXOPT:
                 u, l = self.design_stim_jaxopt(v, kwargs['u_dimension'], kwargs['u_to_s_function'])
             case OptimizationMethod.HOMOGENOUS:
-                u, l = self.design_stim_homogenous(v, kwargs['u_dimension'], kwargs['u_to_s_function'])
+                u, l = self.design_stim_jaxopt(v, kwargs['u_dimension'], kwargs['u_to_s_function'])
+                u,l = self.homogenize_stim(v, u, l, kwargs['u_to_s_function'])
+            case OptimizationMethod.HOMOGENOUS_OPENLOOP:
+                u = (kwargs['equivalent_projection_matrix'] @ v).flatten()
+                l = {}
+                u,l = self.homogenize_stim(v, u, l, kwargs['u_to_s_function'])
+
             case OptimizationMethod.PREV_SEEN:
                 u, l = self.design_stim_prev_seen(v, kwargs['previous_us'], kwargs['u_to_s_function'])
             case OptimizationMethod.CHEAT_LOWD_VEC:
