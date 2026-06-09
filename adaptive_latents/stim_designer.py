@@ -236,7 +236,9 @@ class StimDesigner:
 
             n_nonzero_entries = (u_thresh > 0).sum()
             sparsity_penalty = numpy.inf if n_nonzero_entries > self.max_l0_norm else 0
-            angles.append(angle_between(v, u_to_s_function(u_thresh)) + sparsity_penalty)
+            angle = angle_between(v, u_to_s_function(u_thresh))
+            angle = min(angle, 180-angle)
+            angles.append( angle + sparsity_penalty)
         threshold = thresholds[numpy.argmin(angles)]
 
         if threshold in {thresholds[0], thresholds[-1]}:
