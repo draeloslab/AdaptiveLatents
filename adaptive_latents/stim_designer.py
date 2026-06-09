@@ -268,6 +268,7 @@ class StimDesigner:
                 u,l = self.homogenize_stim(v, u, l, kwargs['u_to_s_function'])
             case OptimizationMethod.HOMOGENOUS_OPENLOOP:
                 u = (kwargs['equivalent_projection_matrix'] @ v).flatten()
+                u[u <= 0] = 0
                 l = {}
                 u,l = self.homogenize_stim(v, u, l, kwargs['u_to_s_function'])
 
