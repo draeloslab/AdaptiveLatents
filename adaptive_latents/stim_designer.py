@@ -267,10 +267,16 @@ class StimDesigner:
                 u, l = self.design_stim_jaxopt(v, kwargs['u_dimension'], kwargs['u_to_s_function'])
                 u,l = self.homogenize_stim(v, u, l, kwargs['u_to_s_function'])
             case OptimizationMethod.HOMOGENOUS_OPENLOOP:
-                u = (kwargs['equivalent_projection_matrix'] @ v).flatten()
-                u[u <= 0] = 0
-                l = {}
-                u,l = self.homogenize_stim(v, u, l, kwargs['u_to_s_function'])
+                results = []
+                for sub_v in [v, -v]:
+                    u = (kwargs['equivalent_projection_matrix'] @ sub_v).flatten()
+                    u[u <= 0] = 0
+                    l = {}
+                    u,l = self.homogenize_stim(v, u, l, kwargs['u_to_s_function'])
+                    results.append((u,l))
+                least_sparse_result = numpy.argmax([u.sum() for u,l in results])
+                u, l = results[least_sparse_result]
+
 
             case OptimizationMethod.PREV_SEEN:
                 u, l = self.design_stim_prev_seen(v, kwargs['previous_us'], kwargs['u_to_s_function'])
