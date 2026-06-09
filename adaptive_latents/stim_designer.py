@@ -227,7 +227,7 @@ class StimDesigner:
         return u, {'s': u_to_s_function(u), 'intermediate_xs': numpy.array(intermediate_xs)}
 
     def homogenize_stim(self, v, u, l, u_to_s_function=None):
-        thresholds = numpy.linspace(.01, .9, 12)
+        thresholds = numpy.sort(u)[-self.max_l0_norm:]
         angles = []
         for threshold in thresholds:
             u_thresh = u.copy()
