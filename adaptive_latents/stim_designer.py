@@ -227,7 +227,7 @@ class StimDesigner:
         return u, {'s': u_to_s_function(u), 'intermediate_xs': numpy.array(intermediate_xs)}
 
     def homogenize_stim(self, v, u, l, u_to_s_function=None):
-        thresholds = numpy.sort(u)[-self.max_l0_norm:]
+        thresholds = numpy.sort(u)[-self.max_l0_norm:-1]
         angles = []
         for threshold in thresholds:
             u_thresh = u.copy()
@@ -239,7 +239,7 @@ class StimDesigner:
             angle = angle_between(v, u_to_s_function(u_thresh))
             angle = min(angle, 180-angle)
             angles.append( angle + sparsity_penalty)
-        threshold = thresholds[numpy.argmin(angles)]
+        threshold = thresholds[numpy.nanargmin(angles)]
 
         if threshold in {thresholds[0], thresholds[-1]}:
             warnings.warn("Threshold found at edge of search space.")
