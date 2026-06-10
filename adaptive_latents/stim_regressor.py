@@ -80,6 +80,7 @@ class StimEvent(IgnoreDataEvent):
         self.error_on_missed = error_on_missed
         self.predictions = {}
         self.used_prediction = None
+        self.residual = None
 
         if all([d is not None for d in difference_interval]) and difference_interval[1] < difference_interval[0]:
             raise ValueError()
@@ -241,6 +242,7 @@ class StimRegressor(Predictor):
             stim_reg_input = [state_at_pred, u, np.array(delivery_time)]  # TODO: deal with nan from autoreg
             self.stim_reg.observe(stim_reg_input, residual)
             self.stim_autoreg.observe_new_correction(ArrayWithTime(self.stim_reg.predict(stim_reg_input), X.t))
+            stim_to_correct_for.residual = residual
 
         else:
             self.stim_autoreg.observe(X,functools.partial(self.autoreg.predict,n_steps=1), self.dt) # TODO: why is there a partial here?
