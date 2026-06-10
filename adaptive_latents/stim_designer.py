@@ -17,6 +17,7 @@ class OptimizationMethod(str, Enum):
     CHEAT_HIGHD_VEC_MANY_NEURONS = 'cheat_highd_vec_many_neurons'  # TODO: this isn't really cheating, change the name?
     HOMOGENOUS = 'homogenous'
     HOMOGENOUS_OPENLOOP = 'homogenous_open'
+    HOMOGENOUS_OPENLOOP_MIN_ANGLE = 'homogenous_open_min_angle'
 
 
 class StimDesigner:
@@ -239,14 +240,17 @@ class StimDesigner:
             angle = angle_between(v, u_to_s_function(u_thresh))
             angle = min(angle, 180-angle)
             angles.append( angle + sparsity_penalty)
-        threshold = thresholds[numpy.nanargmin(angles)]
+        best_angle_idx = numpy.nanargmin(angles)
+        threshold = thresholds[best_angle_idx]
 
         if threshold in {thresholds[0], thresholds[-1]}:
             warnings.warn("Threshold found at edge of search space.")
 
         u[u > threshold] = 1
         u[u <= threshold] = 0
+
         l['s'] = u_to_s_function(u)
+        l['homonenization_lowest_angle'] = angles[best_angle_idx]
         return u, l
 
     def design_stim_homogenous(self, v, u_dimension, u_to_s_function=None):
@@ -278,6 +282,17 @@ class StimDesigner:
                     results.append((u,l))
                 least_sparse_result = numpy.argmax([u.sum() for u,l in results])
                 u, l = results[least_sparse_result]
+
+            case OptimizationMethod.HOMOGENOUS_OPENLOOP_MIN_ANGLE:
+                results = []
+                for sub_v in [v, -v]:
+                    u = (kwargs['equivalent_projection_matrix'] @ sub_v).flatten()
+                    u[u <= 0] = 0
+                    l = {}
+                    u,l = self.homogenize_stim(v, u, l, kwargs['u_to_s_function'])
+                    results.append((u,l))
+                lowest_angle_result = numpy.argmin([l['homonenization_lowest_angle'] for u,l in results])
+                u, l = results[lowest_angle_result]
 
 
             case OptimizationMethod.PREV_SEEN:
