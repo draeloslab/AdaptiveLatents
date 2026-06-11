@@ -460,7 +460,7 @@ class BaseMultiKernelRegressor:
                 log_sum = jax.scipy.special.logsumexp(log_weights, b=weight_modifiers)
                 log_weights = log_weights - log_sum
 
-                return jnp.exp(jnp.clip(log_weights, max=0, min=-30)) @ output_history
+                return jnp.exp(jnp.clip(log_weights, a_max=0, a_min=-30)) @ output_history
         return f
 
     def predict(self, x):
