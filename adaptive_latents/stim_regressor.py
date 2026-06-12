@@ -218,11 +218,16 @@ class StimRegressor(Predictor):
 
     def observe(self, X, stream=None):
         if self.dt is not None:
+            # stim_to_predict_for = self.get_stim_to_predict_for(current_t=X.t)
             stim_to_predict_for = self.get_stim_to_predict_for(current_t=X.t-self.dt)
             if self.heed_stimuli and stim_to_predict_for is not None:
                 n_steps = self.data_to_n_steps(stim_to_predict_for.difference_interval[1] - stim_to_predict_for.difference_interval[0])
+                # if n_steps == 0:
+                #     warnings.warn('n_steps=0 is experimental!')
+                # assert n_steps == 1 or n_steps == 0
                 assert n_steps == 1
                 pred = self.autoreg.predict(n_steps=n_steps)
+                # stim_to_predict_for.predictions[X.t + n_steps * self.dt] = pred
                 stim_to_predict_for.predictions[X.t - self.dt + n_steps * self.dt] = pred
                 stim_to_predict_for.state_at_pred = self.autoreg.predict(n_steps=0).flatten()
 
