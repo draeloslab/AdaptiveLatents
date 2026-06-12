@@ -169,8 +169,8 @@ def test_predictor_accuracy(fitted_predictor_tuple, show_plots):
             plt.show(block=True)
 
     half_idx = len(trajectory) // 2
-    assert np.abs((np.atan2(trajectory[-1, 1], trajectory[-1, 0]) - np.atan2(Y_train[-1, 1], Y_train[-1, 0])) * 180 / np.pi) < 90  # TODO: make this tighter than 90 degrees
-    assert np.abs((np.atan2(trajectory[half_idx, 1], trajectory[half_idx, 0]) - np.atan2(Y_train[-1, 1], Y_train[-1, 0])) * 180 / np.pi) > 110
+    assert np.abs((np.arctan2(trajectory[-1, 1], trajectory[-1, 0]) - np.arctan2(Y_train[-1, 1], Y_train[-1, 0])) * 180 / np.pi) < 90  # TODO: make this tighter than 90 degrees
+    assert np.abs((np.arctan2(trajectory[half_idx, 1], trajectory[half_idx, 0]) - np.arctan2(Y_train[-1, 1], Y_train[-1, 0])) * 180 / np.pi) > 110
 
 
 
