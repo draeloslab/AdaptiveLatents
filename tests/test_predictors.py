@@ -6,7 +6,7 @@ import pytest
 
 import adaptive_latents
 from adaptive_latents import VJF, ArrayWithTime, Bubblewrap
-from adaptive_latents.estimator import Predictor, IgnoreDataEvent
+from adaptive_latents.estimator import Predictor, IgnoreDataEvent, NullPredictor
 from adaptive_latents.input_sources import AR_K, LDS, KalmanFilter
 from adaptive_latents.input_sources.kalman_filter import StreamingKalmanFilter
 from adaptive_latents.stim_regressor import StimRegressor
@@ -93,6 +93,7 @@ def test_ar_k(rng, rank_limit, show_plots):
 
 
 @pytest.fixture(params=[
+    pytest.param('null_predictor', marks=(pytest.mark.xfail(raises=AssertionError))),
     pytest.param('stim_regressor', marks=()),
     pytest.param('kalman_filter', marks=()),
     pytest.param('bubblewrap', marks=longrun),
@@ -113,8 +114,10 @@ def fitted_predictor_tuple(request, rng):
         case 'VJF':
             predictor = VJF(latent_d=2, rng=np.random.default_rng(18))
             rng = np.random.default_rng(19)
-
             n_rotations = 500
+        case 'null_predictor':
+            predictor = NullPredictor()
+            n_rotations = 1
         case _:
                 raise ValueError()
 

@@ -910,3 +910,25 @@ class Tee(DecoupledEstimator):
     def convert_to_array(self):
         self.observed = {k: ArrayWithTime.from_list(v, squeeze_type='to_2d', drop_early_nans=True) for k, v in self.observed.items()}
         return self.observed
+
+class NullPredictor(Predictor):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.last_seen = None
+
+    def predict(self, n_steps):
+        return self.last_seen
+
+    def observe(self, X, stream=None):
+        self.last_seen = X[0]
+
+    def get_state(self):
+        return self.last_seen
+
+    def get_arbitrary_dynamics_parameter(self):
+        return self.last_seen
+
+    def unevaluated_log_pred_p(self, n_steps):
+        if self.last_seen is None:
+            return lambda x: np.nan
+        return lambda x: np.inf if (x == self.last_seen).all() else 0
