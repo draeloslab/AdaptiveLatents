@@ -9,6 +9,13 @@ import warnings
 from enum import Enum
 from adaptive_latents.utils import angle_between
 
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logging.getLogger("jax").setLevel(logging.ERROR)
+
+
 class OptimizationMethod(str, Enum):
     JAXOPT = 'jaxopt'
     PREV_SEEN = 'prev_seen'
@@ -240,7 +247,13 @@ class StimDesigner:
             angle = angle_between(v, u_to_s_function(u_thresh))
             angle = min(angle, 180-angle)
             angles.append( angle + sparsity_penalty)
-        best_angle_idx = numpy.nanargmin(angles)
+        try:
+            best_angle_idx = numpy.nanargmin(angles)
+        except ValueError:
+            import traceback
+            logger.error("All angles were nan.")
+            logger.error(traceback.format_exc())
+            best_angle_idx = -1
         threshold = thresholds[best_angle_idx]
 
         u[u > threshold] = 1
