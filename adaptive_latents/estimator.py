@@ -914,13 +914,14 @@ class Tee(DecoupledEstimator):
 class NullPredictor(Predictor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.last_seen = None
+        self.last_seen = np.nan
 
     def predict(self, n_steps):
         return self.last_seen
 
     def observe(self, X, stream=None):
-        self.last_seen = X[0]
+        if self._parameter_fitting_state and self._data_observation_state:
+            self.last_seen = X[0]
 
     def get_state(self):
         return self.last_seen
