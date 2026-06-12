@@ -243,9 +243,6 @@ class StimDesigner:
         best_angle_idx = numpy.nanargmin(angles)
         threshold = thresholds[best_angle_idx]
 
-        if threshold in {thresholds[0], thresholds[-1]}:
-            warnings.warn("Threshold found at edge of search space.")
-
         u[u > threshold] = 1
         u[u <= threshold] = 0
 
