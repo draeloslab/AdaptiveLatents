@@ -3,7 +3,7 @@ import scipy.linalg
 
 from adaptive_latents.estimator import DecoupledEstimator
 from adaptive_latents.utils import column_space_distance, is_orthonormal
-
+from .timed_data_source import ArrayWithTime
 
 class BaseProPLS:
     def __init__(self, k=None, decay_alpha=None):
@@ -103,7 +103,7 @@ class proPLS(DecoupledEstimator, BaseProPLS):
         input_streams = input_streams or {0: 'X', 1: 'Y'}
         DecoupledEstimator.__init__(self, input_streams=input_streams, output_streams=output_streams, log_level=log_level)
         BaseProPLS.__init__(self, k=k, decay_alpha=decay_alpha)
-        self.log |= {'u': [], 'vh': [], 't': []}
+        self.log |= {'u': [], 'vh': [], 't': [], 'ut': []}
         self.last_seen = {}
         self.is_initialized = False
 
@@ -169,6 +169,8 @@ class proPLS(DecoupledEstimator, BaseProPLS):
             self.log['u'].append(self.u)
             self.log['vh'].append(self.vh)
             self.log['t'].append(data.t)
+            # This one is for usage with the plot_u_stability code
+            self.log['ut'].append(ArrayWithTime(self.u, data.t))
 
     def get_distance_from_subspace_over_time(self, subspace, variable='X'):
         assert self.log_level >= 2
@@ -185,3 +187,26 @@ class proPLS(DecoupledEstimator, BaseProPLS):
                 continue
             distances[j] = column_space_distance(Q, subspace)
         return distances, np.array(self.log['t'])
+    # Copied two functions below directly from proSVD and modified to get the stability of u
+    # Stability in this case is just how it changes over time?
+    def get_u_stability(self):
+        assert self.log_level >= 2
+        us = ArrayWithTime.from_list(self.log['ut'])
+    
+        du = np.linalg.norm(np.diff(us, axis=0), axis=1)
+        du = ArrayWithTime(du, us.t[1:])
+        return du
+    
+    def plot_u_stability(self, ax):
+        """
+        Parameters
+        ----------
+        ax: matplotlib.axes.Axes
+            the axes on which to plot the history
+        """
+        du = self.get_u_stability()
+        ax.plot(du.t, du)
+        ax.set_xlabel('time (s)')
+        ax.set_ylabel(r'$\Vert du_i\Vert$')
+        ax.set_title(f'Change in the columns of proPLS u over time ({self.u.shape[0]} -> {self.u.shape[1]})')
+    

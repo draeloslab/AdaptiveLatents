@@ -11,16 +11,17 @@ Demo: Joint latent spaces
 def main(show_plots=True):
     d = al.datasets.Odoherty21Dataset()
     kVal = 2
-    alphaVal=0.8
+    alphaVal=1
     neural_data = d.neural_data
     behavioral_data = d.behavioral_data
+    proplsObj = proPLS(k=kVal, decay_alpha=alphaVal, log_level=10)
 
     p = Pipeline([
         CenteringEstimator(),
         KernelSmoother(input_streams={0: 'X'}),  # this operates on data stream 0 (the neural data)
         KernelSmoother(input_streams={1: 'X'}),  # this operates on data stream 1 (the behavioral data)
         # Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 0, 1: 0}),  # this concatenates stream 0 and stream 1 and returns the result to stream 0
-        proPLS(k=kVal, decay_alpha=alphaVal),
+        proplsObj,
         tea := Tee(input_streams={0: 0}),
         sjPCA(),
     ])
@@ -38,6 +39,9 @@ def main(show_plots=True):
     axs[0].scatter(latents_before_sjpca[:, 0], latents_before_sjpca[:, 1], s=1)
     axs[1].scatter(latents[:, 0], latents[:, 1], s=1)
     axs[1].set_title("Post-SJPCA ProPLS (k=" + str(kVal) + ", alpha=" + str(alphaVal) + ")")
+    plt.figure()
+    axs2 = plt.subplot()
+    proplsObj.plot_u_stability(axs2)
     if show_plots:
         plt.show()
 
