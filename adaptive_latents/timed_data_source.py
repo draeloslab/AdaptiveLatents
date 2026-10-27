@@ -131,6 +131,7 @@ class ArrayWithTime(np.ndarray):
             raise ValueError()
 
     def slice_by_time(self, *args, all_axes=False):
+        "typical usage: arr.slice_by_time(slice(0, 1)) or arr.slice_by_time(slice(.5, None))"
         def convert_from_time_to_indices(x):
             if isinstance(x, slice):
                 assert x.step is None
