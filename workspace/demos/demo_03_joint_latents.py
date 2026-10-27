@@ -12,13 +12,14 @@ def main(show_plots=True):
     d = al.datasets.Odoherty21Dataset()
     neural_data = d.neural_data
     behavioral_data = d.behavioral_data
+    prosvdObj = proSVD(k=6, log_level=10)
 
     p = Pipeline([
         CenteringEstimator(),
         KernelSmoother(input_streams={0: 'X'}),  # this operates on data stream 0 (the neural data)
         KernelSmoother(input_streams={1: 'X'}),  # this operates on data stream 1 (the behavioral data)
         Concatenator(input_streams={0: 0, 1: 1}, output_streams={0: 0, 1: 0}),  # this concatenates stream 0 and stream 1 and returns the result to stream 0
-        proSVD(k=6),
+        prosvdObj,
         tea := Tee(input_streams={0: 0}),
         sjPCA(),
     ])
@@ -32,6 +33,9 @@ def main(show_plots=True):
     fig, axs = plt.subplots(ncols=2)
     axs[0].scatter(latents_before_sjpca[:, 0], latents_before_sjpca[:, 1], s=1)
     axs[1].scatter(latents[:, 0], latents[:, 1], s=1)
+    plt.figure()
+    axs2 = plt.subplot()
+    prosvdObj.plot_Q_stability(axs2)
     if show_plots:
         plt.show()
 

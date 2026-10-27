@@ -3,7 +3,7 @@ import scipy.linalg
 
 from adaptive_latents.estimator import DecoupledEstimator
 from adaptive_latents.utils import column_space_distance, is_orthonormal
-
+from adaptive_latents.timed_data_source import ArrayWithTime
 
 class BaseProPLS:
     def __init__(self, k=None, decay_alpha=None):
@@ -166,9 +166,8 @@ class proPLS(DecoupledEstimator, BaseProPLS):
     def log_for_step(self, data, stream=0):
         if self.is_initialized and self.log_level >= 2:
             # stream doesn't matter because they update at the same time
-            self.log['u'].append(self.u)
-            self.log['vh'].append(self.vh)
-            self.log['t'].append(data.t)
+            self.log['u'].append(ArrayWithTime(self.u, data.t))
+            self.log['vh'].append(ArrayWithTime(self.vh, data.t))
 
     def get_distance_from_subspace_over_time(self, subspace, variable='X'):
         assert self.log_level >= 2
@@ -185,3 +184,27 @@ class proPLS(DecoupledEstimator, BaseProPLS):
                 continue
             distances[j] = column_space_distance(Q, subspace)
         return distances, np.array(self.log['t'])
+
+    def get_space_stability(self, variable='X'):
+        assert self.log_level >= 2
+
+        variable = {'X': 'u', 'Y': 'v'}.get(variable, variable)
+
+        evolving_subspace = {
+            'u': self.log['u'],
+            'v': map(np.transpose, self.log['vh']),
+        }.get(variable)
+
+        evolving_subspace = ArrayWithTime.from_list(evolving_subspace)
+    
+        du = np.linalg.norm(np.diff(evolving_subspace, axis=0), axis=1)
+        du = ArrayWithTime(du, evolving_subspace.t[1:])
+        return du
+    
+    def plot_space_stability(self, ax, variable='u'):
+        d_space = self.get_space_stability(variable)
+        ax.plot(d_space.t, d_space)
+        ax.set_xlabel('time (s)')
+        ax.set_ylabel(r'$\Vert d{}_i\Vert$'.format(variable))
+        ax.set_title(f'Change in the columns of proPLS {variable} over time ({self.u.shape[0]} -> {self.u.shape[1]})')
+    
