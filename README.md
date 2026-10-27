@@ -6,15 +6,12 @@
 git clone https://github.com/draeloslab/AdaptiveLatents
 cd AdaptiveLatents
 
-# install dependencies
-conda env create --file=environment.yml
-
 # install the repo locally
 conda activate adaptive_latents
-pip install -e .
+pip install -e .[dev] # pip should install all of the packages you need
 
 # run the following line if you want to use the GPU version of jax
-pip install -U "jax[cuda12]"
+pip install -U "jax[cuda12]" # check the jax github page for the latest version of this command
 # note: if using apple silicon, you may need to build jax from source
 
 # create an adaptive_latents_config.yaml file if you wish
