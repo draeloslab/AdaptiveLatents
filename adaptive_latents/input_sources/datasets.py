@@ -20,6 +20,7 @@ from fsspec.implementations.cached import CachingFileSystem
 from PIL import Image
 from pynwb import NWBHDF5IO
 from scipy.io import loadmat
+from tensorflow.python.ops.distributions import beta
 
 import adaptive_latents.estimator
 from adaptive_latents import CONFIG
@@ -1156,6 +1157,74 @@ class Zong22Dataset(Dataset):
         point_trace[s] *= np.nan
         return point_trace
 
+class Duszkiewicz26Dataset(DandiDataset):
+    doi = "https://doi.org/10.48324/dandi.000939/0.261016.2310"
+    dandiset_id = '000939'
+    version_id = '0.261016.2310'
+    automatically_downloadable = True
+    model_organism = ModelOrganism.MOUSE
+
+    sub_datasets = ('sub-A3707/sub-A3707_ses-200317_behavior+ecephys.nwb',)
+
+    def __init__(self, sub_dataset_identifier=sub_datasets[0], bin_width=0.03):
+        if isinstance(sub_dataset_identifier, int):
+            sub_dataset_identifier = self.sub_datasets[sub_dataset_identifier]
+        self.sub_dataset = sub_dataset_identifier
+        self.bin_width = bin_width
+
+        (self.neural_data,
+         self.head_direction,
+         self.position,
+         self.epochs,
+         self.sleep_states) = self.construct(self.sub_dataset)
+        self.behavioral_data = self.head_direction
+
+    def construct(self, sub_dataset_identifier):
+        # the tracked quantities cover different time intervals, so they are not aligned to each other
+        with self.acquire(sub_dataset_identifier) as fhan:
+            nwb = fhan.read()
+            spike_times = list(nwb.units['spike_times'][:])  # read everything before the file closes
+            behavior = nwb.processing['behavior']
+            head_direction = self._spatial_series_to_array(behavior['CompassDirection'])
+            position = self._spatial_series_to_array(behavior['Position'])
+            # acceleration = self._block_averaged_timeseries(behavior['Accelerometer'], self.bin_width)
+            epochs = nwb.intervals['epochs'].to_dataframe()
+            sleep_states = nwb.intervals['sleep_states'].to_dataframe()
+
+        # tags are lists, which are awkward in dataframes
+        for df in (epochs, sleep_states):
+            df['tags'] = df['tags'].map(lambda x: ', '.join(map(str, x)))
+
+        all_spikes = np.concatenate(spike_times)
+        neural_data = self.bin_spikes(spike_times, self.bin_width, t_start=all_spikes.min(), t_end=all_spikes.max())
+        return neural_data, head_direction, position, epochs, sleep_states
+
+    @staticmethod
+    def _spatial_series_to_array(container):
+        series = next(iter(container.spatial_series.values()))
+        data = np.asarray(series.data[:], dtype=float)
+        return ArrayWithTime(data.reshape(len(data), -1), series.timestamps[:])
+
+    @staticmethod
+    def _block_averaged_timeseries(series, bin_width, chunk_size=2 ** 24):
+        # the accelerometer is sampled at 20 kHz, so it is averaged in chunks to avoid loading it all as floats
+        block = max(1, int(round(series.rate * bin_width)))
+        n_blocks = series.data.shape[0] // block
+        chunk_blocks = max(1, chunk_size // block)
+        out = np.empty((n_blocks, series.data.shape[1]))
+        for i in range(0, n_blocks, chunk_blocks):
+            j = min(i + chunk_blocks, n_blocks)
+            raw = series.data[i * block:j * block].astype(np.float32)
+            out[i:j] = raw.reshape(j - i, block, -1).mean(axis=1)
+        t = series.starting_time + (np.arange(n_blocks) + .5) * block / series.rate
+        return ArrayWithTime(out, t)
+
+    @staticmethod
+    def bin_spikes(spike_times, bin_width, t_start, t_end):
+        n_bins = int((t_end - t_start) // bin_width)
+        edges = t_start + bin_width * np.arange(n_bins + 1)
+        A = np.stack([np.histogram(st, bins=edges)[0] for st in spike_times], axis=1)
+        return ArrayWithTime(A, edges[1:])  # times are bin ends, as in Odoherty21
 
 class DummyCircleDataset(Dataset):
     # meant to mock Odoherty21
@@ -1208,3 +1277,7 @@ class Low21Dataset(MultiDataset):
 """
 
 
+if __name__ == '__main__':
+    dataset = Duszkiewicz26Dataset()
+    neural_data = dataset.neural_data
+    print(neural_data.shape)
