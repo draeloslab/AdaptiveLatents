@@ -205,7 +205,8 @@ class ArrayWithTime(np.ndarray):
     def dt(self):
         dts = np.diff(self.t)
         dt = np.median(dts)
-        assert np.ptp(dts)/dt < 0.05
+        if np.ptp(dts) / dt > 0.05:
+            warnings.warn("dt is not constant, using median dt")
         return dt
 
     @staticmethod
