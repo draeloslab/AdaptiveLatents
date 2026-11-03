@@ -166,7 +166,8 @@ plt.show()
 pls = proPLS(k=2, log_level=2)
 
 # instead of representing the head direction as a single angle like above, represent it as a 2d vector on the unit circle (cos(theta), sin(theta))
-hd_circular_basis = ...
+hd_circular_basis = np.transpose(np.stack([np.sin(hd.reshape(-1)), np.cos(hd.reshape(-1))]))
+print(np.shape(hd_circular_basis))
 hd_circular_basis = ArrayWithTime(hd_circular_basis, t) # this is necessary to make the timestamps line up
 
 latents = pls.offline_fit_then_transform([responses, hd_circular_basis])
@@ -184,9 +185,19 @@ ax.set(
 plt.plot(latents[:, 0], latents[:, 1], '.')
 
 # %% Plot a scatterplot of latent 1 against latent 2 in black, and overlay the last 100 points with a line
+fig2, ax2 = plt.subplots()
+ax2.plot(latents[:,0], latents[:,1],'k.')
+ax2.plot(latents[np.shape(latents)[0]-100:np.shape(latents)[0],0], latents[np.shape(latents)[0]-100:np.shape(latents)[0],1])
+ax2.set_title("Last 100 points")
 
 # %% Plot a scatterplot of latent 1 against latent 2 in black, and overlay the last 5 seconds with a line
 # hint: use ArrayWithTime.slice_by_time(slice(start_t, end_t))
+slicedLatents = latents.slice_by_time(slice(t.max()-5,t.max()))
+fig3, ax3 = plt.subplots()
+ax3.plot(latents[:,0], latents[:,1],'k.')
+ax3.plot(slicedLatents[:,0], slicedLatents[:,1])
+ax3.set_title("Last 5 seconds")
+plt.show()
 
 # %% Feel free to play around with this
 
