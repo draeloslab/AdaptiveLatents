@@ -35,17 +35,21 @@ ax.set(
 )
 plt.show()
 
-# %% TODO: Visualize the neural responses
+# %% Visualize the neural responses
 
 fig, ax = plt.subplots(figsize=(9, 5), layout="constrained")
-opposite_cells = (0, n_head_direction_cells // 2)
-for cell in opposite_cells:
-    ax.plot(t, responses[:, cell], label=f"Head-direction cell {cell + 1}")
+# Maybe just plot three neurons for now
+# for cell in range(np.shape(nd)[1]):
+for cell in range(3):
+    ax.plot(nd[:,cell].t,nd[:,cell])
+# opposite_cells = (0, n_head_direction_cells // 2)
+# for cell in opposite_cells:
+#     ax.plot(t, responses[:, cell], label=f"Head-direction cell {cell + 1}")
 
 ax.set(
     xlabel="Time (s)",
     ylabel="Neural response",
-    title="Simulated neural responses over time",
+    title="Neural Responses over Time",
 )
 ax.legend(title="Cell")
 plt.show()
