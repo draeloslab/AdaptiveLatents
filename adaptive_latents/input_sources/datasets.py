@@ -1,6 +1,7 @@
 import copy
 import datetime
 import enum
+import functools
 import os
 import sys
 import warnings
@@ -76,6 +77,14 @@ class DandiDataset(Dataset):
     @abstractmethod
     def version_id(self):
         pass
+
+    @classmethod
+    @functools.lru_cache(maxsize=None)
+    def list_assets(cls, glob_pattern='*.nwb'):
+        """Returns the sorted asset paths in this dandiset that match glob_pattern (queried from the DANDI API)."""
+        with DandiAPIClient() as client:
+            dandiset = client.get_dandiset(cls.dandiset_id, version_id=cls.version_id)
+            return tuple(sorted(a.path for a in dandiset.get_assets_by_glob(glob_pattern)))
 
     @contextmanager
     def acquire(self, asset_path):
@@ -1164,11 +1173,14 @@ class Duszkiewicz26Dataset(DandiDataset):
     automatically_downloadable = True
     model_organism = ModelOrganism.MOUSE
 
-    sub_datasets = ('sub-A3707/sub-A3707_ses-200317_behavior+ecephys.nwb',)
+    @classmethod
+    def get_sub_datasets(cls):
+        return cls.list_assets('*_behavior+ecephys.nwb')
 
-    def __init__(self, sub_dataset_identifier=sub_datasets[0], bin_width=0.03):
+    def __init__(self, sub_dataset_identifier=0, bin_width=0.03):
+        """sub_dataset_identifier is an index into get_sub_datasets() or a full asset path."""
         if isinstance(sub_dataset_identifier, int):
-            sub_dataset_identifier = self.sub_datasets[sub_dataset_identifier]
+            sub_dataset_identifier = self.get_sub_datasets()[sub_dataset_identifier]
         self.sub_dataset = sub_dataset_identifier
         self.bin_width = bin_width
 
