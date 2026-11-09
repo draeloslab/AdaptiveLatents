@@ -1,16 +1,18 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 from adaptive_latents import ArrayWithTime
 from adaptive_latents.plotting_functions import AnimationManager, plot_history_with_tail
 
-from adaptive_latents import proSVD, proPLS
+from adaptive_latents import proSVD, proPLS, ArrayWithTime, KernelSmoother
+from adaptive_latents.utils import resample_matched_timeseries
 
-from adaptive_latents.input_sources import datasets
+from adaptive_latents.input_sources.datasets import Duszkiewicz26Dataset
 
 rng = np.random.default_rng(0)
 
-data = datasets.Duszkiewicz26Dataset()
+data = Duszkiewicz26Dataset(9, bin_width=0.03)
 nd = data.neural_data # (371413, 185) I think means 185 neurons?
 hd = data.head_direction # (303775, 1)
 
@@ -22,7 +24,8 @@ ax.set(
     ylabel="Head direction (radians)",
     title="Head direction over time",
 )
-plt.show()
+for t in data.epochs.stop_time:
+    ax.axvline(x=t, color='r')
 
 # %% Visualize the distribution of head directions
 
@@ -33,7 +36,6 @@ ax.set(
     ylabel="Density",
     title="Distribution of simulated head direction",
 )
-plt.show()
 
 # %% Visualize the neural responses
 
@@ -52,28 +54,47 @@ ax.set(
     title="Neural Responses over Time",
 )
 ax.legend(title="Cell")
-plt.show()
 
+print(data.epochs.tags) # We'll want to select tags "wake_square" and "wake_triangle"
 
-# %% Visualize the simulated neural responses as a heatmap
+def filter_for_good_times(a):
+    squareIdx = pd.Index(data.epochs.tags).get_loc("wake_square")
+    wake_square = (data.epochs.start_time[squareIdx] < a.t) & (a.t < data.epochs.stop_time[squareIdx])
+    try:
+        triangleIdx = pd.Index(data.epochs.tags).get_loc("wake_triangle")
+        wake_triangle = (data.epochs.start_time[triangleIdx] < a.t) & (a.t < data.epochs.stop_time[triangleIdx])
+    except KeyError:
+        # Should guarantee a full array of false
+        wake_triangle = a.t < 0
+    return a.slice(wake_square | wake_triangle)
 
-fig, ax = plt.subplots(figsize=(5, 9), layout="constrained")
-image = ax.imshow(
-    responses,
-    aspect="auto",
-    cmap="viridis",
-    interpolation='nearest',
-    extent=(0, responses.shape[1], t[-1], t[0]),
-)
+raw_x = filter_for_good_times(data.neural_data)
+smoother = KernelSmoother(tau=.1/raw_x.dt) # TODO: TUNE THIS
+
+smooth_x = smoother.offline_run_on([raw_x]) # smoothing it
+smooth_x = smooth_x - smooth_x.mean(axis=0) # centering data
+
+raw_y = filter_for_good_times(data.behavioral_data)
+resample_y = resample_matched_timeseries(raw_y, raw_y.t, smooth_x.t) # Matches y t's to x t's
+
+fig, ax = plt.subplots(figsize=(9, 5), layout="constrained")
+ax.plot(raw_x.t, raw_x[:,0] - raw_x[:,0].mean(), '-b', label="Raw Neural Data")
+ax.plot(smooth_x.t, smooth_x[:,0], '-r', label="Smoothed Neural Data")
+
+fig, ax = plt.subplots(figsize=(9, 5), layout="constrained")
+ax.plot(resample_y, smooth_x[:,0], '.')
 ax.set(
-    xlabel="Neuron index",
-    ylabel="Time (s)",
-    title="Simulated neural responses",
+    xlabel="Head Direction (radians)",
+    ylabel="Smoothed Spike Data"
 )
-fig.colorbar(image, ax=ax, label="Neural response")
-plt.show()
 
-# %%
+# These are all places where the behavioral data drops out to nan
+# 
+times_to_check = [3761.91425, 3761.94425, 3761.9742499999998, 3762.00425, 3762.0342499999997, 3762.06425, 3762.12425, 3762.1542499999996, 3762.18425, 3762.21425, 3930.9942499999997, 4549.50425, 5276.07425, 5279.854249999999, 9907.47425, 10331.34425, 10751.52425, 11346.874249999999, 12083.25425]
+for t in times_to_check:
+    print(raw_y[raw_y.time_to_sample(t)])
+
+plt.show()
 
 pro = proSVD(k=2, log_level=2)
 
