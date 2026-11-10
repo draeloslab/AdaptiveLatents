@@ -153,3 +153,33 @@ plt.plot(pls.u)
 tuning_weight = np.linalg.norm(pls.u, axis=1)
 plt.plot(np.sort(tuning_weight)[::-1])
 np.argsort(tuning_weight)
+
+# %%
+from sklearn.cross_decomposition import CCA
+
+cca = CCA(n_components=2)
+cca.fit(x, np.column_stack((np.cos(y_resampled), np.sin(y_resampled))))
+
+latents_cca = cca.predict(x)
+# %%
+
+fig, axs = plt.subplots(figsize=(10, 10), ncols=2, nrows=3, layout="constrained", sharex='row', sharey='row')
+
+for axs, latents, row_i in zip(axs, [latents_pls, latents_prosvd, latents_cca], [0, 1, 2]):
+    p = rng.permutation(latents.shape[0])
+
+    ax = axs[0]
+    scatter = ax.scatter(latents[p, 0], latents[p, 1], c=c[p], s=1, cmap=cmap)
+
+    if row_i == 0:
+        ax.scatter(np.cos(theta) + 4, np.sin(theta) + 2, c=bar_c, s=15, cmap=cmap)
+        ax.axis('scaled')
+
+    ax = axs[1]
+    ax.hexbin(latents[:, 0], latents[:, 1], bins='log')
+    ax.axis('scaled')
+
+# %%
+fig, ax = plt.subplots()
+
+ax.plot(latents_cca[:,0], latents_cca[:,1], '.', ms=1, alpha=.1)
