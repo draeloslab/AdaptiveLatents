@@ -89,50 +89,76 @@ ax.set(
 )
 
 # These are all places where the behavioral data drops out to nan
-# 
+# The way to fix would be to just remove all of the nan points entirely
+# Interpolation doesn't seem appropriate here since most of these are improbably fast jumps in angle
 times_to_check = [3761.91425, 3761.94425, 3761.9742499999998, 3762.00425, 3762.0342499999997, 3762.06425, 3762.12425, 3762.1542499999996, 3762.18425, 3762.21425, 3930.9942499999997, 4549.50425, 5276.07425, 5279.854249999999, 9907.47425, 10331.34425, 10751.52425, 11346.874249999999, 12083.25425]
 for t in times_to_check:
-    print(raw_y[raw_y.time_to_sample(t)])
+    print(resample_y[resample_y.time_to_sample(t)])
+    
+keepIdx = np.logical_not(np.isnan(resample_y))
 
-plt.show()
+y = resample_y[keepIdx]
+y.t = resample_y.t[np.reshape(keepIdx,(-1))]
+# Can I assume that x is in time order???
+x = smooth_x[np.reshape(keepIdx,(-1)),:]
+x.y = smooth_x.t[np.reshape(keepIdx,(-1))]
 
-pro = proSVD(k=2, log_level=2)
+print(np.shape(y))
+print(np.shape(x))
 
-latents = pro.offline_fit_then_transform(responses) # this is more stable than offline_run_on, but offline_run_on is more realistic for what we'd actually use
+fig, ax = plt.subplots(figsize=(9, 5), layout="constrained")
+ax.plot(y.t, y)
+
+svd = proSVD(k=2, log_level=2)
+
+latents_prosvd = svd.offline_fit_then_transform(smooth_x) # this is more stable than offline_run_on, but offline_run_on is more realistic for what we'd actually use
 # latents = pro.offline_run_on(responses)
 
 # %%
 
-fig, ax = plt.subplots(figsize=(5, 5), layout="constrained")
-ax.plot(latents[:, 0], latents[:, 1], '.')
-ax.set(
-    xlabel="Latent 1",
-    ylabel="Latent 2",
-    title="SVD latent-space trajectory",
-    aspect="equal",
-)
-plt.show()
+theta = np.linspace(0, 2*np.pi, 500) # for drawing a circle
+hd_bins = np.linspace(0, 2*np.pi, 51) # bin edges for head direction colors
+c = y.flatten() * np.nan
+bar_c = theta * np.nan
+for bin_i in range(len(hd_bins) - 1):
+    s = (hd_bins[bin_i] <= y) & (y < hd_bins[bin_i + 1])
+    s = s.flatten()
+    c[s] = bin_i
 
-# Note how we don't get a ring, even though there's a ring structure in the latent space.
+    s = (hd_bins[bin_i] <= theta) & (theta < hd_bins[bin_i + 1])
+    s = s.flatten()
+    bar_c[s] = bin_i
 
-
-# %%
-
-pls = proPLS(k=1, log_level=2)
-
-latents = pls.offline_fit_then_transform([responses, hd.reshape(-1, 1)])
+cmap = 'hsv' # also try 'twilight' or 'twilight_shifted'
 
 # %%
 
-fig, ax = plt.subplots(figsize=(9, 5), layout="constrained")
-ax.plot(latents)
-ax.plot(hd / hd.var())
-ax.set(
-    xlabel="Time (samples)",
-    ylabel="Latent value",
-    title="PLS latent over time (head direction in radians)",
-)
-ax.legend(["Latent 1"])
+fig, ax = plt.subplots()
+
+ax.scatter(latents_prosvd[:, 0], latents_prosvd[:, 1], c=c, s=1, cmap=cmap)
+
+ax.scatter(np.cos(theta) + 4.5, np.sin(theta) + 2.2, c=bar_c, s=15, cmap=cmap) # this is like a colorbar for the head direction
+ax.axis('scaled')
+
+# %%
+
+pls = proPLS(k=2, log_level=2)
+
+y_circular_basis = np.transpose(np.stack([np.sin(y.reshape(-1)), np.cos(y.reshape(-1))]))
+print(np.shape(y_circular_basis))
+y_circular_basis = ArrayWithTime(y_circular_basis, y.t)
+
+latents_propls = pls.offline_fit_then_transform([x, y_circular_basis])
+
+# %%
+
+fig, ax = plt.subplots()
+
+# This is using the same colorbins as defined above, may or may not be valid given proPLS takes in both x and y
+ax.scatter(latents_propls[:, 0], latents_propls[:, 1], c=c, s=1, cmap=cmap)
+
+ax.scatter(np.cos(theta) + 4.5, np.sin(theta) + 2.2, c=bar_c, s=15, cmap=cmap) # this is like a colorbar for the head direction
+ax.axis('scaled')
 plt.show()
 
 # %%
