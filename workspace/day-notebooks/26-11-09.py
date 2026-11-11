@@ -185,6 +185,7 @@ R = 2 # major radius
 r = 1 # minor radius
 
 point_cloud = qmc.Sobol(d=2, scramble=True, seed=0).random(n=512)
+# point_cloud = rng.uniform(0, 1, size=(512, 2))
 theta = point_cloud[:, 0] * 2 * np.pi
 phi = np.zeros_like(theta)
 for i in range(len(phi)):

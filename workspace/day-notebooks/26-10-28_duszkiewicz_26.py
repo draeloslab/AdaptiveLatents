@@ -4,6 +4,10 @@ import matplotlib.pyplot as plt
 
 from scipy import stats
 
+import gudhi
+from gudhi.sklearn import RipsPersistence
+from scipy.spatial.distance import pdist, squareform
+
 from adaptive_latents import proSVD, proPLS, ArrayWithTime, KernelSmoother
 from adaptive_latents.utils import resample_matched_timeseries
 rng = np.random.default_rng(0)
@@ -180,6 +184,37 @@ for axs, latents, row_i in zip(axs, [latents_pls, latents_prosvd, latents_cca], 
     ax.axis('scaled')
 
 # %%
-fig, ax = plt.subplots()
 
-ax.plot(latents_cca[:,0], latents_cca[:,1], '.', ms=1, alpha=.1)
+point_cloud = latents_cca
+
+sample_size = min(500, len(point_cloud))
+
+if False:
+    sample_indices = rng.choice(len(point_cloud), size=sample_size, replace=False)
+    subsampled_point_cloud = point_cloud[sample_indices]
+else:
+    sample_1 = rng.choice(np.unique(c), size=sample_size, replace=True)
+    sample_2 = []
+    for angle_bin in np.unique(c):
+        sample_2.append(rng.choice(point_cloud[c == angle_bin], replace=False, size=(sample_1 == angle_bin).sum()))
+    sample_2 = np.vstack(sample_2)
+    subsampled_point_cloud = sample_2
+
+fig, axs = plt.subplots(ncols=2, figsize=(10,5), layout="constrained")
+
+axs[0].plot(subsampled_point_cloud[:,0], subsampled_point_cloud[:,1], '.')
+
+
+# Limit the Rips complex to a local scale to keep the number of simplices manageable.
+distance_matrix = squareform(pdist(subsampled_point_cloud))
+np.fill_diagonal(distance_matrix, np.inf)
+nearest_neighbor_distances = distance_matrix.min(axis=1)
+max_edge_length = 10 * np.quantile(nearest_neighbor_distances, 0.9)
+
+
+diagrams = RipsPersistence(
+    homology_dimensions=[0, 1, 2],
+    threshold=max_edge_length,
+).fit_transform([subsampled_point_cloud])[0]
+
+gudhi.plot_persistence_diagram(diagrams, axes=axs[1])
