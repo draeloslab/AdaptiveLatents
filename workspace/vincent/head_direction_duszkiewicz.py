@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 from adaptive_latents import ArrayWithTime
-from adaptive_latents.plotting_functions import AnimationManager, plot_history_with_tail
+from adaptive_latents.plotting_functions import AnimationManager#, plot_history_with_tail
 
 from adaptive_latents import proSVD, proPLS, ArrayWithTime, KernelSmoother
 from adaptive_latents.utils import resample_matched_timeseries
@@ -92,8 +92,8 @@ ax.set(
 # The way to fix would be to just remove all of the nan points entirely
 # Interpolation doesn't seem appropriate here since most of these are improbably fast jumps in angle
 times_to_check = [3761.91425, 3761.94425, 3761.9742499999998, 3762.00425, 3762.0342499999997, 3762.06425, 3762.12425, 3762.1542499999996, 3762.18425, 3762.21425, 3930.9942499999997, 4549.50425, 5276.07425, 5279.854249999999, 9907.47425, 10331.34425, 10751.52425, 11346.874249999999, 12083.25425]
-for t in times_to_check:
-    print(resample_y[resample_y.time_to_sample(t)])
+# for t in times_to_check:
+#     print(resample_y[resample_y.time_to_sample(t)])
     
 keepIdx = np.logical_not(np.isnan(resample_y))
 
@@ -103,8 +103,8 @@ y.t = resample_y.t[np.reshape(keepIdx,(-1))]
 x = smooth_x[np.reshape(keepIdx,(-1)),:]
 x.y = smooth_x.t[np.reshape(keepIdx,(-1))]
 
-print(np.shape(y))
-print(np.shape(x))
+# print(np.shape(y))
+# print(np.shape(x))
 
 fig, ax = plt.subplots(figsize=(9, 5), layout="constrained")
 ax.plot(y.t, y)
@@ -145,7 +145,7 @@ ax.axis('scaled')
 pls = proPLS(k=2, log_level=2)
 
 y_circular_basis = np.transpose(np.stack([np.sin(y.reshape(-1)), np.cos(y.reshape(-1))]))
-print(np.shape(y_circular_basis))
+# print(np.shape(y_circular_basis))
 y_circular_basis = ArrayWithTime(y_circular_basis, y.t)
 
 latents_propls = pls.offline_fit_then_transform([x, y_circular_basis])
@@ -155,60 +155,61 @@ latents_propls = pls.offline_fit_then_transform([x, y_circular_basis])
 fig, ax = plt.subplots()
 
 # This is using the same colorbins as defined above, may or may not be valid given proPLS takes in both x and y
+print(np.shape(latents_propls))
+print(np.shape(latents_propls.t))
 ax.scatter(latents_propls[:, 0], latents_propls[:, 1], c=c, s=1, cmap=cmap)
 
 ax.scatter(np.cos(theta) + 4.5, np.sin(theta) + 2.2, c=bar_c, s=15, cmap=cmap) # this is like a colorbar for the head direction
 ax.axis('scaled')
-plt.show()
 
-# %%
+def plot_history_with_tail_cmap(ax, data, current_t, tail_length=1, scatter_all=True, dim_1=0, dim_2=1, hist_bins=None, invisible=False, scatter_alpha=.1, scatter_s=5, c='gray', cmap='hsv'):
+    """
+    Examples
+    --------
+    >>> fig, ax = plt.subplots()
+    >>> X = np.random.normal(size=(100,2))
+    >>> X = ArrayWithTime.from_notime(X)
+    >>> plot_history_with_tail(ax, data=X, current_t=75, tail_length=4, scatter_alpha=1)
+    """
+    ax.cla()
 
-pls = proPLS(k=2, log_level=2)
+    s = np.ones_like(data.t).astype(bool)
+    # print(np.shape(s))
+    if scatter_all:
+        s = data.t <= current_t
+        c = c[s]
+    if hist_bins is None:
+        ax.scatter(data[s,dim_1], data[s,dim_2], s=scatter_s, c=c, cmap=cmap, edgecolors='none', alpha= 0 if invisible else scatter_alpha)
+        back_color = 'white'
+        forward_color = 'C0'
+    else:
+        s = s & np.isfinite(data).all(axis=1)
+        ax.hist2d(data[s,dim_1], data[s,dim_2], bins=hist_bins)
+        back_color = 'black'
+        forward_color = 'white'
 
-# instead of representing the head direction as a single angle like above, represent it as a 2d vector on the unit circle (cos(theta), sin(theta))
-hd_circular_basis = np.transpose(np.stack([np.sin(hd.reshape(-1)), np.cos(hd.reshape(-1))]))
-print(np.shape(hd_circular_basis))
-hd_circular_basis = ArrayWithTime(hd_circular_basis, t) # this is necessary to make the timestamps line up
 
-latents = pls.offline_fit_then_transform([responses, hd_circular_basis])
-
-# %% Plot the latents over time
-fig, ax = plt.subplots(figsize=(9, 5), layout="constrained")
-ax.plot(latents.t, latents) # note the use of the t attribute of the ArrayWithTime latents
-ax.set(
-    xlabel="",
-    ylabel="",
-    title="",
-)
-
-# %% Plot a scatterplot of latent 1 against latent 2
-plt.plot(latents[:, 0], latents[:, 1], '.')
-
-# %% Plot a scatterplot of latent 1 against latent 2 in black, and overlay the last 100 points with a line
-fig2, ax2 = plt.subplots()
-ax2.plot(latents[:,0], latents[:,1],'k.')
-ax2.plot(latents[np.shape(latents)[0]-100:np.shape(latents)[0],0], latents[np.shape(latents)[0]-100:np.shape(latents)[0],1])
-ax2.set_title("Last 100 points")
-
-# %% Plot a scatterplot of latent 1 against latent 2 in black, and overlay the last 5 seconds with a line
-# hint: use ArrayWithTime.slice_by_time(slice(start_t, end_t))
-slicedLatents = latents.slice_by_time(slice(t.max()-5,t.max()))
-fig3, ax3 = plt.subplots()
-ax3.plot(latents[:,0], latents[:,1],'k.')
-ax3.plot(slicedLatents[:,0], slicedLatents[:,1])
-ax3.set_title("Last 5 seconds")
-plt.show()
+    linewidth = 2
+    size = 10
+    s = (current_t - tail_length < data.t) & (data.t <= current_t)
+    ax.plot(data[s, dim_1], data[s, dim_2], color=back_color, linewidth=linewidth * 1.5, alpha= 0 if invisible else 1)
+    ax.scatter(data[s, dim_1][-1], data[s, dim_2][-1], s=size * 1.5, color=back_color, alpha= 0 if invisible else 1)
+    ax.plot(data[s, dim_1], data[s, dim_2], color=forward_color, linewidth=linewidth, alpha= 0 if invisible else 1)
+    ax.scatter(data[s,dim_1][-1], data[s,dim_2][-1], color=forward_color, s=size, zorder=3, alpha= 0 if invisible else 1)
+    ax.axis('off')
 
 # %% Feel free to play around with this
-
-with AnimationManager(outdir='.', filename_stem='latent_trajectory', filetype='mp4', fps=30) as am:
+n_seconds = np.max(y.t)
+with AnimationManager(outdir='.', filename_stem='latent_trajectory', filetype='mp4', fps=30, figsize=(9,6)) as am:
     for current_t in np.linspace(n_seconds-60, n_seconds, 3*60+1):
         for ax in am.axs.flatten():
             ax.cla()
         ax = am.axs[0,0]
 
-        plot_history_with_tail(ax=ax, data=latents, current_t=current_t, tail_length=1)
-
+        plot_history_with_tail_cmap(ax=ax, data=latents_propls, current_t=current_t, tail_length=1, c=c, cmap=cmap)
+        ax.scatter(np.cos(theta) + 4.5, np.sin(theta) + 2.2, c=bar_c, s=15, cmap=cmap)
+        sHD = (current_t - 1 < latents_propls.t) & (latents_propls.t <= current_t)
+        ax.scatter(np.cos(y[sHD]) + 4.5, np.sin(y[sHD]) + 2.2, c='black', s=15)
         am.grab_frame()
 
 
@@ -226,7 +227,7 @@ with AnimationManager(outdir='.', filename_stem='latent_trajectory', filetype='m
 
 
 # %% You don't have to understand all of this, I just think it's interesting.
-
+plt.show()
 subspace_cov = np.cov(pls.project(x=pls.project(x=responses), project_up=True).T)
 full_d_cov = np.cov(responses.T)
 no_noise_cov = np.cov(no_noise_responses.T)
