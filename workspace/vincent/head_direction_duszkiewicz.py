@@ -201,7 +201,9 @@ def plot_history_with_tail_cmap(ax, data, current_t, tail_length=1, scatter_all=
 # %% Feel free to play around with this
 n_seconds = np.max(y.t)
 with AnimationManager(outdir='.', filename_stem='latent_trajectory', filetype='mp4', fps=30, figsize=(9,6)) as am:
-    for current_t in np.linspace(n_seconds-60, n_seconds, 3*60+1):
+    # If we want this to be in real time, linspace should be in 30fps so 30*60
+    numFrames = 30*60+1
+    for i, current_t in enumerate(np.linspace(n_seconds-60, n_seconds, numFrames)):
         for ax in am.axs.flatten():
             ax.cla()
         ax = am.axs[0,0]
@@ -211,6 +213,8 @@ with AnimationManager(outdir='.', filename_stem='latent_trajectory', filetype='m
         sHD = (current_t - 1 < latents_propls.t) & (latents_propls.t <= current_t)
         ax.scatter(np.cos(y[sHD]) + 4.5, np.sin(y[sHD]) + 2.2, c='black', s=15)
         am.grab_frame()
+        print("\x1b[K", end="")
+        print("Finished Frame ", i, "/", numFrames, end="\r")
 
 
 # %% Plot the weights of u per each neuron, for each latent dimension
