@@ -192,18 +192,21 @@ def plot_history_with_tail_cmap(ax, data, current_t, tail_length=1, scatter_all=
     linewidth = 2
     size = 10
     s = (current_t - tail_length < data.t) & (data.t <= current_t)
-    ax.plot(data[s, dim_1], data[s, dim_2], color=back_color, linewidth=linewidth * 1.5, alpha= 0 if invisible else 1)
-    ax.scatter(data[s, dim_1][-1], data[s, dim_2][-1], s=size * 1.5, color=back_color, alpha= 0 if invisible else 1)
-    ax.plot(data[s, dim_1], data[s, dim_2], color=forward_color, linewidth=linewidth, alpha= 0 if invisible else 1)
-    ax.scatter(data[s,dim_1][-1], data[s,dim_2][-1], color=forward_color, s=size, zorder=3, alpha= 0 if invisible else 1)
-    ax.axis('off')
+    if data[s, dim_1].size != 0:
+        ax.plot(data[s, dim_1], data[s, dim_2], color=back_color, linewidth=linewidth * 1.5, alpha= 0 if invisible else 1)
+        ax.scatter(data[s, dim_1][-1], data[s, dim_2][-1], s=size * 1.5, color=back_color, alpha= 0 if invisible else 1)
+        ax.plot(data[s, dim_1], data[s, dim_2], color=forward_color, linewidth=linewidth, alpha= 0 if invisible else 1)
+        ax.scatter(data[s,dim_1][-1], data[s,dim_2][-1], color=forward_color, s=size, zorder=3, alpha= 0 if invisible else 1)
+        ax.axis('off')
 
 # %% Feel free to play around with this
-n_seconds = np.max(y.t)
+n_seconds = np.max(latents_propls.t)
+print(n_seconds) # Just want to see how much time is being represented
 with AnimationManager(outdir='.', filename_stem='latent_trajectory', filetype='mp4', fps=30, figsize=(9,6)) as am:
-    # If we want this to be in real time, linspace should be in 30fps so 30*60
-    numFrames = 30*60+1
-    for i, current_t in enumerate(np.linspace(n_seconds-60, n_seconds, numFrames)):
+    n_seconds_shown = 2*60 # What if we just grabbed the last two minutes of head activity
+    # If we want this to be in real time, linspace should be in 30fps so n_seconds_shown*30+1
+    numFrames = np.round(n_seconds_shown*30+1).astype(np.int_)
+    for i, current_t in enumerate(np.linspace(n_seconds-n_seconds_shown, n_seconds, numFrames)):
         for ax in am.axs.flatten():
             ax.cla()
         ax = am.axs[0,0]
