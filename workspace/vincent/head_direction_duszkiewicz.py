@@ -20,16 +20,19 @@ data = Duszkiewicz26Dataset(1, bin_width=0.03)
 nd = data.neural_data # (######, 185) I think means 185 neurons?
 hd = data.head_direction # (######, 1) so an angle
 pos = data.position # should be x and y position? so (######, 2)
-disp = np.sqrt(np.power(pos[:,0],2)+np.power(pos[:,1],2))
-# Double check why this is coming out negative?
-spd = np.divide(np.diff(disp),np.diff(disp.t))
+spd = np.sqrt(np.power(np.diff(pos[:,0]),2)+np.power(np.diff(pos[:,1]),2))
 spd = np.hstack((np.nan,spd))
 spd = np.reshape(ArrayWithTime(spd,pos.t),(-1,1))
 
 print("--------------")
 print(np.shape(pos))
-print(np.shape(disp))
 print(np.shape(spd))
+
+fig, ax = plt.subplots(figsize=(9, 5), layout="constrained")
+ax.plot(pos[:,0], pos[:,1])
+
+fig, ax = plt.subplofig, ax = plt.subplots(figsize=(9, 5), layout="constrained")
+ax.plot(spd.t, spd)
 
 # %% Visualize the head direction over time
 fig, ax = plt.subplots(figsize=(9, 5), layout="constrained")
