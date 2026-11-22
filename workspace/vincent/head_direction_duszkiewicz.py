@@ -12,9 +12,24 @@ from adaptive_latents.input_sources.datasets import Duszkiewicz26Dataset
 
 rng = np.random.default_rng(0)
 
-data = Duszkiewicz26Dataset(9, bin_width=0.03)
-nd = data.neural_data # (371413, 185) I think means 185 neurons?
-hd = data.head_direction # (303775, 1)
+# Mouse 9 - proPLS finds a nice ring
+# Mouse 4 - proPLS can't find a ring
+# Mouse 8 - proPLS finds a nice ring
+# Mouse 1 - proPLS finds a nice ring
+data = Duszkiewicz26Dataset(1, bin_width=0.03)
+nd = data.neural_data # (######, 185) I think means 185 neurons?
+hd = data.head_direction # (######, 1) so an angle
+pos = data.position # should be x and y position? so (######, 2)
+disp = np.sqrt(np.power(pos[:,0],2)+np.power(pos[:,1],2))
+# Double check why this is coming out negative?
+spd = np.divide(np.diff(disp),np.diff(disp.t))
+spd = np.hstack((np.nan,spd))
+spd = np.reshape(ArrayWithTime(spd,pos.t),(-1,1))
+
+print("--------------")
+print(np.shape(pos))
+print(np.shape(disp))
+print(np.shape(spd))
 
 # %% Visualize the head direction over time
 fig, ax = plt.subplots(figsize=(9, 5), layout="constrained")
@@ -77,6 +92,9 @@ smooth_x = smooth_x - smooth_x.mean(axis=0) # centering data
 raw_y = filter_for_good_times(data.behavioral_data)
 resample_y = resample_matched_timeseries(raw_y, raw_y.t, smooth_x.t) # Matches y t's to x t's
 
+raw_spd = filter_for_good_times(spd)
+raw_spd = resample_matched_timeseries(raw_spd, raw_spd.t, smooth_x.t) # matches spd t's to x t's
+
 fig, ax = plt.subplots(figsize=(9, 5), layout="constrained")
 ax.plot(raw_x.t, raw_x[:,0] - raw_x[:,0].mean(), '-b', label="Raw Neural Data")
 ax.plot(smooth_x.t, smooth_x[:,0], '-r', label="Smoothed Neural Data")
@@ -101,7 +119,11 @@ y = resample_y[keepIdx]
 y.t = resample_y.t[np.reshape(keepIdx,(-1))]
 # Can I assume that x is in time order???
 x = smooth_x[np.reshape(keepIdx,(-1)),:]
-x.y = smooth_x.t[np.reshape(keepIdx,(-1))]
+x.t = smooth_x.t[np.reshape(keepIdx,(-1))]
+
+spd = raw_spd[keepIdx]
+spd.t = raw_spd.t[np.reshape(keepIdx,(-1))]
+
 
 # print(np.shape(y))
 # print(np.shape(x))
@@ -129,7 +151,7 @@ for bin_i in range(len(hd_bins) - 1):
     s = s.flatten()
     bar_c[s] = bin_i
 
-cmap = 'hsv' # also try 'twilight' or 'twilight_shifted'
+cmap = 'twilight' # also try 'twilight' or 'twilight_shifted'
 
 # %%
 
@@ -157,10 +179,26 @@ fig, ax = plt.subplots()
 # This is using the same colorbins as defined above, may or may not be valid given proPLS takes in both x and y
 print(np.shape(latents_propls))
 print(np.shape(latents_propls.t))
+# Compute a centroid and display it with a big square
 ax.scatter(latents_propls[:, 0], latents_propls[:, 1], c=c, s=1, cmap=cmap)
 
 ax.scatter(np.cos(theta) + 4.5, np.sin(theta) + 2.2, c=bar_c, s=15, cmap=cmap) # this is like a colorbar for the head direction
+ax.scatter(np.asarray(np.mean(latents_propls[:,0])),np.asarray(np.mean(latents_propls[:,1])), marker="s", c="white", edgecolors="black", s=15)
 ax.axis('scaled')
+
+# Compute the distance of each point from the centroid
+xDist = latents_propls[:,0] - np.asarray(np.mean(latents_propls[:,0]))
+yDist = latents_propls[:,1] - np.asarray(np.mean(latents_propls[:,1]))
+dist = np.sqrt(np.power(xDist,2) + np.power(yDist,2))
+# do a scatter plot of distance from centroid v. instantaneous speed
+fig, ax = plt.subplots()
+ax.scatter(dist, spd)
+ax.set(
+    xlabel="Distance from Centroid of Latent Space",
+    ylabel="Movement Speed (?/s)",
+    title="Movement Speed v. Dist from Centroid",
+)
+plt.show()
 
 def plot_history_with_tail_cmap(ax, data, current_t, tail_length=1, scatter_all=True, dim_1=0, dim_2=1, hist_bins=None, invisible=False, scatter_alpha=.1, scatter_s=5, c='gray', cmap='hsv'):
     """
@@ -214,7 +252,7 @@ with AnimationManager(outdir='.', filename_stem='latent_trajectory', filetype='m
         plot_history_with_tail_cmap(ax=ax, data=latents_propls, current_t=current_t, tail_length=1, c=c, cmap=cmap)
         ax.scatter(np.cos(theta) + 4.5, np.sin(theta) + 2.2, c=bar_c, s=15, cmap=cmap)
         sHD = (current_t - 1 < latents_propls.t) & (latents_propls.t <= current_t)
-        ax.scatter(np.cos(y[sHD]) + 4.5, np.sin(y[sHD]) + 2.2, c='black', s=15)
+        ax.scatter(np.cos(y[sHD]) + 4.5, np.sin(y[sHD]) + 2.2, c='white', edgecolors='black', s=15)
         am.grab_frame()
         print("\x1b[K", end="")
         print("Finished Frame ", i, "/", numFrames, end="\r")
@@ -233,51 +271,51 @@ with AnimationManager(outdir='.', filename_stem='latent_trajectory', filetype='m
 
 
 
-# %% You don't have to understand all of this, I just think it's interesting.
-plt.show()
-subspace_cov = np.cov(pls.project(x=pls.project(x=responses), project_up=True).T)
-full_d_cov = np.cov(responses.T)
-no_noise_cov = np.cov(no_noise_responses.T)
+# # %% You don't have to understand all of this, I just think it's interesting.
+# plt.show()
+# subspace_cov = np.cov(pls.project(x=pls.project(x=responses), project_up=True).T)
+# full_d_cov = np.cov(responses.T)
+# no_noise_cov = np.cov(no_noise_responses.T)
 
-true_tuning_structure = np.cov([[cannonical_tuning_curve(th - hd) for th in theta] for hd in hd_tunings])
-true_cov_matrix = np.block([[true_tuning_structure, np.zeros((n_head_direction_cells, n_non_hd_cells))],
-                            [np.zeros((n_non_hd_cells, n_head_direction_cells)), np.eye(n_non_hd_cells) * true_tuning_structure[0,0] * 1.2**2]])
+# true_tuning_structure = np.cov([[cannonical_tuning_curve(th - hd) for th in theta] for hd in hd_tunings])
+# true_cov_matrix = np.block([[true_tuning_structure, np.zeros((n_head_direction_cells, n_non_hd_cells))],
+#                             [np.zeros((n_non_hd_cells, n_head_direction_cells)), np.eye(n_non_hd_cells) * true_tuning_structure[0,0] * 1.2**2]])
 
 
-fig, axs = plt.subplots(figsize=(16, 3), ncols=4, layout="constrained")
-covariance_matrices = (
-    (subspace_cov, "Covariance in projected subspace"),
-    (full_d_cov, "Covariance of noisy responses"),
-    (no_noise_cov, "Covariance of noise-free responses"),
-    (true_cov_matrix, "Theoretical covariance"),
-)
-for ax, (matrix, title) in zip(axs, covariance_matrices):
-    image = ax.imshow(matrix, aspect="auto", cmap="viridis")
-    ax.set(
-        xlabel="Neuron index",
-        ylabel="Neuron index",
-        title=title,
-    )
-    fig.colorbar(image, ax=ax, label="Covariance")
-    ax.axis('scaled')
-plt.show()
+# fig, axs = plt.subplots(figsize=(16, 3), ncols=4, layout="constrained")
+# covariance_matrices = (
+#     (subspace_cov, "Covariance in projected subspace"),
+#     (full_d_cov, "Covariance of noisy responses"),
+#     (no_noise_cov, "Covariance of noise-free responses"),
+#     (true_cov_matrix, "Theoretical covariance"),
+# )
+# for ax, (matrix, title) in zip(axs, covariance_matrices):
+#     image = ax.imshow(matrix, aspect="auto", cmap="viridis")
+#     ax.set(
+#         xlabel="Neuron index",
+#         ylabel="Neuron index",
+#         title=title,
+#     )
+#     fig.colorbar(image, ax=ax, label="Covariance")
+#     ax.axis('scaled')
+# plt.show()
 
-# %%
+# # %%
 
-fig, axs = plt.subplots(figsize=(12, 3), ncols=3, layout="constrained")
-covariance_errors = (
-    (subspace_cov - full_d_cov, "Error due to dimensionality reduction"),
-    (full_d_cov - no_noise_cov, "Error due to observation noise"),
-    (no_noise_cov - true_cov_matrix, "Error due to head-direction sampling"),
-)
+# fig, axs = plt.subplots(figsize=(12, 3), ncols=3, layout="constrained")
+# covariance_errors = (
+#     (subspace_cov - full_d_cov, "Error due to dimensionality reduction"),
+#     (full_d_cov - no_noise_cov, "Error due to observation noise"),
+#     (no_noise_cov - true_cov_matrix, "Error due to head-direction sampling"),
+# )
 
-for ax, (matrix, title) in zip(axs, covariance_errors):
-    image = ax.imshow(matrix, aspect="auto", cmap="coolwarm")
-    ax.set(
-        xlabel="Neuron index",
-        ylabel="Neuron index",
-        title=title,
-    )
-    fig.colorbar(image, ax=ax, label="Covariance difference")
-    ax.axis('scaled')
-plt.show()
+# for ax, (matrix, title) in zip(axs, covariance_errors):
+#     image = ax.imshow(matrix, aspect="auto", cmap="coolwarm")
+#     ax.set(
+#         xlabel="Neuron index",
+#         ylabel="Neuron index",
+#         title=title,
+#     )
+#     fig.colorbar(image, ax=ax, label="Covariance difference")
+#     ax.axis('scaled')
+# plt.show()
