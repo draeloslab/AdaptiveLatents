@@ -1,0 +1,1 @@
+This project likely uses the conda environment `adaptive_latents`; if you're trying to execute code on an ubuntu machine with the hostname `tycho`, there is a mamba binary at `/home/jgould/miniconda3/bin/mamba` you can use.

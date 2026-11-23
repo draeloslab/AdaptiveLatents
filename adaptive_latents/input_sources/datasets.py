@@ -1290,6 +1290,4 @@ class Low21Dataset(MultiDataset):
 
 
 if __name__ == '__main__':
-    dataset = Duszkiewicz26Dataset()
-    neural_data = dataset.neural_data
-    print(neural_data.shape)
+    pass
