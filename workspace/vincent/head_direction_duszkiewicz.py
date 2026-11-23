@@ -16,11 +16,11 @@ rng = np.random.default_rng(0)
 # Mouse 4 - proPLS can't find a ring
 # Mouse 8 - proPLS finds a nice ring
 # Mouse 1 - proPLS finds a nice ring
-data = Duszkiewicz26Dataset(1, bin_width=0.03)
+data = Duszkiewicz26Dataset(4, bin_width=0.03)
 nd = data.neural_data # (######, 185) I think means 185 neurons?
 hd = data.head_direction # (######, 1) so an angle
 pos = data.position # should be x and y position? so (######, 2)
-spd = np.sqrt(np.power(np.diff(pos[:,0]),2)+np.power(np.diff(pos[:,1]),2))
+spd = np.sqrt(np.power(np.diff(pos[:,0]),2)+np.power(np.diff(pos[:,1]),2)) / np.diff(pos.t)
 spd = np.hstack((np.nan,spd))
 spd = np.reshape(ArrayWithTime(spd,pos.t),(-1,1))
 
@@ -195,12 +195,23 @@ yDist = latents_propls[:,1] - np.asarray(np.mean(latents_propls[:,1]))
 dist = np.sqrt(np.power(xDist,2) + np.power(yDist,2))
 # do a scatter plot of distance from centroid v. instantaneous speed
 fig, ax = plt.subplots()
-ax.scatter(dist, spd)
+ax.scatter(dist, spd, s=1)
 ax.set(
     xlabel="Distance from Centroid of Latent Space",
-    ylabel="Movement Speed (?/s)",
-    title="Movement Speed v. Dist from Centroid",
+    ylabel="Movement Speed (m/s)",
+    title="Dist from Centroid v. Movement Speed",
 )
+
+dy = np.diff(y) / np.diff(y.t)
+dy = np.hstack((np.nan,dy))
+fig, ax = plt.subplots()
+ax.scatter(dist, np.abs(dy), s=1)
+ax.set(
+    xlabel="Distance from Centroid of Latent Space",
+    ylabel="Change in Head Direction (rad/s)",
+    title="Dist from Centroid v. Change in Head Direction"
+)
+
 plt.show()
 
 def plot_history_with_tail_cmap(ax, data, current_t, tail_length=1, scatter_all=True, dim_1=0, dim_2=1, hist_bins=None, invisible=False, scatter_alpha=.1, scatter_s=5, c='gray', cmap='hsv'):
