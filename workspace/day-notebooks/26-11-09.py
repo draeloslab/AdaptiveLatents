@@ -40,7 +40,7 @@ ax.axis('scaled')
 
 # %%
 scale = 3*np.pi
-def cannonical_tuning_curve_f(x, x0, b=0, kappa=1.5, scale=scale):
+def cannonical_tuning_curve_f(x, x0, b=0, kappa=1, scale=scale):
     k_1 = scale * np.array([1, 0])
     k_2 =  scale * np.array([1, np.sqrt(3)]) / 2
     k_3 =  scale * np.array([-1, np.sqrt(3)]) / 2
@@ -103,6 +103,7 @@ alternate_rotations = np.linspace(0, np.pi/3, 40)
 scores = []
 scales = []
 rotations = []
+offsets = [] # TODO?
 for r in tqdm(alternate_rotations):
     rotation = np.array([[np.cos(r), -np.sin(r)], [np.sin(r), np.cos(r)]])
     for s in alternate_scales:
@@ -115,11 +116,65 @@ for r in tqdm(alternate_rotations):
         scores.append(reg.score(scale_embedding, x))
         scales.append(s)
         rotations.append(r)
+rotations = np.asarray(rotations)
 # %%
 
-fig, ax = plt.subplots()
-ax.scatter(scales, rotations, c=np.log(scores), cmap='viridis')
+rotations = np.asarray(rotations)
+fig, ax = plt.subplots(ncols=4, figsize=(12, 3))
+ax[0].scatter(scales, rotations, c=np.log(scores), cmap='viridis')
+ax[1].scatter(np.cos(rotations) * scales, np.sin(rotations) * scales, c=np.log(scores), cmap='viridis')
+ax[2].scatter(np.cos(np.array(rotations)*6) * scales, np.sin(np.array(rotations)*6) * scales, c=np.log(scores), cmap='viridis')
+for i in range(6):
+    ax[3].scatter(np.cos(rotations + np.pi/3 * i) * scales, np.sin(rotations + np.pi/3 * i) * scales, c=np.log(scores), cmap='viridis')
 # ax.axvline(scale)
+
+# %%
+
+score_grid = np.log(np.asarray(scores).reshape(len(alternate_rotations), len(alternate_scales)))
+scale_step = alternate_scales[1] - alternate_scales[0]
+rotation_step = alternate_rotations[1] - alternate_rotations[0]
+scale_edges = np.linspace(
+    alternate_scales[0] - scale_step / 2,
+    alternate_scales[-1] + scale_step / 2,
+    len(alternate_scales) + 1,
+)
+rotation_edges = np.linspace(
+    alternate_rotations[0] - rotation_step / 2,
+    alternate_rotations[-1] + rotation_step / 2,
+    len(alternate_rotations) + 1,
+)
+scale_grid, rotation_grid = np.meshgrid(scale_edges, rotation_edges)
+
+fig, axs = plt.subplots(ncols=4, figsize=(12, 3), constrained_layout=True)
+mesh = axs[0].pcolormesh(scale_grid, rotation_grid, score_grid, cmap='viridis', shading='flat')
+axs[1].pcolormesh(
+    np.cos(rotation_grid) * scale_grid,
+    np.sin(rotation_grid) * scale_grid,
+    score_grid,
+    cmap='viridis',
+    shading='flat',
+)
+for i in range(6):
+    mesh = axs[2].pcolormesh(
+        np.cos(rotation_grid + np.pi / 3 * i) * scale_grid,
+        np.sin(rotation_grid + np.pi / 3 * i) * scale_grid,
+        score_grid,
+        cmap='viridis',
+        shading='flat',
+    )
+axs[3].pcolormesh(
+    np.cos(rotation_grid * 6) * scale_grid,
+    np.sin(rotation_grid * 6) * scale_grid,
+    score_grid,
+    cmap='viridis',
+    shading='flat',
+)
+fig.colorbar(mesh, ax=axs, label='log score')
+
+axs[0].set_title('Scale vs rotation')
+axs[1].set_title('Scale vs rotation, polar')
+axs[2].set_title('Scale vs rotation, polar tiled')
+axs[3].set_title('Scale vs rotation, polar stretched')
 
 # %%
 pca = PCA(n_components=6)
