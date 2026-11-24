@@ -2,9 +2,15 @@ import copy
 import datetime
 import enum
 import functools
+import hashlib
 import os
+import re
+import shutil
 import sys
+import tempfile
+import urllib.request
 import warnings
+import zipfile
 from abc import ABC, abstractmethod
 from collections import deque
 from contextlib import contextmanager
@@ -1238,6 +1244,205 @@ class Duszkiewicz26Dataset(DandiDataset):
         A = np.stack([np.histogram(st, bins=edges)[0] for st in spike_times], axis=1)
         return ArrayWithTime(A, edges[1:])  # times are bin ends, as in Odoherty21
 
+
+
+class Gardner22Dataset(Dataset):
+    """Simultaneously recorded grid cells and behavior from Gardner et al.
+
+    Select a rat/day with an index or name from get_sub_datasets(), a session
+    with session_identifier, and optionally a single grid module (1-based).
+    By default all modules recorded in the selected session are included.
+
+    Spike counts use bin-end timestamps; the last bin of each valid interval
+    may be shorter than bin_width. Documented invalid intervals are omitted,
+    not compressed in time. Position is in meters, head direction in radians,
+    velocity is the unsmoothed derivative of x/y in meters per second, and
+    speed is its magnitude.
+    Behavioral samples are not resampled to neural bins. Sleep-box position
+    describes tracking during sleep and should not be interpreted as foraging.
+
+    The published NPZ files contain pickled spike dictionaries. Files are
+    checked against the hashes of figshare version 6 before unpickling.
+
+    Example: Gardner22Dataset('rat_r_day1', 'open_field_1', module=2)
+    loads the 168 cells in that recording's second grid module.
+    """
+    doi = 'https://doi.org/10.6084/m9.figshare.16764508.v6'
+    model_organism = ModelOrganism.RAT
+    automatically_downloadable = True
+    dataset_base_path = DATA_BASE_PATH / 'gardner22'
+    sub_datasets = ('rat_r_day1', 'rat_r_day2', 'rat_q', 'rat_s')
+    _archive_url = 'https://ndownloader.figshare.com/files/35078602'
+    _archive_hash = '56842a7ae8e8f9144e390c9cdd72494d8ea2c48f2ce89cdee4780a49ed495372'
+    _files = {
+        'rat_r_day1': ('rat_r_day1_grid_modules_1_2_3.npz', 'c7e5acbdcf1f7ec9c43dd1032b2a57cda2d69fdc7d0c904a237b2dceac65e5be',
+                       'a08d162130a9df628ea271f8764f651cee081cb9d68c484c7710da9fcd6979dd'),
+        'rat_r_day2': ('rat_r_day2_grid_modules_1_2_3.npz', '52abd86e6915d2c0e20e7f1376e85d6615310d7df15acb7abff6c3a4e6b57ad1',
+                       '1eeae9d9bfc358b7d960d21613a23b45b477dd4c4b2b6f604329a921f3aa973e'),
+        'rat_q': ('rat_q_grid_modules_1_2.npz', 'a3868405fe6c278402c41e3682e00bb69260d22b3d2e0f3d7449b70867b131e4',
+                  'ed0dd4a2b6f1a2026d9e3d4140678578bf9c41dbdb67bcfa6fcc5cdd855c5f7b'),
+        'rat_s': ('rat_s_grid_modules_1.npz', '4c94a5c4f693dfcbfe16a8abf574346eda61c61e91408797a2b7d7ce95846d87',
+                  '1e4b31764d4a09c4e6a33266c392437765c9f9c379c44213e9770d6247373c7b'),
+    }
+
+    @classmethod
+    def get_sub_datasets(cls):
+        return cls.sub_datasets
+
+    def __init__(self, sub_dataset_identifier=0, session_identifier='open_field_1', module=None, bin_width=0.1):
+        if isinstance(sub_dataset_identifier, int):
+            sub_dataset_identifier = self.sub_datasets[sub_dataset_identifier]
+        if sub_dataset_identifier not in self._files:
+            raise ValueError(f'Unknown recording: {sub_dataset_identifier}')
+        if not np.isfinite(bin_width) or bin_width <= 0:
+            raise ValueError('bin_width must be finite and positive')
+        if module is not None and (isinstance(module, bool) or not isinstance(module, int) or module < 1):
+            raise ValueError('module must be a positive integer or None')
+        self.sub_dataset = sub_dataset_identifier
+        self.session = session_identifier
+        self.module = module
+        self.bin_width = bin_width
+        self.construct()
+        warnings.warn('This needs to be checked by a human.')
+
+    @staticmethod
+    def _sha256(path):
+        digest = hashlib.sha256()
+        with open(path, 'rb') as f:
+            for block in iter(lambda: f.read(1024 * 1024), b''):
+                digest.update(block)
+        return digest.hexdigest()
+
+    def acquire(self, sub_dataset_identifier):
+        """Download the pinned archive if needed and return verified local paths."""
+        npz_name, npz_hash, sessions_hash = self._files[sub_dataset_identifier]
+        session_name = f'{sub_dataset_identifier}_sessions.txt'
+        root = self.dataset_base_path
+        root.mkdir(parents=True, exist_ok=True)
+        paths = (root / npz_name, root / session_name)
+        hashes = (npz_hash, sessions_hash)
+        for path, expected in zip(paths, hashes):
+            if path.exists() and self._sha256(path) != expected:
+                raise ValueError(f'Integrity check failed for {path}')
+        if all(path.exists() for path in paths):
+            return paths
+
+        archive = root / 'Toroidal_topology_grid_cell_data.zip'
+        if not archive.exists():
+            with tempfile.NamedTemporaryFile(dir=root, suffix='.download', delete=False) as tmp:
+                temp_path = tmp.name
+                try:
+                    with urllib.request.urlopen(self._archive_url) as response:
+                        shutil.copyfileobj(response, tmp)
+                    tmp.flush()
+                    if self._sha256(temp_path) != self._archive_hash:
+                        raise ValueError('Downloaded Gardner archive failed integrity check')
+                    os.replace(temp_path, archive)
+                finally:
+                    if os.path.exists(temp_path):
+                        os.unlink(temp_path)
+        if self._sha256(archive) != self._archive_hash:
+            raise ValueError(f'Integrity check failed for {archive}')
+        with zipfile.ZipFile(archive) as z:
+            for path, expected in zip(paths, hashes):
+                if path.exists():
+                    continue
+                with tempfile.NamedTemporaryFile(dir=root, suffix='.extract', delete=False) as tmp:
+                    temp_path = tmp.name
+                    try:
+                        with z.open(f'Toroidal_topology_grid_cell_data/{path.name}') as source:
+                            shutil.copyfileobj(source, tmp)
+                        tmp.flush()
+                        if self._sha256(temp_path) != expected:
+                            raise ValueError(f'Integrity check failed for {path.name}')
+                        os.replace(temp_path, path)
+                    finally:
+                        if os.path.exists(temp_path):
+                            os.unlink(temp_path)
+        return paths
+
+    @staticmethod
+    def _read_sessions(path):
+        sessions = {}
+        pattern = re.compile(r'#\d+,\s*(\w+),\s*start=(\d+),\s*end=(\d+)(?:,\s*valid_times=\[([^]]+)\])?')
+        with open(path) as f:
+            for line in f:
+                match = pattern.fullmatch(line.strip())
+                if not match:
+                    raise ValueError(f'Invalid session metadata: {line.strip()}')
+                name, start, end, valid = match.groups()
+                intervals = ([(float(a), float(b)) for a, b in
+                              (part.split(',') for part in valid.split(';'))] if valid
+                             else [(float(start), float(end))])
+                sessions[name] = intervals
+        return sessions
+
+    def construct(self):
+        npz_path, sessions_path = self.acquire(self.sub_dataset)
+        self.sessions = self._read_sessions(sessions_path)
+        if self.session not in self.sessions:
+            raise ValueError(f'Unknown session {self.session!r}; available: {tuple(self.sessions)}')
+        self.valid_intervals = self.sessions[self.session]
+        with np.load(npz_path, allow_pickle=True) as data:
+            modules = sorted(int(k[len('spikes_mod'):]) for k in data.files if k.startswith('spikes_mod'))
+            if self.module is not None and self.module not in modules:
+                raise ValueError(f'Module {self.module} not available; choose from {modules}')
+            modules = modules if self.module is None else [self.module]
+            self.spike_times = {}
+            for module in modules:
+                for cell, times in sorted(data[f'spikes_mod{module}'].item().items()):
+                    times = np.asarray(times)
+                    keep = np.zeros(len(times), dtype=bool)
+                    for start, end in self.valid_intervals:
+                        keep |= (times >= start) & (times < end)
+                    self.spike_times[(module, cell)] = times[keep]
+            t = data['t']
+            mask = np.zeros(len(t), dtype=bool)
+            for start, end in self.valid_intervals:
+                mask |= (t >= start) & (t < end)
+            t = t[mask]
+            pos = np.column_stack((data['x'][mask], data['y'][mask]))
+            z = data['z'][mask]
+            hd = data['azimuth'][mask]
+
+        velocity = np.full(pos.shape, np.nan, dtype=float)
+        valid_pos = pos.astype(float)
+        valid_pos[~np.isfinite(valid_pos).all(axis=1)] = np.nan
+        for start, end in self.valid_intervals:
+            selected = (t >= start) & (t < end)
+            if selected.sum() >= 2:
+                velocity[selected] = np.gradient(valid_pos[selected], t[selected], axis=0)
+        velocity[~np.isfinite(valid_pos).all(axis=1)] = np.nan
+        self.position = ArrayWithTime(pos, t)
+        self.height = ArrayWithTime(z[:, None], t)
+        self.head_direction = ArrayWithTime(hd[:, None], t)
+        self.velocity = ArrayWithTime(velocity, t)
+        self.speed = ArrayWithTime(np.linalg.norm(velocity, axis=1)[:, None], t)
+        self.behavioral_data = self.position
+        self.unit_ids = tuple(self.spike_times)
+
+        all_edges = []
+        for start, end in self.valid_intervals:
+            n = int((end - start) // self.bin_width)
+            edges = start + np.arange(n + 1) * self.bin_width
+            if n and np.isclose(edges[-1], end, rtol=0, atol=1e-10):
+                edges[-1] = end
+            else:
+                edges = np.append(edges, end)
+            all_edges.append(edges)
+        n_bins = sum(len(edges) - 1 for edges in all_edges)
+        counts = np.zeros((n_bins, len(self.unit_ids)), dtype=np.int32)
+        bin_times = np.concatenate([edges[1:] for edges in all_edges])
+        for col, times in enumerate(self.spike_times.values()):
+            offset = 0
+            for edges in all_edges:
+                selected = times[(times >= edges[0]) & (times < edges[-1])]
+                n = len(edges) - 1
+                counts[offset:offset + n, col] = np.histogram(selected, bins=edges)[0]
+                offset += n
+        self.neural_data = ArrayWithTime(counts, bin_times)
+
+
 class DummyCircleDataset(Dataset):
     # meant to mock Odoherty21
     doi = None
@@ -1271,23 +1476,6 @@ class DummyCircleDataset(Dataset):
         return neural_data, behavioral_data
 
 
-"""
-class Low21Dataset(MultiDataset):
-    doi = "https://doi.org/10.17632/hntn6m2pgk.1"
-    automatically_downloadable = True
-    dataset_base_path = DATA_BASE_PATH / 'low21'
-
-    def acquire(self, sub_dataset_identifier=None):
-        if len(list(self.dataset_base_path.glob("*.npy"))) == 0:
-            datahugger.get(self.doi, self.dataset_base_path)
-
-    # def construct(self, sub_dataset_identifier=None):
-    #     pass
-    #
-    # def get_sub_datasets(self):
-    #     pass
-"""
-
-
 if __name__ == '__main__':
-    pass
+    d = Gardner22Dataset()
+    print(d.neural_data.shape)
